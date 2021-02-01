@@ -1,0 +1,452 @@
+
+<h2 id="change-the-node-name">Change the Node Name</h2>
+
+<p>The node name is an important setting for the Erlang VM, especially when
+you want to build a cluster of nodes, as the node name identifies both
+the Erlang application and the host name on the network. All nodes in
+the Riak cluster need these node names to communicate and coordinate
+with each other.</p>
+
+<p>In your configuration files, the node name defaults to <code class="language-plaintext highlighter-rouge">riak@127.0.0.1</code>.
+To change the node name, change the following line:</p>
+
+<pre><code class="language-riakconf">nodename = riak@127.0.0.1
+</code></pre>
+
+<pre><code class="language-vmargs">-name riak@127.0.0.1
+</code></pre>
+
+<p>Change it to something that corresponds to either the IP address or a
+resolvable host name for this particular node, like so:</p>
+
+<pre><code class="language-riakconf">nodename = riak@192.168.1.10
+</code></pre>
+
+<pre><code class="language-vmargs">-name riak@192.168.1.10
+</code></pre>
+
+<h2 id="change-the-http-and-protocol-buffers-binding-address">Change the HTTP and Protocol Buffers binding address</h2>
+
+<p>By default, Riak’s HTTP and Protocol Buffers services are bound to the
+local interface, i.e. 127.0.0.1, and are therefore unable to serve
+requests from the outside network. The relevant setting is in your
+<a href="/riak/kv/2.2.2/configuring/reference">configuration files</a>:</p>
+
+<pre><code class="language-riakconf"># For HTTP
+listener.http.internal = 127.0.0.1:8098
+
+# For Protocol Buffers
+listener.protobuf.internal = 127.0.0.1:8087
+</code></pre>
+
+<pre><code class="language-appconfig">% In the riak_api section
+
+% For HTTP
+{http, [ {"127.0.0.1", 8098 } ]},
+
+% For Protocol Buffers
+{pb, [ {"127.0.0.1", 8087} ] },
+</code></pre>
+
+<p>Either change it to use an IP address that corresponds to one of the
+server’s network interfaces, or 0.0.0.0 to allow access from all
+interfaces and networks, e.g.:</p>
+
+<pre><code class="language-riakconf">listener.http.internal = 0.0.0.0:8098
+</code></pre>
+
+<pre><code class="language-appconfig">% In the riak_core section
+{http, [ {"0.0.0.0", 8098 } ]},
+</code></pre>
+
+<p>The same configuration should be changed for the Protocol Buffers
+interface if you intend on using it (which we recommend). Change the
+following line:</p>
+
+<pre><code class="language-riakconf">listener.protobuf.internal = 0.0.0.0:8087
+</code></pre>
+
+<pre><code class="language-appconfig">% In the riak_core section
+{pb, [ {"0.0.0.0", 8087} ] },
+</code></pre>
+
+<h2 id="rename-single-node-clusters">Rename Single Node Clusters</h2>
+
+<p>To rename a single-node development cluster:</p>
+
+<ol>
+  <li>
+    <p>Stop the node with <code class="language-plaintext highlighter-rouge">riak stop</code>.</p>
+  </li>
+  <li>
+    <p>Change the node’s <code class="language-plaintext highlighter-rouge">nodename</code> parameter in <code class="language-plaintext highlighter-rouge">riak.conf</code>, or <code class="language-plaintext highlighter-rouge">-name</code> parameter in <code class="language-plaintext highlighter-rouge">vm.args</code> to the new name.</p>
+  </li>
+  <li>
+    <p>Change any IP addresses in <code class="language-plaintext highlighter-rouge">riak.conf</code> or <code class="language-plaintext highlighter-rouge">app.config</code> if necessary. Specifically: <code class="language-plaintext highlighter-rouge">listener.protobuf.$name</code>, <code class="language-plaintext highlighter-rouge">listener.http.$name</code>, and <code class="language-plaintext highlighter-rouge">listener.https.$name</code> in <code class="language-plaintext highlighter-rouge">riak.conf</code>, and <code class="language-plaintext highlighter-rouge">pb_ip</code>, <code class="language-plaintext highlighter-rouge">http</code>, <code class="language-plaintext highlighter-rouge">https</code>, and <code class="language-plaintext highlighter-rouge">cluster_mgr</code> in <code class="language-plaintext highlighter-rouge">app.config</code>.</p>
+  </li>
+  <li>
+    <p>Delete the contents of the node’s <code class="language-plaintext highlighter-rouge">ring</code> directory. The location of the ring directory is the value for the <code class="language-plaintext highlighter-rouge">ring.state_dir</code> in <code class="language-plaintext highlighter-rouge">riak.conf</code>, or <code class="language-plaintext highlighter-rouge">ring_state_dir</code> in <code class="language-plaintext highlighter-rouge">app.config</code>.</p>
+  </li>
+  <li>
+    <p>Start Riak on the node with <code class="language-plaintext highlighter-rouge">riak start</code>.</p>
+  </li>
+</ol>
+
+<h2 id="rename-multi-node-clusters">Rename Multi-Node Clusters</h2>
+
+<p>For multi-node clusters, a rename is a slightly more complex procedure; however, it is very similar to the process for renaming a single node.</p>
+
+<p>Previous to Riak version 1.2, a cluster node’s name could only be changed with the <a href="/riak/kv/2.2.2/using/admin/riak-admin/#reip"><code class="language-plaintext highlighter-rouge">riak-admin reip</code></a> command, which involves downtime for the entire cluster. As of Riak version 1.2, that method has been superseded by <a href="/riak/kv/2.2.2/using/admin/riak-admin/#cluster-force-replace"><code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace</code></a>, which is safer and does not require cluster wide downtime.</p>
+
+<p>There still exist scenarios that require nodes to be renamed while stopped, such as seeding a cluster with backups from another cluster that does not share the same node names. Please see the <a href="#clusters-from-backups">Clusters from Backups</a> section for more details on renaming in this scenario.</p>
+
+<p>The following example describes reconfiguring node names with the new <code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace</code> method.</p>
+
+<h3 id="example-scenario">Example Scenario</h3>
+
+<p>For this example scenario, Riak is operating in a cluster of 5 nodes with the following network configuration:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">riak@10.1.42.11</code> on <code class="language-plaintext highlighter-rouge">node1.localdomain</code> → IP address changing to 192.168.17.11</li>
+  <li><code class="language-plaintext highlighter-rouge">riak@10.1.42.12</code> on <code class="language-plaintext highlighter-rouge">node2.localdomain</code> → IP address changing to 192.168.17.12</li>
+  <li><code class="language-plaintext highlighter-rouge">riak@10.1.42.13</code> on <code class="language-plaintext highlighter-rouge">node3.localdomain</code> → IP address changing to 192.168.17.13</li>
+  <li><code class="language-plaintext highlighter-rouge">riak@10.1.42.14</code> on <code class="language-plaintext highlighter-rouge">node4.localdomain</code> → IP address changing to 192.168.17.14</li>
+  <li><code class="language-plaintext highlighter-rouge">riak@10.1.42.15</code> on <code class="language-plaintext highlighter-rouge">node5.localdomain</code> → IP address changing to 192.168.17.15</li>
+</ul>
+
+<p>The above list shows the network configuration details for our 5 nodes, including the Erlang node name value, the node’s fully qualified domain name, and the new IP address each node will be configured to use.</p>
+
+<p>The nodes in our example cluster are currently configured to use the <em>10.1.42.</em> private subnetwork range. Our goal for this example will be to configure the nodes to instead use the  <em>192.168.17.</em> private subnetwork range and do so in a rolling fashion without interrupting cluster operation.</p>
+
+<h3 id="process">Process</h3>
+
+<p>This process can be accomplished in three phases. The details and steps required of each phase are presented in the following section.</p>
+
+<ol>
+  <li><a href="#down">Down the node to be reconfigured</a></li>
+  <li><a href="#reconfigure">Reconfigure node to use new address</a></li>
+  <li><a href="#repeat">Repeat previous steps on each node</a></li>
+</ol>
+
+<p><a id="down"></a></p>
+<h4 id="down-the-node">Down the Node</h4>
+
+<ol>
+  <li>
+    <p>Stop Riak on <code class="language-plaintext highlighter-rouge">node1.localdomain</code>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak stop
+</code></pre></div>    </div>
+
+    <p>The output should look like this:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code> Attempting to restart script through sudo -H -u riak
+ ok
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>From the <code class="language-plaintext highlighter-rouge">node2.localdomain</code> node, mark <code class="language-plaintext highlighter-rouge">riak@10.1.42.11</code> down:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin down riak@10.1.42.11
+</code></pre></div>    </div>
+
+    <p>Successfully marking the node down should produce output like this:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> Attempting to restart script through <span class="nb">sudo</span> <span class="nt">-H</span> <span class="nt">-u</span> riak
+ Success: <span class="s2">"riak@10.1.42.11"</span> marked as down
+</code></pre></div>    </div>
+
+    <p>This step informs the cluster that <code class="language-plaintext highlighter-rouge">riak@10.1.42.11</code> is offline and ring-state transitions should be allowed. While we’re executing the <code class="language-plaintext highlighter-rouge">riak-admin down</code> command from <code class="language-plaintext highlighter-rouge">node2.localdomain</code> in this example, the command can be executed from any currently running node.</p>
+  </li>
+</ol>
+
+<p><a id="reconfigure"></a></p>
+<h4 id="reconfigure-node-to-use-new-address">Reconfigure Node to Use New Address</h4>
+
+<p>Reconfigure <code class="language-plaintext highlighter-rouge">node1.localdomain</code> to listen on the new private IP address <em>192.168.17.11</em> by following these steps:</p>
+
+<ol>
+  <li>
+    <p>Change the node’s <code class="language-plaintext highlighter-rouge">nodename</code> parameter in <code class="language-plaintext highlighter-rouge">riak.conf</code>, or <code class="language-plaintext highlighter-rouge">-name</code> parameter in <code class="language-plaintext highlighter-rouge">vm.args</code>, to reflect the new node name. For example:</p>
+
+    <p><code class="language-plaintext highlighter-rouge">riak.conf</code>: <code class="language-plaintext highlighter-rouge">nodename = riak@192.168.17.11</code><br />
+ <code class="language-plaintext highlighter-rouge">vm.args</code> : <code class="language-plaintext highlighter-rouge">-name riak@192.168.17.11</code></p>
+  </li>
+  <li>
+    <p>Change any IP addresses to <em>192.168.17.11</em> in <code class="language-plaintext highlighter-rouge">riak.conf</code> or <code class="language-plaintext highlighter-rouge">app.config</code> as previously described in step 3 of <a href="#single-node-clusters">Single Node Clusters</a>.</p>
+  </li>
+  <li>
+    <p>Rename the node’s <code class="language-plaintext highlighter-rouge">ring</code> directory, the location of which is described in step 4 of <a href="#single-node-clusters">Single Node Clusters</a>.  You may rename it to whatever you like, as it will only be used as a backup during the node renaming process.</p>
+  </li>
+  <li>
+    <p>Start Riak on <code class="language-plaintext highlighter-rouge">node1.localdomain</code>.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak start
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Join the node back into the cluster.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster <span class="nb">join </span>riak@10.1.42.12
+</code></pre></div>    </div>
+
+    <p>Successful staging of the join request should have output like this:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> Attempting to restart script through <span class="nb">sudo</span> <span class="nt">-H</span> <span class="nt">-u</span> riak
+ Success: staged <span class="nb">join </span>request <span class="k">for</span> <span class="s1">'riak@192.168.17.11'</span> to <span class="s1">'riak@10.1.42.12'</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Use <code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace</code> to change all ownership references from <code class="language-plaintext highlighter-rouge">riak@10.1.42.11</code> to <code class="language-plaintext highlighter-rouge">riak@192.168.17.11</code>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster force-replace riak@10.1.42.11 riak@192.168.17.11
+</code></pre></div>    </div>
+
+    <p>Successful force replacement staging output looks like this:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> Attempting to restart script through <span class="nb">sudo</span> <span class="nt">-H</span> <span class="nt">-u</span> riak
+ Success: staged forced replacement of <span class="s1">'riak@10.1.42.11'</span> with <span class="s1">'riak@192.168.17.11'</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Review the new changes with <code class="language-plaintext highlighter-rouge">riak-admin cluster plan:</code></p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster plan
+</code></pre></div>    </div>
+
+    <p>Example output:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> Attempting to restart script through <span class="nb">sudo</span> <span class="nt">-H</span> <span class="nt">-u</span> riak
+ <span class="o">===========================</span> Staged Changes <span class="o">============================</span>
+ Action         Nodes<span class="o">(</span>s<span class="o">)</span>
+ <span class="nt">-----------------------------------------------------------------------</span>
+ <span class="nb">join</span>           <span class="s1">'riak@192.168.17.11'</span>
+ force-replace  <span class="s1">'riak@10.1.42.11'</span> with <span class="s1">'riak@192.168.17.11'</span>
+ <span class="nt">-----------------------------------------------------------------------</span>
+
+ WARNING: All of <span class="s1">'riak@10.1.42.11'</span> replicas will be lost
+
+ NOTE: Applying these changes will result <span class="k">in </span>1 cluster transition
+
+ <span class="c">#######################################################################</span>
+                      After cluster transition 1/1
+ <span class="c">#######################################################################</span>
+
+ <span class="o">=============================</span> Membership <span class="o">==============================</span>
+ Status     Ring    Pending    Node
+ <span class="nt">-----------------------------------------------------------------------</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.11'</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.12'</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.13'</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.14'</span>
+ valid      18.8%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.15'</span>
+ <span class="nt">-----------------------------------------------------------------------</span>
+ Valid:5 / Leaving:0 / Exiting:0 / Joining:0 / Down:0
+
+ Partitions reassigned from cluster changes: 13
+ 13 reassigned from <span class="s1">'riak@10.1.42.11'</span> to <span class="s1">'riak@192.168.17.11'</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Commit the new changes to the cluster with <code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster commit
+</code></pre></div>    </div>
+
+    <p>Output from the command should resemble this example:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> Attempting to restart script through <span class="nb">sudo</span> <span class="nt">-H</span> <span class="nt">-u</span> riak
+ Cluster changes committed
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Check that the node is participating in the cluster and functioning as expected:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin member-status
+</code></pre></div>    </div>
+
+    <p>Output should resemble this example:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> Attempting to restart script through <span class="nb">sudo</span> <span class="nt">-H</span> <span class="nt">-u</span> riak
+ <span class="o">=============================</span> Membership <span class="o">==============================</span>
+ Status     Ring    Pending    Node
+ <span class="nt">-----------------------------------------------------------------------</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.11'</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.12'</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.13'</span>
+ valid      20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.14'</span>
+ valid      18.8%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.15'</span>
+ <span class="nt">-----------------------------------------------------------------------</span>
+ Valid:5 / Leaving:0 / Exiting:0 / Joining:0 / Down:0
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Monitor hinted handoff transfers to ensure they have finished with the <code class="language-plaintext highlighter-rouge">riak-admin transfers</code> command.</p>
+  </li>
+  <li>
+    <p>Clean up by deleting the renamed <code class="language-plaintext highlighter-rouge">ring</code> directory once all previous steps have been successfully completed.</p>
+  </li>
+</ol>
+
+<p>When using the <code class="language-plaintext highlighter-rouge">riak-admin force-replace</code> command, you will always get a
+warning message like: <code class="language-plaintext highlighter-rouge">WARNING: All of 'riak@10.1.42.11' replicas will be
+lost</code>. Since we didn’t delete any data files and we are replacing the node
+with itself under a new name, we will not lose any replicas.</p>
+
+<p><a id="repeat"></a></p>
+<h4 id="repeat-previous-steps-on-each-node">Repeat previous steps on each node</h4>
+
+<p>Repeat the steps above for each of the remaining nodes in the cluster.</p>
+
+<p>Use <em>riak@192.168.17.11</em> as the target node for further <code class="language-plaintext highlighter-rouge">riak-admin cluster join</code> commands issued from subsequently reconfigured nodes to join those nodes to the cluster.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster <span class="nb">join </span>riak@192.168.17.11
+</code></pre></div></div>
+
+<p>A successful join request staging produces output similar to this example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Attempting to restart script through <span class="nb">sudo</span> <span class="nt">-H</span> <span class="nt">-u</span> riak
+Success: staged <span class="nb">join </span>request <span class="k">for</span> <span class="s1">'riak@192.168.17.12'</span> to <span class="s1">'riak@192.168.17.11'</span>
+</code></pre></div></div>
+
+<h2 id="clusters-from-backups">Clusters from Backups</h2>
+
+<p>The above steps describe a process for renaming nodes in a running cluster. When seeding a new cluster with backups where the nodes must have new names, typically done as a secondary cluster or in a disaster recovery scenario, a slightly different process must be used. This is because the node names must resolve to the new hosts in order for the nodes to start and communicate with each other.</p>
+
+<p>Expanding on the Example Scenario above, the below steps can be used to rename nodes in a cluster that is being restored from backups. The below steps assume every node is offline, and they will indicate when to bring each node online.</p>
+
+<h4 id="bringing-up-the-first-node">Bringing Up the First Node</h4>
+
+<p>In order to bring our first node online, we’ll first need to use the <code class="language-plaintext highlighter-rouge">riak-admin reip</code> command on a single node. In this example, we’ll use <code class="language-plaintext highlighter-rouge">riak@10.1.42.11</code> as our first node.</p>
+
+<ol>
+  <li>
+    <p>In <code class="language-plaintext highlighter-rouge">riak.conf</code> change <code class="language-plaintext highlighter-rouge">nodename</code>, <code class="language-plaintext highlighter-rouge">-name</code> in <code class="language-plaintext highlighter-rouge">vm.args</code>, from <code class="language-plaintext highlighter-rouge">riak@10.1.42.11</code> to your new nodename, <code class="language-plaintext highlighter-rouge">riak@192.168.17.11</code>.</p>
+  </li>
+  <li>
+    <p>On <code class="language-plaintext highlighter-rouge">node1.localdomain</code> run <code class="language-plaintext highlighter-rouge">riak-admin reip riak@10.1.42.11 riak@192.168.17.11</code>. This will change the name of <code class="language-plaintext highlighter-rouge">riak@10.1.42.11</code> to <code class="language-plaintext highlighter-rouge">riak@192.168.17.11</code> in the Riak ring.</p>
+  </li>
+  <li>
+    <p>Start Riak on <code class="language-plaintext highlighter-rouge">node1.localdomain</code>.</p>
+  </li>
+  <li>
+    <p>Once Riak is started on <code class="language-plaintext highlighter-rouge">node1.localdomain</code>, mark the rest of the nodes in the cluster down, using <code class="language-plaintext highlighter-rouge">riak-admin down</code>. For example, we would down <code class="language-plaintext highlighter-rouge">riak@10.1.42.12</code> with <code class="language-plaintext highlighter-rouge">riak-admin down riak@10.1.42.12</code>.</p>
+  </li>
+  <li>
+    <p>Confirm every other node in the cluster is marked down by running <code class="language-plaintext highlighter-rouge">riak-admin member-status</code> on <code class="language-plaintext highlighter-rouge">node1.localdomain</code>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">=================================</span> Membership <span class="o">==================================</span>
+Status     Ring        Pending    Node
+<span class="nt">-------------------------------------------------------------------------------</span>
+valid       20.3%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.11'</span>
+down        20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.12'</span>
+down        20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.13'</span>
+down        20.3%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.14'</span>
+down        18.8%      <span class="nt">--</span>      <span class="s1">'riak@10.1.42.15'</span>
+<span class="nt">-------------------------------------------------------------------------------</span>
+Valid:1 / Leaving:0 / Exiting:0 / Joining:0 / Down:4
+
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Ensure <code class="language-plaintext highlighter-rouge">riak@192.168.17.11</code> is listed as the claimant by running <code class="language-plaintext highlighter-rouge">riak-admin ring-status</code> on <code class="language-plaintext highlighter-rouge">node1.localdomain</code>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">==================================</span> Claimant <span class="o">===================================</span>
+Claimant:  <span class="s1">'riak@192.168.17.11'</span>
+Status:     up
+Ring Ready: <span class="nb">true</span>
+
+<span class="o">==============================</span> Ownership Handoff <span class="o">==============================</span>
+No pending changes.
+
+<span class="o">==============================</span> Unreachable Nodes <span class="o">==============================</span>
+All nodes are up and reachable
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>Once all nodes are marked as down and our first node is listed as the claimant, we can proceed with the rest of the nodes.</p>
+
+<h4 id="bringing-up-the-remaining-nodes">Bringing Up the Remaining Nodes</h4>
+
+<ol>
+  <li>
+    <p>On each of the remaining nodes, change <code class="language-plaintext highlighter-rouge">nodename</code> in <code class="language-plaintext highlighter-rouge">riak.conf</code>, or <code class="language-plaintext highlighter-rouge">-name</code> in <code class="language-plaintext highlighter-rouge">vm.args</code> as described above.</p>
+  </li>
+  <li>
+    <p>Move aside the ring directory. As in <a href="#multi-node-clusters">Multi-Node Clusters</a>, we will save this ring directory as a backup until were finished.</p>
+  </li>
+  <li>
+    <p>Start each node. They will start as if they are each a member of their own cluster, but will retain their restored data.</p>
+  </li>
+  <li>
+    <p>Join each node to our first node using <code class="language-plaintext highlighter-rouge">riak-admin cluster join riak@192.168.17.11</code>.</p>
+  </li>
+  <li>
+    <p>Force replace each node with its old node name. For example, <code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace riak@10.1.42.12 riak@192.168.17.12</code>.</p>
+  </li>
+  <li>
+    <p>Once the above is complete for each node, run <code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code> on any node. The output should look similar to below:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">===============================</span> Staged Changes <span class="o">================================</span>
+Action         Details<span class="o">(</span>s<span class="o">)</span>
+<span class="nt">-------------------------------------------------------------------------------</span>
+force-replace  <span class="s1">'riak@10.1.42.12'</span> with <span class="s1">'riak@192.168.17.12'</span>
+force-replace  <span class="s1">'riak@10.1.42.13'</span> with <span class="s1">'riak@192.168.17.13'</span>
+force-replace  <span class="s1">'riak@10.1.42.14'</span> with <span class="s1">'riak@192.168.17.14'</span>
+force-replace  <span class="s1">'riak@10.1.42.15'</span> with <span class="s1">'riak@192.168.17.15'</span>
+<span class="nb">join</span>           <span class="s1">'riak@192.168.17.12'</span>
+<span class="nb">join</span>           <span class="s1">'riak@192.168.17.13'</span>
+<span class="nb">join</span>           <span class="s1">'riak@192.168.17.14'</span>
+<span class="nb">join</span>           <span class="s1">'riak@192.168.17.15'</span>
+<span class="nt">-------------------------------------------------------------------------------</span>
+
+WARNING: All of <span class="s1">'riak@10.1.42.12'</span> replicas will be lost
+WARNING: All of <span class="s1">'riak@10.1.42.13'</span> replicas will be lost
+WARNING: All of <span class="s1">'riak@10.1.42.14'</span> replicas will be lost
+WARNING: All of <span class="s1">'riak@10.1.42.15'</span> replicas will be lost
+
+NOTE: Applying these changes will result <span class="k">in </span>1 cluster transition
+
+<span class="c">###############################################################################</span>
+                         After cluster transition 1/1
+<span class="c">###############################################################################</span>
+
+<span class="o">=================================</span> Membership <span class="o">==================================</span>
+Status     Ring    Pending    Node
+<span class="nt">-------------------------------------------------------------------------------</span>
+valid       20.3%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.11'</span>
+valid       20.3%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.12'</span>
+valid       20.3%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.13'</span>
+valid       20.3%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.14'</span>
+valid       18.8%      <span class="nt">--</span>      <span class="s1">'riak@192.168.17.15'</span>
+<span class="nt">-------------------------------------------------------------------------------</span>
+Valid:5 / Leaving:0 / Exiting:0 / Joining:0 / Down:0
+
+Partitions reassigned from cluster changes: 51
+  13 reassigned from <span class="s1">'riak@10.1.42.12'</span> to <span class="s1">'riak@192.168.17.12'</span>
+  13 reassigned from <span class="s1">'riak@10.1.42.13'</span> to <span class="s1">'riak@192.168.17.13'</span>
+  13 reassigned from <span class="s1">'riak@10.1.42.14'</span> to <span class="s1">'riak@192.168.17.14'</span>
+  12 reassigned from <span class="s1">'riak@10.1.42.15'</span> to <span class="s1">'riak@192.168.17.15'</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>If the above plan looks correct, commit the cluster changes with <code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code>.</p>
+  </li>
+  <li>
+    <p>Once the cluster transition has completed, all node names should be changed and be marked as valid in <code class="language-plaintext highlighter-rouge">riak-admin member-status</code> like below:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">=================================</span> Membership <span class="o">==================================</span>
+Status       Ring       Pending    Node
+<span class="nt">-------------------------------------------------------------------------------</span>
+valid        20.3%      <span class="nt">--</span>        <span class="s1">'riak@192.168.17.11'</span>
+valid        20.3%      <span class="nt">--</span>        <span class="s1">'riak@192.168.17.12'</span>
+valid        20.3%      <span class="nt">--</span>        <span class="s1">'riak@192.168.17.13'</span>
+valid        20.3%      <span class="nt">--</span>        <span class="s1">'riak@192.168.17.14'</span>
+valid        18.8%      <span class="nt">--</span>        <span class="s1">'riak@192.168.17.15'</span>
+<span class="nt">-------------------------------------------------------------------------------</span>
+Valid:5 / Leaving:0 / Exiting:0 / Joining:0 / Down:0
+
+</code></pre></div>    </div>
+  </li>
+</ol>

@@ -1,0 +1,216 @@
+
+<p>In Riak KV, MapReduce is the primary method for non-primary-key-based
+querying. Although useful for tasks such as batch
+processing jobs, MapReduce operations can be very computationally
+expensive to the extent that they can degrade performance in
+production clusters operating under load. Thus, we recommend running
+MapReduce operations in a controlled, rate-limited fashion and never for
+realtime querying purposes.</p>
+
+<p>MapReduce (M/R) is a technique for dividing data processing work across
+a distributed system. It takes advantage of the parallel processing
+power of distributed systems and also reduces network bandwidth, as the
+algorithm is passed around to where the data lives rather than
+transferring a potentially huge dataset to a client algorithm.</p>
+
+<p>You can use MapReduce for things like: filtering documents by
+tags, counting words in documents, and extracting links to related data.
+In Riak KV, MapReduce is one method for querying that is not strictly based
+on key querying, alongside <a href="/riak/kv/2.2.3/developing/usage/secondary-indexes">secondary indexes</a>
+and <a href="/riak/kv/2.2.3/developing/usage/search">search</a>. MapReduce jobs can be submitted through the
+<a href="/riak/kv/2.2.3/developing/api/http">HTTP API</a> or the <a href="/riak/kv/2.2.3/developing/api/protocol-buffers">Protocol Buffers API</a>, although we
+strongly recommend using the Protocol Buffers API for performance
+reasons.</p>
+
+<h2 id="features">Features</h2>
+
+<ul>
+  <li>Map phases execute in parallel with data locality.</li>
+  <li>Reduce phases execute in parallel on the node where the job was
+submitted.</li>
+  <li>MapReduce queries written in Erlang.</li>
+</ul>
+
+<h2 id="when-to-use-mapreduce">When to Use MapReduce</h2>
+
+<ul>
+  <li>When you know the set of objects over which you want to MapReduce
+(i.e. the locations of the objects, as specified by <a href="/riak/kv/2.2.3/developing/usage/bucket-types">bucket type</a>, bucket, and key)</li>
+  <li>When you want to return actual objects or pieces of objects and not
+just the keys. <a href="/riak/kv/2.2.3/developing/usage/search">Search</a> and <a href="/riak/kv/2.2.3/developing/usage/secondary-indexes">secondary indexes</a> are other means of returning objects based on
+non-key-based queries, but they only return lists of keys and not
+whole objects.</li>
+  <li>When you need the utmost flexibility in querying your data. MapReduce
+gives you full access to your object and lets you pick it apart any
+way you want.</li>
+</ul>
+
+<h2 id="when-not-to-use-mapreduce">When Not to Use MapReduce</h2>
+
+<ul>
+  <li>When you want to query data over an entire bucket. MapReduce uses a
+list of keys, which can place a lot of demand on the cluster.</li>
+  <li>When you want latency to be as predictable as possible.</li>
+</ul>
+
+<h2 id="how-it-works">How it Works</h2>
+
+<p>The MapReduce framework helps developers divide a query into steps,
+divide the dataset into chunks, and then run those step/chunk pairs in
+separate physical hosts.</p>
+
+<p>There are two steps in a MapReduce query:</p>
+
+<ul>
+  <li><strong>Map</strong> — The data collection phase, which breaks up large chunks of
+work into smaller ones and then takes action on each chunk. Map
+phases consist of a function and a list of objects on which the map
+operation will operate.</li>
+  <li><strong>Reduce</strong> — The data collation or processing phase, which combines
+the results from the map step into a single output. The reduce phase
+is optional.</li>
+</ul>
+
+<p>Riak KV MapReduce queries have two components:</p>
+
+<ul>
+  <li>A list of inputs</li>
+  <li>A list of phases</li>
+</ul>
+
+<p>The elements of the input list are object locations as specified by
+<a href="/riak/kv/2.2.3/developing/usage/bucket-types">bucket type</a>, bucket, and key. The elements of the
+phases list are chunks of information related to a map, a reduce, or a
+link function.</p>
+
+<p>A MapReduce query begins when a client makes the request to Riak KV. The
+node that the client contacts to make the request becomes the
+<em>coordinating node</em> responsible for the MapReduce job. As described
+above, each job consists of a list of phases, where each phase is either
+a map or a reduce phase. The coordinating node uses the list of phases
+to route the object keys and the function that will operate over the
+objects stored in those keys and instruct the proper <a href="/riak/kv/2.2.3/learn/glossary/#vnode">vnode</a> to
+run that function over the right objects.</p>
+
+<p>After running the map function, the results are sent back to the
+coordinating node. This node then concatenates the list and passes that
+information over to a reduce phase on the same coordinating node,
+assuming that the next phase in the list is a reduce phase.</p>
+
+<p>The diagram below provides an illustration of how a coordinating vnode
+orchestrates a MapReduce job.</p>
+
+<p><img src="/images/MapReduce-diagram.png" alt="MapReduce Diagram" /></p>
+
+<h2 id="example">Example</h2>
+
+<p>In this example, we’ll create four objects with the text “caremad”
+repeated a varying number of times and store those objects in the bucket
+<code class="language-plaintext highlighter-rouge">training</code> (which does not bear a <a href="/riak/kv/2.2.3/developing/usage/bucket-types">bucket type</a>).
+An Erlang MapReduce function will be used to count the occurrences of
+the word “caremad.”</p>
+
+<h3 id="data-object-input-commands">Data object input commands</h3>
+
+<p>For the sake of simplicity, we’ll use <a href="http://curl.haxx.se/">curl</a>
+in conjunction with Riak KV’s <a href="/riak/kv/2.2.3/developing/api/http">HTTP API</a> to store the objects:</p>
+
+<pre><code class="language-curl">curl -XPUT http://localhost:8098/buckets/training/keys/foo \
+  -H 'Content-Type: text/plain' \
+  -d 'caremad data goes here'
+
+curl -XPUT http://localhost:8098/buckets/training/keys/bar \
+  -H 'Content-Type: text/plain' \
+  -d 'caremad caremad caremad caremad'
+
+curl -XPUT http://localhost:8098/buckets/training/keys/baz \
+  -H 'Content-Type: text/plain' \
+  -d 'nothing to see here'
+
+curl -XPUT http://localhost:8098/buckets/training/keys/bam \
+  -H 'Content-Type: text/plain' \
+  -d 'caremad caremad caremad'
+</code></pre>
+
+<h3 id="mapreduce-invocation">MapReduce invocation</h3>
+
+<p>To invoke a MapReduce function from a compiled Erlang program requires
+that the function be compiled and distributed to all nodes.</p>
+
+<p>For interactive use, however, it’s not necessary to do so; instead, we
+can invoke the client library from the
+<a href="http://www.erlang.org/doc/man/shell.html">Erlang shell</a> and define
+functions to send to Riak KV on the fly.</p>
+
+<p>First we defined the map function, which specifies that we want to get
+the key for each object in the bucket <code class="language-plaintext highlighter-rouge">training</code> that contains the text
+<code class="language-plaintext highlighter-rouge">caremad</code>.</p>
+
+<p>We’re going to generalize and optimize it a bit by supplying a
+compiled regular expression when we invoke MapReduce; our function
+will expect that as the third argument.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">ReFun</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">O</span><span class="p">,</span> <span class="p">_,</span> <span class="nv">Re</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="k">case</span> <span class="nn">re</span><span class="p">:</span><span class="nf">run</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">O</span><span class="p">),</span> <span class="nv">Re</span><span class="p">,</span> <span class="p">[</span><span class="n">global</span><span class="p">])</span> <span class="k">of</span>
+    <span class="p">{</span><span class="n">match</span><span class="p">,</span> <span class="nv">Matches</span><span class="p">}</span> <span class="o">-&gt;</span> <span class="p">[{</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">O</span><span class="p">),</span> <span class="nb">length</span><span class="p">(</span><span class="nv">Matches</span><span class="p">)}];</span>
+    <span class="n">nomatch</span> <span class="o">-&gt;</span> <span class="p">[{</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">O</span><span class="p">),</span> <span class="mi">0</span><span class="p">}]</span>
+<span class="k">end</span> <span class="k">end</span><span class="p">.</span>
+</code></pre></div></div>
+
+<p>Next, to call <code class="language-plaintext highlighter-rouge">ReFun</code> on all keys in the <code class="language-plaintext highlighter-rouge">training</code> bucket, we can do
+the following in the Erlang shell.</p>
+
+<p>Do not use this in a production
+environment; listing all keys to identify those in the <code class="language-plaintext highlighter-rouge">training</code> bucket 
+is a very expensive process.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Re</span><span class="p">}</span> <span class="o">=</span> <span class="nn">re</span><span class="p">:</span><span class="nf">compile</span><span class="p">(</span><span class="s">"caremad"</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>That will return output along the following lines, verifying that
+compilation has completed:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>{ok,{re_pattern,0,0,
+                &lt;&lt;69,82,67,80,69,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,99,0,100,
+                  ...&gt;&gt;}}
+</code></pre></div></div>
+
+<p>Then, we can create a socket link to our cluster:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Riak</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">start_link</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">8087</span><span class="p">).</span>
+
+<span class="c">%% This should return a process ID:
+%% {ok,&lt;0.34.0&gt;}
+</span></code></pre></div></div>
+
+<p>Then we can run the compiled MapReduce job on the <code class="language-plaintext highlighter-rouge">training</code> bucket:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred_bucket</span><span class="p">(</span><span class="nv">Riak</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"training"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+    <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">ReFun</span><span class="p">},</span> <span class="nv">Re</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+</code></pre></div></div>
+
+<p>If your bucket is part of a bucket type, you would use the following:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">B</span> <span class="o">=</span> <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"my_bucket_type"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"training"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+<span class="nv">Args</span> <span class="o">=</span> <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">ReFun</span><span class="p">},</span> <span class="nv">Re</span><span class="p">,</span> <span class="n">true</span><span class="p">}]),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred_bucket</span><span class="p">(</span><span class="nv">Riak</span><span class="p">,</span> <span class="nv">B</span><span class="p">,</span> <span class="nv">Args</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>That will return a list of tuples. The first element in each tuple is
+the key for each object in the bucket, while the second element displays
+the number of instances of the word “caremad” in the object:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>{ok,[{0,
+      [{&lt;&lt;"foo"&gt;&gt;,1},{&lt;&lt;"bam"&gt;&gt;,3},{&lt;&lt;"baz"&gt;&gt;,0},{&lt;&lt;"bar"&gt;&gt;,4}]}]}
+</code></pre></div></div>
+
+<h3 id="recap">Recap</h3>
+
+<p>In this tutorial, we ran an Erlang MapReduce function against a total of
+four object in the <code class="language-plaintext highlighter-rouge">training</code> bucket. This job took each key/value
+object in the bucket and searched the text for the word “caremad,”
+counting the number of instances of the word.</p>
+
+<h2 id="advanced-mapreduce-queries">Advanced MapReduce Queries</h2>
+
+<p>For more detailed information on MapReduce queries in Riak KV, we recommend
+checking out our <a href="/riak/kv/2.2.3/developing/app-guide/advanced-mapreduce">Advanced MapReduce</a> guide.</p>

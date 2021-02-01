@@ -1,0 +1,13 @@
+<p>A “union” type for update operations.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">DtOp</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="n">CounterOp</span> <span class="na">counter_op</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">SetOp</span>     <span class="na">set_op</span>     <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">MapOp</span>     <span class="na">map_op</span>     <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The included operation depends on the Data Type that is being updated.
+<code class="language-plaintext highlighter-rouge">DtOp</code> messages are sent only as part of a <a href="/riak/kv/2.2.2/developing/api/protocol-buffers/dt-store"><code class="language-plaintext highlighter-rouge">DtUpdateReq</code></a> message.</p>

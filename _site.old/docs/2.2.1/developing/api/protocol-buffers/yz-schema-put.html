@@ -1,0 +1,22 @@
+<p>Create a new Solr <a href="/riak/kv/2.2.1/developing/usage/search-schemas">search schema</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaSchemaPutReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="n">RpbYokozunaSchema</span> <span class="na">schema</span> <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Each message must contain a <code class="language-plaintext highlighter-rouge">RpbYokozunaSchema</code> object structure.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaSchema</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">name</span>    <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">content</span> <span class="o">=</span>  <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>This message <em>must</em> include both the schema <code class="language-plaintext highlighter-rouge">name</code> and its Solr <a href="/riak/kv/2.2.1/developing/usage/search-schemas">search schema</a> <code class="language-plaintext highlighter-rouge">content</code> as XML.</p>
+
+<h2 id="response">Response</h2>
+
+<p>Returns a <a href="/riak/kv/2.2.1/developing/api/protocol-buffers/#message-codes">RpbPutResp</a> code with no data on success.</p>

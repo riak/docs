@@ -1,0 +1,228 @@
+<p>Riak has a rich, full-featured HTTP 1.1 API. This is an overview of the
+operations you can perform via HTTP and can be used as a guide for
+developing a compliant client. All URLs assume the default configuration
+values where applicable. All examples use <code class="language-plaintext highlighter-rouge">curl</code> to interact with Riak.</p>
+
+<blockquote>
+  <p><strong>URL Escaping</strong></p>
+
+  <p>Buckets, keys, and link specifications may not contain unescaped
+slashes. Use a URL-escaping library or replace slashes with <code class="language-plaintext highlighter-rouge">%2F</code>.</p>
+</blockquote>
+
+<h2 id="bucket-related-operations">Bucket-related Operations</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Method</th>
+      <th style="text-align: left">URL</th>
+      <th style="text-align: left">Doc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/props</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/get-bucket-props">HTTP Get Bucket Properties</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/props</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/set-bucket-props">HTTP Set Bucket Properties</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/props</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/reset-bucket-props">HTTP Reset Bucket Properties</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets?buckets=true</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/list-buckets">HTTP List Buckets</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys?keys=true</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/list-keys">HTTP List Keys</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="object-related-operations">Object-related Operations</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Method</th>
+      <th style="text-align: left">URL</th>
+      <th style="text-align: left">Doc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/fetch-object">HTTP Fetch Object</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/store-object">HTTP Store Object</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/store-object">HTTP Store Object</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/store-object">HTTP Store Object</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/delete-object">HTTP Delete Object</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="riak-data-type-related-operations">Riak-Data-Type-related Operations</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Method</th>
+      <th style="text-align: left">URL</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/datatypes/&lt;key&gt;</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/datatypes</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/datatypes/&lt;key&gt;</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For documentation on the HTTP API for <a href="/riak/kv/2.2.3/learn/concepts/crdts">Riak Data Types</a>,
+see the <code class="language-plaintext highlighter-rouge">curl</code> examples in <a href="/riak/kv/2.2.3/developing/data-types/#usage-examples">Using Data Types</a>
+and subpages e.g. <a href="/riak/kv/2.2.3/developing/data-types/sets">sets</a>.</p>
+
+<p>Advanced users may consult the technical documentation inside the Riak
+KV internal module <code class="language-plaintext highlighter-rouge">riak_kv_wm_crdt</code>.</p>
+
+<h2 id="query-related-operations">Query-related Operations</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Method</th>
+      <th style="text-align: left">URL</th>
+      <th style="text-align: left">Doc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/mapred</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/mapreduce">HTTP MapReduce</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/index/&lt;index&gt;/&lt;value&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/secondary-indexes">HTTP Secondary Indexes</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/types/&lt;type&gt;/buckets/&lt;bucket&gt;/index/&lt;index&gt;/&lt;start&gt;/&lt;end&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/secondary-indexes">HTTP Secondary Indexes</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="server-related-operations">Server-related Operations</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Method</th>
+      <th style="text-align: left">URL</th>
+      <th style="text-align: left">Doc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/ping</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/ping">HTTP Ping</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/stats</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/status">HTTP Status</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/list-resources">HTTP List Resources</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="search-related-operations">Search-related Operations</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Method</th>
+      <th style="text-align: left">URL</th>
+      <th style="text-align: left">Doc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/search/query/&lt;index_name&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/search-query">HTTP Search Query</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/search/index</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/search-index-info">HTTP Search Index Info</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/search/index/&lt;index_name&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/fetch-search-index">HTTP Fetch Search Index</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/search/index/&lt;index_name&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/store-search-index">HTTP Store Search Index</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/search/index/&lt;index_name&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/delete-search-index">HTTP Delete Search Index</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/search/schema/&lt;schema_name&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/fetch-search-schema">HTTP Fetch Search Schema</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/search/schema/&lt;schema_name&gt;</code></td>
+      <td style="text-align: left"><a href="/riak/kv/2.2.3/developing/api/http/store-search-schema">HTTP Store Search Schema</a></td>
+    </tr>
+  </tbody>
+</table>

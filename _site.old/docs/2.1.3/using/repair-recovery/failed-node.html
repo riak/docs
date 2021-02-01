@@ -1,0 +1,93 @@
+<h2 id="general-recovery-notes">General Recovery Notes</h2>
+
+<p>A Riak node can fail for many reasons, but a handful of checks enable you to
+uncover some of the most common problems that can lead to node failure, 
+such as checking for RAID and filesystem consistency or faulty memory and 
+ensuring that your network connections are fully functioning.</p>
+
+<p>When a node fails and is then brought back into the cluster, make sure that it has the same node name that it did before it crashed. If the name has changed, the cluster will assume that the node is entirely new and that the crashed node is still part of the cluster.</p>
+
+<p>During the recovery process, hinted handoff will kick in and update the data on
+the recovered node with updates accepted from other nodes in the cluster. Your
+cluster may temporarily return <code class="language-plaintext highlighter-rouge">not found</code> for objects that are currently
+being handed off (see our page on <a href="../../../learn/concepts/eventual-consistency">Eventual Consistency</a> for more details on
+these scenarios, in particular how the system behaves while the failed node is
+not part of the cluster).</p>
+
+<h2 id="node-name-changed">Node Name Changed</h2>
+
+<p>If you are recovering from a scenario in which node name changes are out of
+your control, you’ll want to notify the cluster of its <em>new</em> name using the
+following steps:</p>
+
+<ol>
+  <li>
+    <p>Stop the node you wish to rename:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak stop
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Mark the node down from another node in the cluster:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin down &lt;previous_node_name&gt;
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Update the node name in Riak’s configuration files:</p>
+
+    <pre><code class="language-riakconf"> nodename = &lt;updated_node_name&gt;
+</code></pre>
+
+    <pre><code class="language-vmargs"> -name &lt;updated_node_name&gt;
+</code></pre>
+  </li>
+  <li>
+    <p>Delete the ring state directory (usually <code class="language-plaintext highlighter-rouge">/var/lib/riak/ring</code>).</p>
+  </li>
+  <li>
+    <p>Start the node again:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak start
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Ensure that the node comes up as a single instance:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin member-status
+</code></pre></div>    </div>
+
+    <p>The output should look something like this:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code> ========================= Membership ==========================
+Status     Ring    Pending    Node
+---------------------------------------------------------------
+valid     100.0%      --      'dev-rel@127.0.0.1'
+---------------------------------------------------------------
+Valid:1 / Leaving:0 / Exiting:0 / Joining:0 / Down:0
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Join the node to the cluster:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster <span class="nb">join</span> &lt;node_name_of_a_member_of_the_cluster&gt;
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Replace the old instance of the node with the new:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster force-replace &lt;previous_node_name&gt; &lt;new_node_name&gt;
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Review the changes:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster plan
+</code></pre></div>    </div>
+
+    <p>Finally, commit those changes:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster commit
+</code></pre></div>    </div>
+  </li>
+</ol>

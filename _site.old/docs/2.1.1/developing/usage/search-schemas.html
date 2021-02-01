@@ -1,0 +1,508 @@
+
+<blockquote>
+  <p><strong>Note on Search 2.0 vs. Legacy Search</strong></p>
+
+  <p>This document refers to the new Riak Search 2.0 with
+<a href="http://lucene.apache.org/solr/">Solr</a> integration (codenamed
+Yokozuna). For information about the deprecated Riak Search, visit <a href="http://docs.basho.com/riak/1.4.10/dev/using/search/">the old Using Riak Search docs</a>.</p>
+</blockquote>
+
+<p>Riak Search is built for ease of use, allowing you to write values into
+Riak and query for values using Solr. Riak Search does a lot of work
+under the hood to convert your values—plain text, JSON, XML, <a href="/riak/kv/2.1.1/developing/data-types/">Riak Data Types</a>, and <a href="/riak/kv/2.1.1/developing/usage/custom-extractors">more</a>—into something that can be indexed and searched later.
+Nonetheless, you must still instruct Riak/Solr how to index a value. Are
+you providing and array of strings? An integer? A date? Is your text in
+English or Russian? You can provide such instructions to Riak Search by
+defining a Solr <strong>schema</strong>.</p>
+
+<h2 id="the-default-schema">The Default Schema</h2>
+
+<p>Riak Search comes bundled with a default schema named <code class="language-plaintext highlighter-rouge">_yz_default</code>. The
+default schema covers a wide range of possible field types. You can find
+the default schema <a href="https://raw.github.com/basho/yokozuna/develop/priv/default_schema.xml">on
+GitHub</a>.
+While using the default schema provides an easy path to starting
+development, we recommend that you define your own schema in production.
+Take note of <code class="language-plaintext highlighter-rouge">dynamicField name="*"</code>, which is a catch-all index for any
+value. Sufficiently sized objects can potentially take up tremendous
+amounts of disk space, so pay special attention to those indexes.</p>
+
+<h2 id="custom-schemas">Custom Schemas</h2>
+
+<p>We’ll show you how you can create custom schemas by way of example.
+Let’s say that you have already created a schema named <code class="language-plaintext highlighter-rouge">cartoons</code> in a
+file named <code class="language-plaintext highlighter-rouge">cartoons.xml</code>. This would register the custom schema in Riak
+Search:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">org.apache.commons.io.FileUtils</span><span class="o">;</span>
+
+<span class="nc">File</span> <span class="n">xml</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">File</span><span class="o">(</span><span class="s">"cartoons.xml"</span><span class="o">);</span>
+<span class="nc">String</span> <span class="n">xmlString</span> <span class="o">=</span> <span class="nc">FileUtils</span><span class="o">.</span><span class="na">readFileToString</span><span class="o">(</span><span class="n">xml</span><span class="o">);</span>
+<span class="nc">YokozunaSchema</span> <span class="n">schema</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">YokozunaSchema</span><span class="o">(</span><span class="s">"cartoons"</span><span class="o">,</span> <span class="n">xmlString</span><span class="o">);</span>
+<span class="nc">StoreSchema</span> <span class="n">storeSchemaOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreSchema</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">schema</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeSchemaOp</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">schema_data</span> <span class="o">=</span> <span class="no">File</span><span class="p">.</span><span class="nf">read</span><span class="p">(</span><span class="s2">"cartoons.xml"</span><span class="p">)</span>
+<span class="n">client</span><span class="p">.</span><span class="nf">create_search_schema</span><span class="p">(</span><span class="s2">"cartoons"</span><span class="p">,</span> <span class="n">schema_data</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\StoreSchema</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withName</span><span class="p">(</span><span class="s1">'users'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withSchemaFile</span><span class="p">(</span><span class="s1">'path/to/file.xml'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">xml_file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s">'cartoons.xml'</span><span class="p">,</span> <span class="s">'r'</span><span class="p">)</span>
+<span class="n">schema_data</span> <span class="o">=</span> <span class="n">xml_file</span><span class="p">.</span><span class="n">read</span><span class="p">()</span>
+<span class="n">client</span><span class="p">.</span><span class="n">create_search_schema</span><span class="p">(</span><span class="s">'cartoons'</span><span class="p">,</span> <span class="n">schema_data</span><span class="p">)</span>
+<span class="n">xml_file</span><span class="p">.</span><span class="n">close</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">xml</span> <span class="p">=</span> <span class="n">File</span><span class="p">.</span><span class="nf">ReadAllText</span><span class="p">(</span><span class="s">"cartoons.xml"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">schema</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">SearchSchema</span><span class="p">(</span><span class="s">"cartoons"</span><span class="p">,</span> <span class="n">xml</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">PutSearchSchema</span><span class="p">(</span><span class="n">schema</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">fs</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">fs</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="nx">fs</span><span class="p">.</span><span class="nx">readFile</span><span class="p">(</span><span class="dl">'</span><span class="s1">cartoons.xml</span><span class="dl">'</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">data</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="kd">var</span> <span class="nx">schemaXml</span> <span class="o">=</span> <span class="nx">data</span><span class="p">.</span><span class="nx">toString</span><span class="p">(</span><span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">));</span>
+
+    <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="na">schemaName</span><span class="p">:</span> <span class="dl">'</span><span class="s1">blog_post_schema</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">schema</span><span class="p">:</span> <span class="nx">schemaXml</span>
+    <span class="p">};</span>
+
+    <span class="nx">client</span><span class="p">.</span><span class="nx">storeSchema</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">});</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">SchemaData</span><span class="p">}</span> <span class="o">=</span> <span class="nn">file</span><span class="p">:</span><span class="nf">read_file</span><span class="p">(</span><span class="s">"cartoons.xml"</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">create_search_schema</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"cartoons"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">SchemaData</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT http://localhost:8098/search/schema/cartoons \
+     -H 'Content-Type:application/xml' \
+     --data-binary @cartoons.xml
+</code></pre>
+
+<h2 id="creating-a-custom-schema">Creating a Custom Schema</h2>
+
+<p>The first step in creating a custom schema is to define exactly what
+fields you must index. Part of that step is understanding how Riak
+Search extractors function.</p>
+
+<h3 id="extractors">Extractors</h3>
+
+<p>In Riak Search, extractors are modules responsible for pulling out a
+list of fields and values from a Riak object. How this is achieved
+depends on the object’s content type, but the two common cases are JSON
+and XML, which operate similarly. Our examples here will use JSON.</p>
+
+<p>The following JSON object represents the character
+<a href="http://en.wikipedia.org/wiki/List_of_ThunderCats_characters#Lion-O">Lion-o</a>
+from the cartoon Thundercats. He has a name and age, he’s the team
+leader, and he has a list of aliases in other languages.</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"name"</span><span class="p">:</span><span class="s2">"Lion-o"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"age"</span><span class="p">:</span><span class="mi">30</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"leader"</span><span class="p">:</span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"aliases"</span><span class="p">:[</span><span class="w">
+    </span><span class="p">{</span><span class="nl">"name"</span><span class="p">:</span><span class="s2">"León-O"</span><span class="p">,</span><span class="w"> </span><span class="nl">"desc_es"</span><span class="p">:</span><span class="s2">"Señor de los ThunderCats"</span><span class="p">},</span><span class="w">
+    </span><span class="p">{</span><span class="nl">"name"</span><span class="p">:</span><span class="s2">"Starlion"</span><span class="p">,</span><span class="w"> </span><span class="nl">"desc_fr"</span><span class="p">:</span><span class="s2">"Le jeune seigneur des Cosmocats"</span><span class="p">},</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>The extractor will flatten the above objects into a list of field/value
+pairs. Nested objects will be separated with a dot (<code class="language-plaintext highlighter-rouge">.</code>) and arrays will
+simply repeat the fields. The above object will be extracted to the
+following list of Solr document fields.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>name=Lion-o
+age=30
+leader=true
+aliases.name=León-O
+aliases.desc_es=Señor de los ThunderCats
+aliases.name=Starlion
+aliases.desc_fr=Le jeune seigneur des Cosmocats
+</code></pre></div></div>
+
+<p>This means that our schema should handle <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">age</code>, <code class="language-plaintext highlighter-rouge">leader</code>,
+<code class="language-plaintext highlighter-rouge">aliases.name</code> (a <code class="language-plaintext highlighter-rouge">dot</code> is a valid field character), and
+<code class="language-plaintext highlighter-rouge">aliases.desc_*</code> which is a description in the given language of the
+suffix (Spanish and French).</p>
+
+<h3 id="required-schema-fields">Required Schema Fields</h3>
+
+<p>Solr schemas can be very complex, containing many types and analyzers.
+Refer to the <a href="http://archive.apache.org/dist/lucene/solr/ref-guide/apache-solr-ref-guide-4.7.pdf">Solr 4.7 reference
+guide</a>
+for a complete list. You should be aware, however, that there are a few
+fields that are required by Riak Search in order to properly distribute
+an object across a <a href="/riak/kv/2.1.1/learn/concepts/clusters">cluster</a>. These fields are all prefixed
+with <code class="language-plaintext highlighter-rouge">_yz</code>, which stands for
+<a href="https://github.com/basho/yokozuna">Yokozuna</a>, the original code name
+for Riak Search.</p>
+
+<p>Below is a bare minimum skeleton Solr Schema. It won’t do much for you
+other than allow Riak Search to properly manage your stored objects.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?xml version="1.0" encoding="UTF-8" ?&gt;</span>
+<span class="nt">&lt;schema</span> <span class="na">name=</span><span class="s">"schedule"</span> <span class="na">version=</span><span class="s">"1.5"</span><span class="nt">&gt;</span>
+ <span class="nt">&lt;fields&gt;</span>
+
+   <span class="c">&lt;!-- All of these fields are required by Riak Search --&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_id"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span> <span class="na">required=</span><span class="s">"true"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_ed"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_pn"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_fpn"</span>  <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_vtag"</span> <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_rk"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_rt"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_rb"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_err"</span>  <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+ <span class="nt">&lt;/fields&gt;</span>
+
+ <span class="nt">&lt;uniqueKey&gt;</span>_yz_id<span class="nt">&lt;/uniqueKey&gt;</span>
+
+ <span class="nt">&lt;types&gt;</span>
+    <span class="c">&lt;!-- YZ String: Used for non-analyzed fields --&gt;</span>
+    <span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"_yz_str"</span> <span class="na">class=</span><span class="s">"solr.StrField"</span> <span class="na">sortMissingLast=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+ <span class="nt">&lt;/types&gt;</span>
+<span class="nt">&lt;/schema&gt;</span>
+</code></pre></div></div>
+
+<p>If you’re missing any of the above fields, Riak Search will reject your
+custom schema. The value for <code class="language-plaintext highlighter-rouge">&lt;uniqueKey&gt;</code> <em>must</em> be <code class="language-plaintext highlighter-rouge">_yz_id</code>.</p>
+
+<p>In the table below, you’ll find a description of the various required
+fields. You’ll rarely need to use any fields other than <code class="language-plaintext highlighter-rouge">_yz_rt</code> (bucket
+type), <code class="language-plaintext highlighter-rouge">_yz_rb</code> (bucket) and <code class="language-plaintext highlighter-rouge">_yz_rk</code> (Riak key). On occasion, <code class="language-plaintext highlighter-rouge">_yz_err</code>
+can be helpful if you suspect that your extractors are failing.
+Malformed JSON or XML will cause Riak Search to index a key and set
+<code class="language-plaintext highlighter-rouge">_yz_err</code> to 1, allowing you to reindex with proper values later.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field</th>
+      <th style="text-align: left">Name</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_id</code></td>
+      <td style="text-align: left">ID</td>
+      <td style="text-align: left">Unique identifier of this Solr document</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_ed</code></td>
+      <td style="text-align: left">Entropy Data</td>
+      <td style="text-align: left">Data related to <a href="/riak/kv/2.1.1/learn/concepts/active-anti-entropy">active anti-entropy</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_pn</code></td>
+      <td style="text-align: left">Partition Number</td>
+      <td style="text-align: left">Used as a filter query parameter to remove duplicate replicas across nodes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_fpn</code></td>
+      <td style="text-align: left">First Partition Number</td>
+      <td style="text-align: left">The first partition in this doc’s preflist, used for further filtering on overlapping partitions</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_vtag</code></td>
+      <td style="text-align: left">VTag</td>
+      <td style="text-align: left">If there is a sibling, use vtag to differentiate them</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_rk</code></td>
+      <td style="text-align: left">Riak Key</td>
+      <td style="text-align: left">The key of the Riak object this doc corresponds to</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_rt</code></td>
+      <td style="text-align: left">Riak Bucket Type</td>
+      <td style="text-align: left">The bucket type of the Riak object this doc corresponds to</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_rb</code></td>
+      <td style="text-align: left">Riak Bucket</td>
+      <td style="text-align: left">The bucket of the Riak object this doc corresponds to</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_yz_err</code></td>
+      <td style="text-align: left">Error Flag</td>
+      <td style="text-align: left">indicating if this doc is the product of a failed object extraction</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="defining-fields">Defining Fields</h3>
+
+<p>With your required fields known and the skeleton schema elements in
+place, it’s time to add your own fields. Since you know your object
+structure, you need to map the name and type of each field (a string,
+integer, boolean, etc).</p>
+
+<p>When creating fields you can either create specific fields via the
+<code class="language-plaintext highlighter-rouge">field</code> element or an asterisk (<code class="language-plaintext highlighter-rouge">*</code>) wildcard field via <code class="language-plaintext highlighter-rouge">dynamicField</code>.
+Any field that matches a specific field name will win, and if not, it
+will attempt to match a dynamic field pattern.</p>
+
+<p>Besides a field <code class="language-plaintext highlighter-rouge">type</code>, you also must decide if a value is to be
+<code class="language-plaintext highlighter-rouge">indexed</code> (usually <code class="language-plaintext highlighter-rouge">true</code>) and <code class="language-plaintext highlighter-rouge">stored</code>. When a value is <code class="language-plaintext highlighter-rouge">stored</code> that
+means that you can get the value back as a result of a query, but it
+also doubles the storage of the field (once in Riak, again in Solr). If
+a single Riak object can have more than one copy of the same matching
+field, you also must set <code class="language-plaintext highlighter-rouge">multiValued</code> to <code class="language-plaintext highlighter-rouge">true</code>.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?xml version="1.0" encoding="UTF-8" ?&gt;</span>
+<span class="nt">&lt;schema</span> <span class="na">name=</span><span class="s">"schedule"</span> <span class="na">version=</span><span class="s">"1.0"</span><span class="nt">&gt;</span>
+ <span class="nt">&lt;fields&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"name"</span>   <span class="na">type=</span><span class="s">"string"</span>  <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"age"</span>    <span class="na">type=</span><span class="s">"int"</span>     <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"leader"</span> <span class="na">type=</span><span class="s">"boolean"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"aliases.name"</span> <span class="na">type=</span><span class="s">"string"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+   <span class="nt">&lt;dynamicField</span> <span class="na">name=</span><span class="s">"*_es"</span> <span class="na">type=</span><span class="s">"text_es"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+   <span class="nt">&lt;dynamicField</span> <span class="na">name=</span><span class="s">"*_fr"</span> <span class="na">type=</span><span class="s">"text_fr"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+
+   <span class="c">&lt;!-- All of these fields are required by Riak Search --&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_id"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span> <span class="na">required=</span><span class="s">"true"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_ed"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_pn"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_fpn"</span>  <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_vtag"</span> <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_rk"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_rt"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_rb"</span>   <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span>  <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"_yz_err"</span>  <span class="na">type=</span><span class="s">"_yz_str"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+ <span class="nt">&lt;/fields&gt;</span>
+
+ <span class="nt">&lt;uniqueKey&gt;</span>_yz_id<span class="nt">&lt;/uniqueKey&gt;</span>
+</code></pre></div></div>
+
+<p>Next, take note of the types you used in the fields and ensure that each
+of the field types are defined as a <code class="language-plaintext highlighter-rouge">fieldType</code> under the <code class="language-plaintext highlighter-rouge">types</code>
+element. Basic types such as <code class="language-plaintext highlighter-rouge">string</code>, <code class="language-plaintext highlighter-rouge">boolean</code>, <code class="language-plaintext highlighter-rouge">int</code> have matching
+Solr classes. There are dozens more types, including many kinds of
+number (<code class="language-plaintext highlighter-rouge">float</code>, <code class="language-plaintext highlighter-rouge">tdouble</code>, <code class="language-plaintext highlighter-rouge">random</code>), <code class="language-plaintext highlighter-rouge">date</code> fields, and even
+geolocation types.</p>
+
+<p>Besides simple field types, you can also customize analyzers for
+different languages. In our example, we mapped any field that ends with
+<code class="language-plaintext highlighter-rouge">*_es</code> to Spanish, and <code class="language-plaintext highlighter-rouge">*_de</code> to German.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nt">&lt;types&gt;</span>
+   <span class="c">&lt;!-- YZ String: Used for non-analyzed fields --&gt;</span>
+   <span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"_yz_str"</span> <span class="na">class=</span><span class="s">"solr.StrField"</span> <span class="na">sortMissingLast=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+
+   <span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"string"</span> <span class="na">class=</span><span class="s">"solr.StrField"</span> <span class="na">sortMissingLast=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+   <span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"boolean"</span> <span class="na">class=</span><span class="s">"solr.BoolField"</span> <span class="na">sortMissingLast=</span><span class="s">"true"</span><span class="nt">/&gt;</span>
+   <span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"int"</span> <span class="na">class=</span><span class="s">"solr.TrieIntField"</span> <span class="na">precisionStep=</span><span class="s">"0"</span> <span class="na">positionIncrementGap=</span><span class="s">"0"</span><span class="nt">/&gt;</span>
+
+   <span class="c">&lt;!-- Spanish --&gt;</span>
+   <span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"text_es"</span> <span class="na">class=</span><span class="s">"solr.TextField"</span> <span class="na">positionIncrementGap=</span><span class="s">"100"</span><span class="nt">&gt;</span>
+     <span class="nt">&lt;analyzer&gt;</span>
+       <span class="nt">&lt;tokenizer</span> <span class="na">class=</span><span class="s">"solr.StandardTokenizerFactory"</span><span class="nt">/&gt;</span>
+       <span class="nt">&lt;filter</span> <span class="na">class=</span><span class="s">"solr.LowerCaseFilterFactory"</span><span class="nt">/&gt;</span>
+       <span class="nt">&lt;filter</span> <span class="na">class=</span><span class="s">"solr.StopFilterFactory"</span> <span class="na">ignoreCase=</span><span class="s">"true"</span> <span class="na">words=</span><span class="s">"lang/stopwords_es.txt"</span> <span class="na">format=</span><span class="s">"snowball"</span> <span class="nt">/&gt;</span>
+       <span class="nt">&lt;filter</span> <span class="na">class=</span><span class="s">"solr.SpanishLightStemFilterFactory"</span><span class="nt">/&gt;</span>
+       <span class="c">&lt;!-- more aggressive: &lt;filter class="solr.SnowballPorterFilterFactory" language="Spanish"/&gt; --&gt;</span>
+     <span class="nt">&lt;/analyzer&gt;</span>
+   <span class="nt">&lt;/fieldType&gt;</span>
+
+   <span class="c">&lt;!-- German --&gt;</span>
+   <span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"text_de"</span> <span class="na">class=</span><span class="s">"solr.TextField"</span> <span class="na">positionIncrementGap=</span><span class="s">"100"</span><span class="nt">&gt;</span>
+     <span class="nt">&lt;analyzer&gt;</span>
+       <span class="nt">&lt;tokenizer</span> <span class="na">class=</span><span class="s">"solr.StandardTokenizerFactory"</span><span class="nt">/&gt;</span>
+       <span class="nt">&lt;filter</span> <span class="na">class=</span><span class="s">"solr.LowerCaseFilterFactory"</span><span class="nt">/&gt;</span>
+       <span class="nt">&lt;filter</span> <span class="na">class=</span><span class="s">"solr.StopFilterFactory"</span> <span class="na">ignoreCase=</span><span class="s">"true"</span> <span class="na">words=</span><span class="s">"lang/stopwords_de.txt"</span> <span class="na">format=</span><span class="s">"snowball"</span> <span class="nt">/&gt;</span>
+       <span class="nt">&lt;filter</span> <span class="na">class=</span><span class="s">"solr.GermanNormalizationFilterFactory"</span><span class="nt">/&gt;</span>
+       <span class="nt">&lt;filter</span> <span class="na">class=</span><span class="s">"solr.GermanLightStemFilterFactory"</span><span class="nt">/&gt;</span>
+       <span class="c">&lt;!-- less aggressive: &lt;filter class="solr.GermanMinimalStemFilterFactory"/&gt; --&gt;</span>
+       <span class="c">&lt;!-- more aggressive: &lt;filter class="solr.SnowballPorterFilterFactory" language="German2"/&gt; --&gt;</span>
+     <span class="nt">&lt;/analyzer&gt;</span>
+   <span class="nt">&lt;/fieldType&gt;</span>
+ <span class="nt">&lt;/types&gt;</span>
+<span class="nt">&lt;/schema&gt;</span>
+</code></pre></div></div>
+
+<h3 id="catch-all-field">“Catch-All” Field</h3>
+
+<p>Without a catch-all field, an exception will be thrown if data is
+provided to index without a corresponding <code class="language-plaintext highlighter-rouge">&lt;field&gt;</code> element. The
+following is the catch-all field from the default Yokozuna schema and
+can be used in a custom schema as well.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;dynamicField</span> <span class="na">name=</span><span class="s">"*"</span> <span class="na">type=</span><span class="s">"ignored"</span>  <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>The following is required to be a child of the <code class="language-plaintext highlighter-rouge">types</code> element in the
+schema:</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;fieldtype</span> <span class="na">name=</span><span class="s">"ignored"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">indexed=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"true"</span> <span class="na">class=</span><span class="s">"solr.StrField"</span> <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<h3 id="dates">Dates</h3>
+
+<p>The format of strings that represents a date/time is important as Solr
+only understands <a href="http://lucene.apache.org/solr/4_6_1/solr-core/org/apache/solr/schema/DateField.html">ISO8601 UTC date/time
+values</a>.
+An example of a correctly formatted date/time string is
+<code class="language-plaintext highlighter-rouge">1995-12-31T23:59:59Z</code>. If you provide an incorrectly formatted
+date/time value, an exception similar to this will be logged to
+<code class="language-plaintext highlighter-rouge">solr.log</code>:</p>
+
+<pre><code class="language-log">2014-02-27 21:30:00,372 [ERROR] &lt;qtp1481681868-421&gt;@SolrException.java:108 org.apache.solr.common.SolrException: Invalid Date String:'Thu Feb 27 21:29:59 +0000 2014'
+        at org.apache.solr.schema.DateField.parseMath(DateField.java:182)
+        at org.apache.solr.schema.TrieField.createField(TrieField.java:611)
+        at org.apache.solr.schema.TrieField.createFields(TrieField.java:650)
+        at org.apache.solr.schema.TrieDateField.createFields(TrieDateField.java:157)
+        at org.apache.solr.update.DocumentBuilder.addField(DocumentBuilder.java:47)
+        ...
+        ...
+        ...
+</code></pre>
+
+<h2 id="field-properties-by-use-case">Field Properties By Use Case</h2>
+
+<p>Sometimes it can be tricky to decide whether a value should be <code class="language-plaintext highlighter-rouge">stored</code>,
+or whether <code class="language-plaintext highlighter-rouge">multiValued</code> is allowed. This handy table from the <a href="https://cwiki.apache.org/confluence/display/solr/Field+Properties+by+Use+Case">Solr
+documentation</a>
+may help you pick field properties.</p>
+
+<p>An entry of <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> in the table indicates that the option
+must be set to the given value for the use case to function correctly.
+If no entry is provided, the setting of that attribute has no impact on
+the case.</p>
+
+<table class="schemausecase">
+<thead>
+<tr>
+<th>Use Case</th>
+<th><code>indexed</code></th>
+<th><code>stored</code></th>
+<th><code>multiValued</code></th>
+<th><code>omitNorms</code></th>
+<th><code>termVectors</code></th>
+<th><code>termPositions</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>search within field</td>
+<td><code>true</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>retrieve contents</td>
+<td></td>
+<td><code>true</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>use as unique key</td>
+<td><code>true</code></td>
+<td></td>
+<td><code>false</code></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>sort on field</td>
+<td><code>true</code></td>
+<td></td>
+<td><code>false</code></td>
+<td><code>true</code>[1](#notes)</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>use field boosts[5](#notes)</td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>false</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>document boosts affect searches within field</td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>false</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>highlighting</td>
+<td><code>true</code>[4](#notes)</td>
+<td><code>true</code></td>
+<td></td>
+<td></td>
+<td>[2](#notes)</td>
+<td><code>true</code>[3](#notes)</td>
+</tr>
+<tr>
+<td>faceting[5](#notes)</td>
+<td><code>true</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>add multiple values, maintaining order</td>
+<td></td>
+<td></td>
+<td><code>true</code></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>field length affects doc score</td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>false</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>MoreLikeThis[5](#notes)</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><code>true</code>[6](#notes)</td>
+<td></td>
+</tr>
+</tbody></table>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">analyzer_factory</span><span class="p">,</span> <span class="p">{</span><span class="n">erlang</span><span class="p">,</span> <span class="n">text_analyzers</span><span class="p">,</span> <span class="n">noop_analyzer_factory</span><span class="p">}}}</span>
+</code></pre></div></div>

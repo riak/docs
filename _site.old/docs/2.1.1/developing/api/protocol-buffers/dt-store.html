@@ -1,0 +1,157 @@
+<p>A request to update the value of a <a href="/riak/kv/2.1.1/developing/data-types">Riak Data Type</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<p>A <code class="language-plaintext highlighter-rouge">DtUpdateReq</code> message requires that you specify the location of the
+Data Type in Riak, which operations are to be performed, and whether the
+Data Type’s opaque context should be returned in the resulting
+<code class="language-plaintext highlighter-rouge">DtUpdateResp</code>.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">DtOp</code> value specifies which Data Type-specific operation is being
+performed. More on that in the <a href="/riak/kv/2.1.1/developing/api/protocol-buffers/dt-union">PBC Data Type Union</a> document.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">DtUpdateReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">bucket</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">key</span>    <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">type</span>   <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">context</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">required</span> <span class="n">DtOp</span>  <span class="na">op</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">w</span>               <span class="o">=</span>  <span class="mi">6</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">dw</span>              <span class="o">=</span>  <span class="mi">7</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">pw</span>              <span class="o">=</span>  <span class="mi">8</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>   <span class="na">return_body</span>     <span class="o">=</span>  <span class="mi">9</span> <span class="p">[</span><span class="k">default</span><span class="o">=</span><span class="kc">false</span><span class="p">];</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">timeout</span>         <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>   <span class="na">sloppy_quorum</span>   <span class="o">=</span> <span class="mi">11</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">n_val</span>           <span class="o">=</span> <span class="mi">12</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>   <span class="na">include_context</span> <span class="o">=</span> <span class="mi">13</span> <span class="p">[</span><span class="k">default</span><span class="o">=</span><span class="kc">true</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="required-parameters">Required Parameters</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">bucket</code></td>
+      <td style="text-align: left">The name of the bucket in which the Data Type is stored</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">type</code></td>
+      <td style="text-align: left">The bucket type of the bucket in which the Data Type is stored, <em>not</em> the type of Data Type (i.e. counter, set, or map). Learn more about <a href="/riak/kv/2.1.1/using/cluster-operations/bucket-types">using bucket types</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Also required is a <code class="language-plaintext highlighter-rouge">DtOp</code> message that specifies which operation is to
+be performed, depending on whether the Data Type being updated is a
+<a href="/riak/kv/2.1.1/developing/api/protocol-buffers/dt-counter-store">counter</a>, <a href="/riak/kv/2.1.1/developing/api/protocol-buffers/dt-set-store">set</a>, or <a href="/riak/kv/2.1.1/developing/api/protocol-buffers/dt-map-store">map</a>.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">DtOp</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="n">CounterOp</span> <span class="na">counter_op</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">SetOp</span>     <span class="na">set_op</span>     <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">MapOp</span>     <span class="na">map_op</span>     <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="optional-parameters">Optional Parameters</h4>
+
+<p>All of the optional parameters below have default values determined on a
+per-bucket basis. Please refer to the documentation on <a href="../set-bucket-props">setting bucket properties</a> for more information.</p>
+
+<p>Furthermore, you can assign an integer value to the <code class="language-plaintext highlighter-rouge">w</code>, <code class="language-plaintext highlighter-rouge">dw</code>, <code class="language-plaintext highlighter-rouge">pr</code>, and
+<code class="language-plaintext highlighter-rouge">pw</code>, provided that that integer value is less than or equal to N, <em>or</em>
+a special value denoting <code class="language-plaintext highlighter-rouge">one</code> (<code class="language-plaintext highlighter-rouge">4294967295-1</code>), <code class="language-plaintext highlighter-rouge">quorum</code>
+(<code class="language-plaintext highlighter-rouge">4294967295-2</code>), <code class="language-plaintext highlighter-rouge">all</code> (<code class="language-plaintext highlighter-rouge">4294967295-3</code>), or <code class="language-plaintext highlighter-rouge">default</code> (<code class="language-plaintext highlighter-rouge">4294967295-4</code>).</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">key</code></td>
+      <td style="text-align: left">The key where the Data Type is stored. If not specified, Riak will assign a random key and return that key to the client is <code class="language-plaintext highlighter-rouge">return_body</code> is set to <code class="language-plaintext highlighter-rouge">true</code>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">context</code></td>
+      <td style="text-align: left">The opaque binary “context” that informs Riak which version of a data type the client has seen, analogous to <a href="/riak/kv/2.1.1/learn/glossary/#vector-clock">vector clocks</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">w</code></td>
+      <td style="text-align: left">Write quorum, i.e. how many replicas to write to before returning a successful response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">dw</code></td>
+      <td style="text-align: left">Durable write quorum, i.e. how many replicas to commit to durable storage before returning a successful response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pw</code></td>
+      <td style="text-align: left">Primary write quorum, i.e. how many primary nodes must be up when the write is attempted</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">return_body</code></td>
+      <td style="text-align: left">Whether to return the contents of the stored object. Defaults to <code class="language-plaintext highlighter-rouge">false</code>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">timeout</code></td>
+      <td style="text-align: left">The timeout duration, in milliseconds, after which Riak will return an error message</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">sloppy_quorum</code></td>
+      <td style="text-align: left">If this parameter is set to <code class="language-plaintext highlighter-rouge">true</code>, the next available node in the ring will accept requests if any primary node is unavailable</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">n_val</code></td>
+      <td style="text-align: left">The number of nodes on which the value is to be stored</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">include_context</code></td>
+      <td style="text-align: left">If <code class="language-plaintext highlighter-rouge">return_body</code> is set to <code class="language-plaintext highlighter-rouge">true</code>, the Data Type’s opaque “context” will be returned to the client when the <code class="language-plaintext highlighter-rouge">DtUpdateResp</code> is sent to the client.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="response">Response</h2>
+
+<p>The response to a Data Type update request is analogous to
+<a href="/riak/kv/2.1.1/developing/api/protocol-buffers/store-object"><code class="language-plaintext highlighter-rouge">RpbPutResp</code></a> for KV operations. If the
+<code class="language-plaintext highlighter-rouge">return_body</code> is set in the update request message (as explained above),
+the message will include the opaque context of the Data Type (<code class="language-plaintext highlighter-rouge">context</code>)
+and the new value of the Data Type <em>after</em> the update has completed
+(depending on whether the Data Type is a counter, set, or map). If no
+key was specified in the update request, it will include the
+Riak-assigned key (<code class="language-plaintext highlighter-rouge">key</code>).</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">DtUpdateResp</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="kt">bytes</span>    <span class="na">key</span>           <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span>    <span class="na">context</span>       <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">sint64</span>   <span class="na">counter_value</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span>    <span class="na">set_value</span>     <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">MapEntry</span> <span class="na">map_value</span>     <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Assuming <code class="language-plaintext highlighter-rouge">return_body</code> is set to <code class="language-plaintext highlighter-rouge">true</code>: if a counter is updated, the
+response will include an integer as the <code class="language-plaintext highlighter-rouge">counter_value</code>; if a set is
+updated, a list of binaries will be return as the <code class="language-plaintext highlighter-rouge">set_value</code>; and if a
+map is updated, the returned <code class="language-plaintext highlighter-rouge">map_value</code> will be a <code class="language-plaintext highlighter-rouge">MapEntry</code> message.
+That message takes the following form:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">MapEntry</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="n">MapField</span> <span class="na">field</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">sint64</span>   <span class="na">counter_value</span>  <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span>    <span class="na">set_value</span>      <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span>    <span class="na">register_value</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>     <span class="na">flag_value</span>     <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">MapEntry</span> <span class="na">map_value</span>      <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>

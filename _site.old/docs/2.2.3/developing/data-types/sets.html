@@ -1,0 +1,679 @@
+<p>Sets are a bucket-level Riak data type that can be used by themselves, associated with a bucket/key pair, or used <a href="../maps#sets-within-maps">within a map</a>.</p>
+
+<p>Sets are collections of unique binary values (such as strings). All of
+the values in a set are unique.</p>
+
+<p>For example, if you attempt to add the element <code class="language-plaintext highlighter-rouge">shovel</code> to a set that already contains <code class="language-plaintext highlighter-rouge">shovel</code>, the operation will be ignored by Riak KV.</p>
+
+<h2 id="set-up-a-bucket-type">Set Up a Bucket Type</h2>
+
+<blockquote>
+  <p>If you’ve already created and activated a bucket type with <code class="language-plaintext highlighter-rouge">set</code> as the <code class="language-plaintext highlighter-rouge">datatype</code> parameter, skip to the <a href="#client-setup">next section</a>.</p>
+</blockquote>
+
+<p>Start by creating a bucket type with the <code class="language-plaintext highlighter-rouge">datatype</code> parameter <code class="language-plaintext highlighter-rouge">set</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create sets <span class="s1">'{"props":{"datatype":"set"}}'</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note</strong></p>
+
+  <p>The <code class="language-plaintext highlighter-rouge">sets</code> bucket type name provided above is an example and is not required to be <code class="language-plaintext highlighter-rouge">sets</code>. You are free to name bucket types whatever you like, with the exception of <code class="language-plaintext highlighter-rouge">default</code>.</p>
+</blockquote>
+
+<p>After creating a bucket with a Riak data type, confirm the bucket property configuration associated with that type is correct:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status sets
+</code></pre></div></div>
+
+<p>This returns a list of bucket properties and their values
+in the form of <code class="language-plaintext highlighter-rouge">property: value</code>.</p>
+
+<p>If our <code class="language-plaintext highlighter-rouge">sets</code> bucket type has been set properly we should see the following pair in our console output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>datatype: set
+</code></pre></div></div>
+
+<p>Once we have confirmed the bucket type is properly configured, we can activate the bucket type to be used in Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type activate sets
+</code></pre></div></div>
+
+<p>We can check if activation has been successful by using the same <code class="language-plaintext highlighter-rouge">bucket-type status</code> command shown above:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status sets
+</code></pre></div></div>
+
+<p>After creating and activating our new <code class="language-plaintext highlighter-rouge">sets</code> bucket type, we can setup our client to start using the bucket type as detailed in the next section.</p>
+
+<h2 id="client-setup">Client Setup</h2>
+
+<p>Using sets involves creating a bucket/key pair to house a set and running set-specific operations on that pair.</p>
+
+<p>Here is the general syntax for creating a bucket type/bucket/key
+combination to handle a set:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Java client, a bucket/bucket type combination is specified</span>
+<span class="c1">// using a Namespace object. To specify bucket, bucket type, and key,</span>
+<span class="c1">// use a Location object that incorporates the Namespace object, as is</span>
+<span class="c1">// done below.</span>
+
+<span class="nc">Location</span> <span class="n">set</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"&lt;bucket_type&gt;"</span><span class="o">,</span> <span class="s">"&lt;bucket&gt;"</span><span class="o">),</span> <span class="s">"&lt;key&gt;"</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># Note: both the Riak Ruby Client and Ruby the language have a class</span>
+<span class="c1"># called Set. Make sure that you refer to the Ruby version as ::Set and</span>
+<span class="c1"># the Riak client version as Riak::Crdt::Set</span>
+
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'bucket_type_name'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'bucket_name'</span><span class="p">)</span>
+<span class="n">set</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Set</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$location</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Location</span><span class="p">(</span><span class="s1">'key'</span><span class="p">,</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Bucket</span><span class="p">(</span><span class="s1">'bucket_name'</span><span class="p">,</span> <span class="s1">'bucket_type'</span><span class="p">));</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># Note: The Python standard library `collections` module has an abstract
+# base class called Set, which the Riak Client version subclasses as
+# `riak.datatypes.Set`. These classes are not directly interchangeable.
+# In addition to the base methods, `riak.datatypes.Set` also
+# implements the `add` and `discard` methods from
+# `collections.MutableSet`, but does not implement the rest of its
+# API. Be careful when importing, or simply use the instances returned
+# by `RiakBucket.get()` and `RiakBucket.new()` instead of directly
+# importing the class.
+</span>
+<span class="nb">set</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+<span class="c1"># or
+</span>
+<span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Set</span>
+<span class="nb">set</span> <span class="o">=</span> <span class="n">Set</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="c1">// As with counters, with the Riak .NET Client you interact with sets</span>
+<span class="c1">// by building an Options object or using a Builder</span>
+<span class="kt">var</span> <span class="n">builder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FetchSet</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"sets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"travel"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"cities"</span><span class="p">);</span>
+
+<span class="c1">// NB: builder.Options will only be set after Build() is called.</span>
+<span class="n">FetchSet</span> <span class="n">fetchSetCommand</span> <span class="p">=</span> <span class="n">builder</span><span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">FetchSetOptions</span> <span class="n">options</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchSetOptions</span><span class="p">(</span><span class="s">"sets"</span><span class="p">,</span> <span class="s">"travel"</span><span class="p">,</span> <span class="s">"cities"</span><span class="p">);</span>
+
+<span class="c1">// These two options objects are equal</span>
+<span class="n">Assert</span><span class="p">.</span><span class="nf">AreEqual</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="n">builder</span><span class="p">.</span><span class="n">Options</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// As with counters, with the Riak Node.js Client you interact with sets on the</span>
+<span class="c1">// basis of the set's location in Riak, as specified by an options object.</span>
+<span class="c1">// Below is an example:</span>
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">travel</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cities</span><span class="dl">'</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% Like counters, sets are not encapsulated in a
+%% bucket/key in the Erlang client. See below for more
+%% information.
+</span></code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/&lt;bucket_type&gt;/buckets/&lt;bucket&gt;/datatypes/&lt;key&gt;
+
+# Note that this differs from the URL structure for non-data type requests,
+# which end in /keys/&lt;key&gt;
+</code></pre>
+
+<h2 id="create-a-set">Create a Set</h2>
+
+<p>For the following example, we will use a set to store a list of cities that we
+want to visit. Let’s create a Riak set stored in the key <code class="language-plaintext highlighter-rouge">cities</code> in the bucket <code class="language-plaintext highlighter-rouge">travel</code> using the <code class="language-plaintext highlighter-rouge">sets</code> bucket type created previously:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Java client, you specify the location of Data Types</span>
+<span class="c1">// before you perform operations on them:</span>
+
+<span class="nc">Location</span> <span class="n">citiesSet</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"sets"</span><span class="o">,</span> <span class="s">"travel"</span><span class="o">),</span> <span class="s">"cities"</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">travel</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'sets'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'travel'</span><span class="p">)</span>
+<span class="n">cities_set</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Set</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">travel</span><span class="p">,</span> <span class="s1">'cities'</span><span class="p">)</span>
+
+<span class="c1"># Alternatively, the Ruby client enables you to set a bucket type as</span>
+<span class="c1"># being globally associated with a Riak data type. The following would</span>
+<span class="c1"># set all set buckets to use the sets bucket type:</span>
+
+<span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">DEFAULT_BUCKET_TYPES</span><span class="p">[</span><span class="ss">:set</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'sets'</span>
+
+<span class="c1"># This would enable us to create our set without specifying a bucket</span>
+<span class="c1"># type:</span>
+<span class="n">travel</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'travel'</span><span class="p">)</span>
+<span class="n">cities_set</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Set</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">travel</span><span class="p">,</span> <span class="s1">'cities'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$location</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Location</span><span class="p">(</span><span class="s1">'cities'</span><span class="p">,</span> <span class="s1">'travel'</span><span class="p">,</span> <span class="s1">'sets'</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">travel</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'sets'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'travel'</span><span class="p">)</span>
+
+<span class="c1"># The client detects the bucket type's data type and automatically
+# returns the right data type for you, in this case a Riak set.
+</span><span class="n">cities_set</span> <span class="o">=</span> <span class="n">travel</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="s">'cities'</span><span class="p">)</span>
+
+<span class="c1"># You can also create a reference to a set explicitly:
+</span><span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Set</span>
+
+<span class="n">cities_set</span> <span class="o">=</span> <span class="n">Set</span><span class="p">(</span><span class="n">travel</span><span class="p">,</span> <span class="s">'cities'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="c1">// Now we'll create a Builder object for the set with which we want to</span>
+<span class="c1">// interact:</span>
+<span class="kt">var</span> <span class="n">builder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FetchSet</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"sets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"travel"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"cities"</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Now we'll create a options object for the set with which we want to</span>
+<span class="c1">// interact:</span>
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">travel</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cities</span><span class="dl">'</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">CitiesSet</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">new</span><span class="p">().</span>
+
+<span class="c">%% Sets in the Erlang client are opaque data structures that
+%% collect operations as you mutate them. We will associate the data
+%% structure with a bucket type, bucket, and key later on.
+</span></code></pre></div></div>
+
+<pre><code class="language-curl"># You cannot create an empty set through the HTTP interface. Sets can
+# only be created when an element is added to them, as in the examples
+# below.
+</code></pre>
+
+<p>Upon creation, our set is empty. We can verify that it is empty at any
+time:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using our "cities" Location from above:</span>
+
+<span class="nc">FetchSet</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">citiesSet</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchSet</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">RiakSet</span> <span class="n">set</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getDatatype</span><span class="o">();</span>
+<span class="kt">boolean</span> <span class="n">isEmpty</span> <span class="o">=</span> <span class="n">set</span><span class="o">.</span><span class="na">viewAsSet</span><span class="o">().</span><span class="na">isEmpty</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="nf">empty?</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># use $location from earlier</span>
+<span class="nv">$set</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">getSet</span><span class="p">();</span>
+
+<span class="nb">count</span><span class="p">(</span><span class="nv">$set</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">());</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">len</span><span class="p">(</span><span class="n">cities_set</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">builder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FetchSet</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"sets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"travel"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"cities"</span><span class="p">);</span>
+
+<span class="n">FetchSet</span> <span class="n">fetchSetCommand</span> <span class="p">=</span> <span class="n">builder</span><span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">fetchSetCommand</span><span class="p">);</span>
+<span class="n">SetResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">fetchSetCommand</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="c1">// response.Value will be null</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">travel</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cities</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchSet</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">notFound</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">set 'cities' is not found!</span><span class="dl">"</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_set</span><span class="p">:</span><span class="nb">size</span><span class="p">(</span><span class="nv">CitiesSet</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">.</span>
+
+<span class="c">%% Query functions like size/1, is_element/2, and fold/3 operate over
+%% the immutable value fetched from the server. In the case of a new
+%% set that was not fetched, this is an empty collection, so the size
+%% is 0.
+</span></code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/sets/buckets/travel/datatypes/cities
+
+# Response
+{"type":"set","error":"notfound"}
+</code></pre>
+
+<h2 id="add-to-a-set">Add to a Set</h2>
+
+<p>But let’s say that we read a travel brochure saying that Toronto and
+Montreal are nice places to go. Let’s add them to our <code class="language-plaintext highlighter-rouge">cities</code> set:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using our "cities" Location from above:</span>
+
+<span class="nc">SetUpdate</span> <span class="n">su</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SetUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"Toronto"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"Montreal"</span><span class="o">);</span>
+<span class="nc">UpdateSet</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">citiesSet</span><span class="o">,</span> <span class="n">su</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Toronto'</span><span class="p">)</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Montreal'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># use $location from earlier</span>
+<span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Toronto'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Montreal'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'returnbody'</span><span class="p">,</span> <span class="s1">'true'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Toronto'</span><span class="p">)</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Montreal'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">adds</span> <span class="p">=</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="s">"Toronto"</span><span class="p">,</span> <span class="s">"Montreal"</span> <span class="p">};</span>
+
+<span class="kt">var</span> <span class="n">builder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateSet</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"sets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"travel"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"cities"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithAdditions</span><span class="p">(</span><span class="n">adds</span><span class="p">);</span>
+
+<span class="n">UpdateSet</span> <span class="n">cmd</span> <span class="p">=</span> <span class="n">builder</span><span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+<span class="n">SetResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">cmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+
+<span class="n">Assert</span><span class="p">.</span><span class="nf">Contains</span><span class="p">(</span><span class="s">"Toronto"</span><span class="p">,</span> <span class="n">response</span><span class="p">.</span><span class="n">AsStrings</span><span class="p">.</span><span class="nf">ToArray</span><span class="p">());</span>
+<span class="n">Assert</span><span class="p">.</span><span class="nf">Contains</span><span class="p">(</span><span class="s">"Montreal"</span><span class="p">,</span> <span class="n">response</span><span class="p">.</span><span class="n">AsStrings</span><span class="p">.</span><span class="nf">ToArray</span><span class="p">());</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">travel</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cities</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="kd">var</span> <span class="nx">cmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">CRDT</span><span class="p">.</span><span class="nx">UpdateSet</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withBucketType</span><span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">bucketType</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withBucket</span><span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">bucket</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withKey</span><span class="p">(</span><span class="nx">options</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withAdditions</span><span class="p">([</span><span class="dl">'</span><span class="s1">Toronto</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Montreal</span><span class="dl">'</span><span class="p">])</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span>
+        <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">cmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">CitiesSet1</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Toronto"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">CitiesSet</span><span class="p">),</span>
+<span class="nv">CitiesSet2</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Montreal"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">CitiesSet1</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPOST http://localhost:8098/types/sets/buckets/travel/datatypes/cities \
+  -H "Content-Type: application/json" \
+  -d '{"add_all":["Toronto", "Montreal"]}'
+</code></pre>
+
+<h2 id="remove-from-a-set">Remove from a Set</h2>
+
+<p>Later on, we hear that Hamilton and Ottawa are nice cities to visit in
+Canada, but if we visit them, we won’t have time to visit Montreal, so
+we need to remove it from the list.</p>
+
+<p>Note that removing an element from a set is trickier than adding elements. In
+order to remove an item (or multiple items), we need to first fetch the
+set, which provides our client access to the set’s <a href="../../../learn/concepts/causal-context">causal context</a>.</p>
+
+<p>Once we’ve fetched the set, we can remove the element <code class="language-plaintext highlighter-rouge">Montreal</code> and
+store the set:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using our "citiesSet" Location from above</span>
+
+<span class="c1">// First, we get a response</span>
+<span class="nc">FetchSet</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">citiesSet</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchSet</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+
+<span class="c1">// Then we can fetch the set's causal context</span>
+<span class="nc">Context</span> <span class="n">ctx</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getContext</span><span class="o">();</span>
+
+<span class="c1">// Now we build a SetUpdate operation</span>
+<span class="nc">SetUpdate</span> <span class="n">su</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SetUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">remove</span><span class="o">(</span><span class="s">"Montreal"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"Hamilton"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"Ottawa"</span><span class="o">);</span>
+
+<span class="c1">// Finally, we update the set, specifying the context</span>
+<span class="nc">UpdateSet</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">citiesSet</span><span class="o">,</span> <span class="n">su</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withContext</span><span class="o">(</span><span class="n">ctx</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+
+<span class="c1">// More information on using causal context with the Java client can be</span>
+<span class="c1">// found at the bottom of this document</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="s1">'Montreal'</span><span class="p">)</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Hamilton'</span><span class="p">)</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Ottawa'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># use $location &amp; $response from earlier</span>
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Hamilton'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Ottawa'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">remove</span><span class="p">(</span><span class="s1">'Montreal'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">withContext</span><span class="p">(</span><span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getSet</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getContext</span><span class="p">())</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="n">discard</span><span class="p">(</span><span class="s">'Montreal'</span><span class="p">)</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Hamilton'</span><span class="p">)</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Ottawa'</span><span class="p">)</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">removes</span> <span class="p">=</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="s">"Montreal"</span> <span class="p">};</span>
+<span class="kt">var</span> <span class="n">adds</span> <span class="p">=</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="s">"Hamilton"</span><span class="p">,</span> <span class="s">"Ottawa"</span> <span class="p">};</span>
+
+<span class="c1">// Note:</span>
+<span class="c1">// using the builder from above</span>
+<span class="c1">// using the Context member from the above response</span>
+<span class="n">builder</span>
+    <span class="p">.</span><span class="nf">WithAdditions</span><span class="p">(</span><span class="n">adds</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithRemovals</span><span class="p">(</span><span class="n">removes</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithContext</span><span class="p">(</span><span class="n">response</span><span class="p">.</span><span class="n">Context</span><span class="p">);</span>
+
+<span class="n">UpdateSet</span> <span class="n">cmd</span> <span class="p">=</span> <span class="n">builder</span><span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+<span class="n">SetResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">cmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+
+<span class="c1">// using System.Linq</span>
+<span class="kt">var</span> <span class="n">responseStrings</span> <span class="p">=</span> <span class="n">response</span><span class="p">.</span><span class="n">AsStrings</span><span class="p">.</span><span class="nf">ToArray</span><span class="p">();</span>
+
+<span class="n">Assert</span><span class="p">.</span><span class="nf">Contains</span><span class="p">(</span><span class="s">"Toronto"</span><span class="p">,</span> <span class="n">responseStrings</span><span class="p">);</span>
+<span class="n">Assert</span><span class="p">.</span><span class="nf">Contains</span><span class="p">(</span><span class="s">"Hamilton"</span><span class="p">,</span> <span class="n">responseStrings</span><span class="p">);</span>
+<span class="n">Assert</span><span class="p">.</span><span class="nf">Contains</span><span class="p">(</span><span class="s">"Ottawa"</span><span class="p">,</span> <span class="n">responseStrings</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">travel</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cities</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchSet</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// NB: clone package https://www.npmjs.com/package/clone</span>
+    <span class="kd">var</span> <span class="nx">update_opts</span> <span class="o">=</span> <span class="nx">clone</span><span class="p">(</span><span class="nx">options</span><span class="p">);</span>
+    <span class="nx">update_opts</span><span class="p">.</span><span class="nx">context</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">context</span><span class="p">;</span>
+    <span class="nx">update_opts</span><span class="p">.</span><span class="nx">additions</span> <span class="o">=</span> <span class="p">[</span><span class="dl">'</span><span class="s1">Hamilton</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Ottawa</span><span class="dl">'</span><span class="p">];</span>
+    <span class="nx">update_opts</span><span class="p">.</span><span class="nx">removals</span> <span class="o">=</span> <span class="p">[</span><span class="dl">'</span><span class="s1">Montreal</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Ottawa</span><span class="dl">'</span><span class="p">];</span>
+
+    <span class="nx">client</span><span class="p">.</span><span class="nx">updateSet</span><span class="p">(</span><span class="nx">update_opts</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">});</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">CitiesSet3</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">del_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Montreal"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">CitiesSet2</span><span class="p">),</span>
+<span class="nv">CitiesSet4</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Hamilton"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">CitiesSet3</span><span class="p">),</span>
+<span class="nv">CitiesSet5</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Ottawa"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">CitiesSet4</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/sets/buckets/travel/datatypes/cities
+
+# Response
+{"type":"set","value":["Montreal","Toronto"],"context":"g2wAAAABaAJtAAAADCMJ/vn7tg36AAAAAWECag=="}
+
+curl -XPOST http://localhost:8098/types/sets/buckets/travel/datatypes/cities \
+  -H "Content-Type: application/json" \
+  -d '{"remove": "Montreal","add_all":["Hamilton", "Ottawa"],"context":"g2wAAAABaAJtAAAADCMJ/vn7tg36AAAAAWECag=="}'
+</code></pre>
+
+<h2 id="retrieve-a-set">Retrieve a Set</h2>
+
+<p>Now, we can check on which cities are currently in our set:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using our "cities" Location from above:</span>
+
+<span class="nc">FetchSet</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">citiesSet</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchSet</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">Set</span><span class="o">&lt;</span><span class="nc">BinaryValue</span><span class="o">&gt;</span> <span class="n">binarySet</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getDatatype</span><span class="o">().</span><span class="na">view</span><span class="o">();</span>
+<span class="k">for</span> <span class="o">(</span><span class="nc">BinaryValue</span> <span class="n">city</span> <span class="o">:</span> <span class="n">binarySet</span><span class="o">)</span> <span class="o">{</span>
+  <span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">city</span><span class="o">.</span><span class="na">toStringUtf8</span><span class="o">());</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="nf">members</span>
+
+<span class="c1">#&lt;Set: {"Hamilton", "Ottawa", "Toronto"}&gt;</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># use $location from earlier</span>
+<span class="nv">$set</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">getSet</span><span class="p">();</span>
+
+<span class="nb">var_dump</span><span class="p">(</span><span class="nv">$set</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">());</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="n">dirty_value</span>
+
+<span class="c1"># The value fetched from Riak is always immutable, whereas the "dirty
+# value" takes into account local modifications that have not been
+# sent to the server. For example, where the call above would return
+# frozenset(['Toronto', 'Hamilton', 'Ottawa']), the call below would
+# return frozenset([]).
+</span>
+<span class="n">cities_set</span><span class="p">.</span><span class="n">value</span>
+
+<span class="c1"># To fetch the value stored on the server, use the call below. Note
+# that this will clear any unsent additions or deletions.
+</span><span class="n">cities_set</span><span class="p">.</span><span class="nb">reload</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="k">value</span> <span class="k">in</span> <span class="n">setResponse</span><span class="p">.</span><span class="n">AsStrings</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Cities Set Value: {0}"</span><span class="p">,</span> <span class="k">value</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// Output:</span>
+<span class="c1">// Cities Set Value: Hamilton</span>
+<span class="c1">// Cities Set Value: Ottawa</span>
+<span class="c1">// Cities Set Value: Toronto</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">travel</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cities</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchSet</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">cities set values: '%s'</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="dl">'</span><span class="s1">, </span><span class="dl">'</span><span class="p">));</span>
+<span class="p">});</span>
+
+<span class="c1">// Output:</span>
+<span class="c1">// info: cities set values: 'Hamilton, Ottawa, Toronto'</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_set</span><span class="p">:</span><span class="nf">dirty_value</span><span class="p">(</span><span class="nv">CitiesSet5</span><span class="p">).</span>
+
+<span class="c">%% The value fetched from Riak is always immutable, whereas the "dirty
+%% value" takes into account local modifications that have not been
+%% sent to the server. For example, where the call above would return
+%% [&lt;&lt;"Hamilton"&gt;&gt;, &lt;&lt;"Ottawa"&gt;&gt;, &lt;&lt;"Toronto"&gt;&gt;], the call below would
+%% return []. These are essentially ordsets:
+</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">value</span><span class="p">(</span><span class="nv">CitiesSet5</span><span class="p">).</span>
+
+<span class="c">%% To fetch the value stored on the server, use the call below:
+</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">SetX</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">fetch_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                        <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"sets"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"travel"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                                         <span class="o">&lt;&lt;</span><span class="s">"cities"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/sets/buckets/travel/datatypes/cities
+
+# Response
+{"type":"set","value":["Hamilton","Ottawa","Toronto"],"context":"g2wAAAABaAJtAAAADCMJ/vn7tg36AAAAAWEEag=="}
+
+# You can also fetch the value of the set without the context included:
+curl http://localhost:8098/types/sets/buckets/travel/datatypes/cities?include_context=false
+
+# Response
+{"type":"set","value":["Hamilton", "Ottawa", "Toronto"]}
+</code></pre>
+
+<h2 id="find-set-member">Find Set Member</h2>
+
+<p>Or we can see whether our set includes a specific member:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using our "citiesSet" from above:</span>
+
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">citiesSet</span><span class="o">.</span><span class="na">contains</span><span class="o">((</span><span class="s">"Vancouver"</span><span class="o">));</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">citiesSet</span><span class="o">.</span><span class="na">contains</span><span class="o">(</span><span class="s">"Ottawa"</span><span class="o">));</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="nf">include?</span> <span class="s1">'Vancouver'</span>
+<span class="c1"># false</span>
+
+<span class="n">cities_set</span><span class="p">.</span><span class="nf">include?</span> <span class="s1">'Ottawa'</span>
+<span class="c1"># true</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">in_array</span><span class="p">(</span><span class="s1">'Vancouver'</span><span class="p">,</span> <span class="nv">$set</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">());</span> <span class="c1"># false</span>
+
+<span class="nb">in_array</span><span class="p">(</span><span class="s1">'Ottawa'</span><span class="p">,</span> <span class="nv">$set</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">());</span> <span class="c1"># true</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">'Vancouver'</span> <span class="ow">in</span> <span class="n">cities_set</span>
+<span class="c1"># False
+</span>
+<span class="s">'Ottawa'</span> <span class="ow">in</span> <span class="n">cities_set</span>
+<span class="c1"># True
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="k">using</span> <span class="nn">System.Linq</span><span class="p">;</span>
+
+<span class="kt">bool</span> <span class="n">includesVancouver</span> <span class="p">=</span> <span class="n">response</span><span class="p">.</span><span class="n">AsStrings</span><span class="p">.</span><span class="nf">Any</span><span class="p">(</span><span class="n">v</span> <span class="p">=&gt;</span> <span class="n">v</span> <span class="p">==</span> <span class="s">"Vancouver"</span><span class="p">);</span>
+<span class="kt">bool</span> <span class="n">includesOttawa</span> <span class="p">=</span> <span class="n">response</span><span class="p">.</span><span class="n">AsStrings</span><span class="p">.</span><span class="nf">Any</span><span class="p">(</span><span class="n">v</span> <span class="p">=&gt;</span> <span class="n">v</span> <span class="p">==</span> <span class="s">"Ottawa"</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Use standard javascript array method indexOf()</span>
+
+<span class="kd">var</span> <span class="nx">cities_set</span> <span class="o">=</span> <span class="nx">result</span><span class="p">.</span><span class="nx">values</span><span class="p">;</span>
+<span class="nx">cities_set</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="dl">'</span><span class="s1">Vancouver</span><span class="dl">'</span><span class="p">);</span> <span class="c1">// if present, index is &gt;= 0</span>
+<span class="nx">cities_set</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="dl">'</span><span class="s1">Ottawa</span><span class="dl">'</span><span class="p">);</span> <span class="c1">// if present, index is &gt;= 0</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% At this point, Set5 is the most "recent" set from the standpoint
+%% of our application.
+</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">is_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Vancouver"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">CitiesSet5</span><span class="p">).</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">is_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Ottawa"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">CitiesSet5</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl"># With the HTTP interface, this can be determined from the output of
+# a fetch command like the one displayed in the example above
+</code></pre>
+
+<h2 id="size-of-set">Size of Set</h2>
+
+<p>We can also determine the size of the set:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using our "citiesSet" from above:</span>
+
+<span class="kt">int</span> <span class="n">numberOfCities</span> <span class="o">=</span> <span class="n">citiesSet</span><span class="o">.</span><span class="na">size</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cities_set</span><span class="p">.</span><span class="nf">members</span><span class="p">.</span><span class="nf">length</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">count</span><span class="p">(</span><span class="nv">$set</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">());</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">len</span><span class="p">(</span><span class="n">cities_set</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="k">using</span> <span class="nn">System.Linq</span><span class="p">;</span>
+
+<span class="c1">// Note: this enumerates the IEnumerable</span>
+<span class="n">setResponse</span><span class="p">.</span><span class="n">Values</span><span class="p">.</span><span class="nf">Count</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Use standard javascript array property length</span>
+
+<span class="kd">var</span> <span class="nx">cities_set_size</span> <span class="o">=</span> <span class="nx">result</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_set</span><span class="p">:</span><span class="nb">size</span><span class="p">(</span><span class="nv">CitiesSet5</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl"># With the HTTP interface, this can be determined from the output of
+# a fetch command like the one displayed in the example above
+</code></pre>

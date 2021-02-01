@@ -1,0 +1,86 @@
+
+<p>The following steps are known to work with Mac OS X 10.8, 10.9
+(Mavericks), and Yosemite. You can install from source or download a
+precompiled tarball.</p>
+
+<blockquote>
+  <p><strong><code class="language-plaintext highlighter-rouge">ulimit</code> on OS X</strong></p>
+
+  <p>OS X gives you a very small limit on open file handles, so even with a
+backend that uses very few file handles, it’s possible to run out. See
+<a href="/riak/kv/2.1.3/using/performance/open-files-limit">Open Files Limit</a> for more information about changing the limit.</p>
+</blockquote>
+
+<h2 id="from-precompiled-tarballs">From Precompiled Tarballs</h2>
+
+<p>To run Riak from our precompiled tarball, run these commands for the
+appropriate platform:</p>
+
+<h3 id="64-bit">64-bit</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-O</span> http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.3/osx/10.8/riak-2.1.3-OSX-x86_64.tar.gz
+<span class="nb">tar </span>xzvf riak-2.1.3-osx-x86_64.tar.gz
+</code></pre></div></div>
+
+<p>After the release is untarred, you will be able to <code class="language-plaintext highlighter-rouge">cd</code> into the <code class="language-plaintext highlighter-rouge">riak</code>
+directory and execute <code class="language-plaintext highlighter-rouge">bin/riak start</code> to start the Riak node.</p>
+
+<h2 id="homebrew">Homebrew</h2>
+
+<p>Homebrew’s Riak recipe is community supported, and thus is not always up to
+date with the latest Riak package. Please ensure that the current recipe is
+using the latest supported code (and don’t be afraid to update it if it’s
+not).</p>
+
+<p>Installing Riak 2.0 with <a href="http://brew.sh/">Homebrew</a> is easy:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew <span class="nb">install</span> <span class="nt">--devrel</span> riak
+</code></pre></div></div>
+
+<p>By default, this will place a <code class="language-plaintext highlighter-rouge">2.1.3</code> folder in
+<code class="language-plaintext highlighter-rouge">/usr/local/Cellar/riak</code>.</p>
+
+<p>Be aware that you will most likely see the following message after
+running <code class="language-plaintext highlighter-rouge">brew install</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Error: The `brew link` step did not complete successfully
+The formula built, but is not symlinked into /usr/local
+
+You can try again using:
+  brew link riak
+</code></pre></div></div>
+
+<p>We do not recommend using <code class="language-plaintext highlighter-rouge">brew link</code> with Riak. Instead, we recommend
+either copying that directory to a desired location on your machine,
+aliasing the executables in the <code class="language-plaintext highlighter-rouge">/bin</code> directory, or interacting with
+the Riak installation directory via environment variables.</p>
+
+<p><strong>Note</strong>: Homebrew will install Erlang if you don’t have it already.</p>
+
+<h2 id="installing-from-source">Installing From Source</h2>
+
+<p>You must have Xcode tools installed from <a href="http://developer.apple.com/">Apple’s Developer
+website</a>.</p>
+
+<p>Riak will not compile with Clang. Please make sure that your default C/C++
+compiler is <a href="https://gcc.gnu.org/">GCC</a>.</p>
+
+<p>Riak requires <a href="http://www.erlang.org/">Erlang</a> R16B02+.</p>
+
+<p>If you do not have Erlang already installed, see <a href="/riak/kv/2.1.3/setup/installing/source/erlang">Installing Erlang</a>.</p>
+
+<p>Next, download and unpack the source distribution.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-O</span> http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.3/riak-2.1.3.tar.gz
+<span class="nb">tar </span>zxvf riak-2.1.3.tar.gz
+<span class="nb">cd </span>riak-2.1.3
+make rel
+</code></pre></div></div>
+
+<p>If you receive errors when building about “incompatible architecture,”
+please verify that you built Erlang with the same architecture as your
+system (Snow Leopard and higher: 64bit).</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Now that Riak is installed, check out <a href="/riak/kv/2.1.3/setup/installing/verify">Verifying a Riak Installation</a>.</p>

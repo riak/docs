@@ -1,0 +1,263 @@
+<p><strong>2.1.3 - Released December 9, 2015</strong></p>
+
+<p>Riak KV 2.1.3 is a repackaging of KV 2.1.2 with the 2.1.10 version of eLevelDB library, the 2.0.10 version of LevelDB library, and 2.1.5 version of riak_core. All notes from 2.1.2 apply to 2.1.3, including the required configuration changes in the Upgrading section.</p>
+
+<p><strong>2.1.2 - Released December 1, 2015.</strong></p>
+
+<p>This is a bugfix release, incorporating bugfixes from the Riak KV 2.0 series into our 2.1 series. It also includes general updates and additions to improve performance and incorporate patches developed since the release of 2.1.1.</p>
+
+<h2 id="upgrading">Upgrading</h2>
+<p>If you are upgrading from previous 2.1 releases or from Riak KV 2.0.6, you will need to double check your default bucket properties. KV 2.1.2 has a small, subtle change in the way that default bucket properties work. If your <code class="language-plaintext highlighter-rouge">advanced.config</code> file contains a section for <code class="language-plaintext highlighter-rouge">default_bucket_props</code> under the <code class="language-plaintext highlighter-rouge">riak_core</code> section, you will need to ensure you specify the settings for ALL default bucket properties that you expect to differ from the hard-coded defaults.</p>
+
+<p>For example, if your advanced.config file has a section similar to:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[{riak_core,[{default_bucket_props,[{n_val,1}]}]
+</code></pre></div></div>
+
+<p>In order to maintain the current behavior of your 2.1.1 node, you will need to make sure to include, at minimum, <code class="language-plaintext highlighter-rouge">allow_mult</code> and <code class="language-plaintext highlighter-rouge">dvv_enabled</code> settings, as the treatment of these has changed in order to fix a bug that caused <code class="language-plaintext highlighter-rouge">allow_mult</code> to be <code class="language-plaintext highlighter-rouge">true</code> when it should have been <code class="language-plaintext highlighter-rouge">false</code>.</p>
+
+<p>In the above example, the corrected <code class="language-plaintext highlighter-rouge">default_bucket_props</code> section would look like:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[{riak_core,[{default_bucket_props,[
+               {n_val,1},
+               {allow_mult, true},
+               {dvv_enabled, true}
+            ]}]
+        }]
+</code></pre></div></div>
+
+<p>If you have been depending on this behavior unintentionally, learn more about what  <code class="language-plaintext highlighter-rouge">allow_mult</code> and <code class="language-plaintext highlighter-rouge">dvv_enabled</code> imply in our <a href="http://docs.basho.com/riak/latest/dev/using/conflict-resolution/">Conflict Resolution</a> documentation.</p>
+
+<p>For more information about this change, please see <a href="https://github.com/basho/riak/issues/727">issue #727</a>.</p>
+
+<h2 id="changes">Changes</h2>
+
+<ul>
+  <li>Search now works with write-once buckets. A modification has been made to the <code class="language-plaintext highlighter-rouge">yz_kv:index</code> function to support passing both the bucket and key. Passing a bucket is needed for the write-once PUT path, where there is no (decoded) Riak object. [<a href="https://github.com/basho/riak_kv/pull/1159">riak_kv PR #1159</a>]</li>
+  <li>A Bitcask downgrade script has been added to downgrade Bitcask data files to the format used before version 1.7.0. [<a href="https://github.com/basho/bitcask/pull/215">Bitcask PR #215</a>]</li>
+  <li>Cuttlefish now compiles in windows. [<a href="https://github.com/basho/cuttlefish/pull/187">Cuttlefish PR #187</a>]</li>
+  <li><code class="language-plaintext highlighter-rouge">non-smp</code> and <code class="language-plaintext highlighter-rouge">no async thread</code> have been added as BEAM options. The <code class="language-plaintext highlighter-rouge">no async thread</code> flag and the <code class="language-plaintext highlighter-rouge">non-smp</code> flag both reduce execution time considerably.</li>
+  <li>Administrative operations: <code class="language-plaintext highlighter-rouge">stop</code>, <code class="language-plaintext highlighter-rouge">restart</code>, and <code class="language-plaintext highlighter-rouge">reboot</code> are now logged. This change assists in debugging situations, such as when nodes are exiting gracefully (going through the application:stop sequence) but there are no log messages to explain why <code class="language-plaintext highlighter-rouge">init:stop()</code> was called (like toplevel app supervisors dying).  [<a href="https://github.com/basho/node_package/pull/184">node_package PR #184</a>]</li>
+  <li>Changed compile on Release 17 to use a list of integers. [<a href="https://github.com/basho/lager/pull/209">Lager PR #209</a>]</li>
+  <li><code class="language-plaintext highlighter-rouge">msg_q</code> length of <code class="language-plaintext highlighter-rouge">rtsink_helper</code> has been added to status. [<a href="https://github.com/basho/riak_repl/pull/675">riak_repl PR #675</a>]</li>
+  <li>Under a heavy IO load on the sink side, transferred objects can get stuck in the sink queue and consume infinite memory. A metric has been added so you can monitor memory performance before things collapse. [<a href="https://github.com/basho/riak_repl/pull/674">riak_repl PR #674</a>]</li>
+</ul>
+
+<h2 id="bugs-fixed">Bugs Fixed</h2>
+
+<ul>
+  <li>[<a href="https://github.com/basho/riak_core/pull/764">riak_core PR #764</a>] A node can no longer join the cluster during staged joins if the node is still launching. A race condition was identified where, when nodes are being joined quickly during automated testing, nodes which are still busy starting applications can lead to divergent rings; and a node can transition from being a member of a ring back to joining status with resulting deadlock. The race condition only manifested during staged joins, so this change checks the joining node’s <code class="language-plaintext highlighter-rouge">init</code> status and blocks the join if the node is starting (or stopping).</li>
+  <li>[<a href="https://github.com/basho/riak_repl/issues/663">Issue #663</a>/<a href="https://github.com/basho/riak_repl/pull/707">riak_repl PR #707</a> &amp; <a href="https://github.com/basho/riak_repl/pull/665">riak_repl PR #665</a>] AAE fullsync now works with bucket types. <code class="language-plaintext highlighter-rouge">encode_obj_msg</code> has been updated to support the w2wire protocol. The AAE sink has also been changed to use an updated <code class="language-plaintext highlighter-rouge">decode_obj_msg</code> function which can now properly handle bucket type property hashes.</li>
+  <li>[<a href="https://github.com/basho/riak/issues/727">Issue #727</a>/<a href="https://github.com/basho/riak_core/pull/765">riak_core PR #765</a>] In the event a legacy <code class="language-plaintext highlighter-rouge">app.config</code> is being used, the default bucket type will remain as it is. Previously, if <code class="language-plaintext highlighter-rouge">app.config</code> was still in use after an upgrade, the default bucket type would change from <code class="language-plaintext highlighter-rouge">allow_mult=false</code> to <code class="language-plaintext highlighter-rouge">allow_mult=true</code>. Now, custom bucket type defaults are split out so that the default bucket type, in the presence of a legacy <code class="language-plaintext highlighter-rouge">app.config</code>, does not pick up <code class="language-plaintext highlighter-rouge">dvv</code> or <code class="language-plaintext highlighter-rouge">allow_mult=true</code>.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/issues/1069">Issue #1069</a>/<a href="https://github.com/basho/riak_kv/pull/1174">riak_kv PR #1174</a> &amp; <a href="https://github.com/basho/riak_kv/pull/1162">riak_kv PR #1162</a>] A bucket property validation has been added to ensure that if <code class="language-plaintext highlighter-rouge">last_write_wins</code> is true then <code class="language-plaintext highlighter-rouge">dvv_enabled</code> is false. The bucket property validation applies to <code class="language-plaintext highlighter-rouge">create</code> and <code class="language-plaintext highlighter-rouge">update</code> on any buckets or bucket types. Since this validation applies to a combination of two separate properties in both the create and update scenarios, a new <code class="language-plaintext highlighter-rouge">validate_post_merge</code> function was added, which allows for validation on properties after they have been fully resolved and merged.</li>
+  <li>[<a href="https://github.com/basho/bitcask/pull/216">bitcask PR #216</a>] Workers will now complete all ready deletes. Before this change, if the worker came across a frozen delete, it would stop entirely.</li>
+  <li>[<a href="https://github.com/basho/bitcask/issues/212">Issue #212</a>/<a href="https://github.com/basho/bitcask/pull/214">bitcask PR #214</a>] In the event a user-defined key transformation function fails on a key read from disk, the process will now continue and log an error rather than crashing.</li>
+  <li>[<a href="https://github.com/basho/bitcask/issues/212">Issue #212</a>/<a href="https://github.com/basho/bitcask/pull/213">bitcask PR #213</a>] Keys will no longer be loaded from corrupted entries. Before this fix, keys being loaded from a data file due to a bad/missing hintfile were loaded even if the record did not pass the CRC test.</li>
+  <li>[<a href="https://github.com/basho/riak_api/issues/88">Issue #88</a>/<a href="https://github.com/basho/riak_api/pull/89">riak_api PR #89</a>] Adds a TCP keepalive feature to <code class="language-plaintext highlighter-rouge">pb_listener</code>. Without this feature, <code class="language-plaintext highlighter-rouge">pb_listener</code> hangs on to established connections in cases of a network partition, which can lead to available sockets being exhausted on servers with a high number of concurrent connections.</li>
+  <li>[<a href="https://github.com/basho/riak_core/issues/760">Issue #760</a>/<a href="https://github.com/basho/riak_core/pull/767">riak_core PR #767</a>] Several processes around <code class="language-plaintext highlighter-rouge">check_threshold</code> messages on vnodes have been fixed. Before the fix, if a heavily loaded vnode received more than <code class="language-plaintext highlighter-rouge">check_threshold</code> messages after it hit the direct mailbox check, the ping/pong would leave it in overload state. In cases where the load was removed (e.g. primary recovered), the vnode proxy would stay in overload state until enough messages were received to trigger pinging the vnode or rechecking the mailbox. Now, skipped message counting is stopped; the ping/pong mechanism uses a reference to safely resubmit checks; a ping/pong is immediately triggered after a direct check so the proxy is notified as soon as the mailbox is cleared; and an <code class="language-plaintext highlighter-rouge">overloaded/1</code> functions has been added to make testing easier.</li>
+  <li>[<a href="https://github.com/basho/riak_core/pull/732">riak_core PR #732</a>] The sysmon handler has been updated to treat long schedules on ports gracefully. See the PR for before/after examples.</li>
+  <li>[<a href="https://github.com/basho/riak_core/pull/713">riak_core PR #713</a>] The common name is now only refused if CommonName isn’t a wildcard certificate name.</li>
+  <li>[<a href="https://github.com/basho/riak_ensemble/issues/70">Issue #70</a>/<a href="https://github.com/basho/riak_ensemble/pull/75">riak_ensemble PR #75</a>] The LevelDB synctree lock is now limited to the local node to help reduce the ensemble startup time.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/pull/1228">riak_kv PR #1228</a>] In the event of a downgrade from a version of Riak KV that uses new binary types rather than term-to-binary or custom binaries, KV won’t crash when trying to read those keys back. Also, in the event of a provided “X-Riak-Val-Encoding” metadata tag, the binary is stored with that value as its magic byte to provide round-trip support.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/issues/1086">Issue #1086</a>/<a href="https://github.com/basho/riak_kv/pull/1167">riak_kv PR #1167</a>] To avoid a stats crash, <code class="language-plaintext highlighter-rouge">riak_kv_stat</code> can now handle undefined object size during consistent PUT/GET.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/pull/1164">riak_kv PR #1164</a>] Compile-time warnings identified by dialyzer have been fixed.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/pull/1155">riak_kv PR #1155</a>] The occasional problem where paginated 2i queries would be missing values has been fixed. See the PR for the full (long) explanation.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/issues/1138">Issue #1138</a>/<a href="https://github.com/basho/riak_kv/pull/1153">riak_kv PR #1153</a>] The <code class="language-plaintext highlighter-rouge">bad_match</code> during handoff with write-once buckets has been fixed. Previously, if data was coming into a write-once bucket while handoff was taking place, <code class="language-plaintext highlighter-rouge">riak_core_vnode</code> would crash with a <code class="language-plaintext highlighter-rouge">bad_match</code>.</li>
+  <li>[<a href="https://github.com/basho/riak_repl/pull/671">riak_repl PR #671</a>] No more deadlocks when handoff occurs during fullsync, and <code class="language-plaintext highlighter-rouge">wait_keylist</code> has been recoded as an async. Before the deadlock fix, neither source would handle a ‘DOWN’ message with a normal reason code, which would cause them to deadlock waiting for the vnode to respond if it was handed off to another node. The <code class="language-plaintext highlighter-rouge">wait_keylist</code> change fixed a crash in the <code class="language-plaintext highlighter-rouge">riak_repl_keylist_server</code> because of missing handling of <code class="language-plaintext highlighter-rouge">wait_keylist({skip_partition, Partition}, ...)</code>.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/issues/1142">Issue #1142</a>/<a href="https://github.com/basho/riak_kv/pull/1144">riak_kv PR #1144</a>] When handling mixed <code class="language-plaintext highlighter-rouge">vnode_status</code> files KV will no longer crash.</li>
+  <li>[<a href="https://github.com/basho/riak_kv/pull/1143">riak_kv PR #1143</a> &amp; <a href="https://github.com/basho/riak_kv/pull/1115">riak_kv PR #1115</a>] Your Riak node will no longer crash if the vnode status file is unreadable. Before this fix, if the vnode status file was unreadable with <code class="language-plaintext highlighter-rouge">file:consult/1</code> for any reason, the vnode would start, fail to consult, crash until the restart limit was hit, and then the node would fail to start/crash.</li>
+  <li>[<a href="https://github.com/basho/riak_core/issues/706">Issue #706</a>/<a href="https://github.com/basho/riak_kv/pull/1116">riak_kv PR #1116</a>] Fixed permissions issues with <code class="language-plaintext highlighter-rouge">riak_kv.get_preflist</code>. Prior to this fix, you would get a message similar to “could not grant this permission as it was not part of the <code class="language-plaintext highlighter-rouge">permissions</code> list”; when permission failed, the error message would not get printed due to <code class="language-plaintext highlighter-rouge">badarg</code>; and PBC <code class="language-plaintext highlighter-rouge">decode</code> function did not return the correct value.</li>
+  <li>[<a href="https://github.com/basho/riak_repl/issues/711">Issue #711</a>/<a href="https://github.com/basho/riak_repl/pull/717">riak_repl PR #717</a>] Only the primary atom of the error reason is now saved in the statistic, since including the entire error reason tuple in the connection error can cause each connection error to create a new folsom statistic.</li>
+  <li>[<a href="https://github.com/basho/riak_repl/issues/654">Issue #654</a>/<a href="https://github.com/basho/riak_repl/pull/709">riak_repl PR #709</a>] The configs and defaults between fullsync and realtime for Riak CS block tombstone have been separated. The config keys have been separated into realtime and fullsync for block tombstone filter, and different default values have been set for them: <code class="language-plaintext highlighter-rouge">propagate</code> in realtime and <code class="language-plaintext highlighter-rouge">filter away</code> in fullsync.</li>
+  <li>[<a href="https://github.com/basho/riak_repl/issues/679">Issue #679</a>/<a href="https://github.com/basho/riak_repl/pull/700">riak_repl PR #700</a>, <a href="https://github.com/basho/riak_repl/pull/701">riak_repl PR #701</a>, &amp; <a href="https://github.com/basho/riak_repl/pull/683">riak_repl PR #683</a>] These PRs contain three fixes: First, the <code class="language-plaintext highlighter-rouge">send_after</code>call has been fixed and unneeded calls removed. Second, the <code class="language-plaintext highlighter-rouge">keepalive_timer</code> has been removed from state. Third, resolves an issue where the provider process could become blocked or stuck for an extended period only to receive many pointless messages from the timer system. To do this, the <code class="language-plaintext highlighter-rouge">keepalive</code> was upped from 1 second to 60, and the <code class="language-plaintext highlighter-rouge">erlang:send_after/3 reset</code> pattern is used rather than <code class="language-plaintext highlighter-rouge">timer:send_interval/3</code>. By using the <code class="language-plaintext highlighter-rouge">erlang:send_after</code>, messages will not be sent if the process becomes stuck, as no code capable of resetting the timer will run.</li>
+  <li>[<a href="https://github.com/basho/riak_repl/issues/637">Issue #637 </a>/<a href="https://github.com/basho/riak_repl/pull/697">riak_repl PR #697</a>] A bug with heartbeat has been fixed by adding a new pattern match and debug line. In the case where the <code class="language-plaintext highlighter-rouge">hb_interval</code> is already set, the pattern match to get into the first case will not succeed and thus an error message will be thrown. However, the default error message is incorrect in the case that the heartbeat interval is already set. Now, there is just a debug statement (not an error printed to the logs) in the situation where the heartbeat is already set and should be left alone.</li>
+  <li>[<a href="https://github.com/basho/riak_snmp/issues/27">Issue #27</a>/<a href="https://github.com/basho/riak_snmp/pull/28">riak_snmp PR #28</a>] A function head has been added to <code class="language-plaintext highlighter-rouge">NameSortFun</code> that correctly handles the <code class="language-plaintext highlighter-rouge">realtime_enabled</code> property having multiple values. This situation can happen when a cluster is configured for realtime replication with two or more other clusters.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/324">Issue #324</a>/<a href="https://github.com/basho/yokozuna/pull/572">yokozuna PR #572</a>] A couple fixes to handle Solr request timeout configs have been made. First, ibrowse <code class="language-plaintext highlighter-rouge">timedout</code> has been increased for <code class="language-plaintext highlighter-rouge">entropy_data</code> Solr request, which prevents <code class="language-plaintext highlighter-rouge">timedout</code> from crashing during iteration or from allowing the build to pass if an error occurs because Solr was not pingable. This increase allows for a general configurable timeout within adv.config for all Solr requests. Second, <code class="language-plaintext highlighter-rouge">solr_request_timeout</code> is now configurable. <code class="language-plaintext highlighter-rouge">solr_request_timeout</code> is used by all Solr localhost HTTP requests. Additionally, macro timeout has been added to the <code class="language-plaintext highlighter-rouge">entropy_data</code> call. Third, <code class="language-plaintext highlighter-rouge">yz_solr:ping</code> now uses a HEAD request.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/pull/569">yokozuna PR #569</a>] Base64 decoding has been updated in the Java EntropyData handler to fix a bug. This change means you now have the ability to adjust the max number of documents returned from an EntropyData query.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/305#issue-27558978">Issue #305</a>/<a href="https://github.com/basho/yokozuna/pull/478">yokozuna PR #478</a>] Query plans are now cached by <code class="language-plaintext highlighter-rouge">n_val</code> rather than index name. Which leads to a noticeable reduction in %CPU usage in htop while running.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/498">Issue #498</a>/<a href="https://github.com/basho/yokozuna/pull/532">yokozuna PR #532</a>] More informative error handling for HTTP requests has been added to make certain errors more informative, as errors were getting caught by the scrub_headers.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/503">Issue #503</a>/<a href="https://github.com/basho/yokozuna/pull/528">yokozuna PR #528</a>] The ability to handle POSTs for search queries when given the content-type <code class="language-plaintext highlighter-rouge">application/x-www-form-urlencoded</code> or return a 415 if given another CT on POST has been added.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/525">Issue #525</a>/<a href="https://github.com/basho/yokozuna/pull/527">yokozuna PR #527</a>] Yokozuna now re-indexes the remainder of a partition after a non-indexable document is encountered.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/481">Issue #481</a>/<a href="https://github.com/basho/yokozuna/pull/486">yokozuna PR #486</a>] The issue in building-from/iterating-through entropy data to match Riak KV <code class="language-plaintext highlighter-rouge">actual_put</code> data with default bucket-types has been fixed, and log messaging in the <code class="language-plaintext highlighter-rouge">yz_index_hashtree</code> has been cleaned up.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/401">Issue #401</a>/<a href="https://github.com/basho/yokozuna/pull/413">yokozuna PR #413</a>] You can now set the Jetty temporary directory using the <code class="language-plaintext highlighter-rouge">search.temp_dir</code> configuration variable.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/382">Issue #382</a>/ <a href="https://github.com/basho/yokozuna/pull/483">yokozuna PR #483</a>] mochiglobal is now used to store the extractor map. If the extractor map is not in mochiglobal, CMD is checked, and then the ring. Additionally, the capability to move the extractor map into CMD has been added.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/issues/480">Issue #480</a>/<a href="https://github.com/basho/yokozuna/pull/482">yokozuna PR #482</a>] <code class="language-plaintext highlighter-rouge">default_schema</code> has been updated to return sets in query responses by storing them.</li>
+  <li>[<a href="https://github.com/basho/yokozuna/pull/487">yokozuna PR #487</a>] The index creation loop on bad data has been stopped.</li>
+</ul>
+
+<h2 id="upgraded-components">Upgraded Components</h2>
+
+<ul>
+  <li>syslog has been upgraded to version 1.0.3</li>
+  <li>goldrush has been upgraded to version 0.1.7</li>
+  <li>lager has been upgraded to version 2.2.0</li>
+  <li>merge_index has been upgraded to version 2.0.1</li>
+  <li>lager_syslog has been upgraded to version 2.1.3</li>
+  <li>neotoma has been upgraded to version 1.7.3</li>
+  <li>getopt has been upgraded to version v0.8.2</li>
+  <li>cuttlefish has been upgraded to version 2.0.5</li>
+  <li>riak_sysmon has been upgraded to version 2.1.1</li>
+  <li>eleveldb has been upgraded to version 2.1.10</li>
+  <li>riak_ensemble has been upgraded to version 2.1.2</li>
+  <li>clique has been upgraded to version 0.3.2</li>
+  <li>riaknostic has been upgraded to version 2.1.3</li>
+  <li>riak_snmp has been upgraded to version 2.1.2</li>
+  <li>riak_core has been upgraded to version 2.1.4</li>
+  <li>riak_pipe has been upgraded to version 2.1.1</li>
+  <li>riak_api has been upgraded to version 2.1.2</li>
+  <li>bitcask has been upgraded to version 1.7.3</li>
+  <li>riak_kv has been upgraded to version 2.1.2</li>
+  <li>yokozuna has been upgraded to version 2.1.2</li>
+  <li>riak_search has been upgraded to version 2.1.1</li>
+  <li>riak_repl has been upgraded to version 2.1.2</li>
+  <li>riak_jmx has been upgraded to version 2.1.1</li>
+  <li>riak_control has been upgraded to version 2.1.2</li>
+  <li>node_package has been upgraded to version 2.0.3</li>
+  <li>cluster_info has been upgraded to version 2.0.</li>
+</ul>
+
+<h1 id="riak-211-release-notes">Riak 2.1.1 Release Notes</h1>
+<p><em>NOTE: Riak 2.1.1 has replaced Riak 2.1.0</em></p>
+
+<h2 id="fixes">Fixes</h2>
+<p>Riak 2.1.0 introduced a bug that has been fixed in Riak 2.1.1. The default configuration for handoff.ip caused vnodes marked for transfer during handoff to be removed without transferring data to their new destination nodes. A mandatory change to configuration (riak.conf) mitigates this issue for 2.1.0 users. While not all users were impacted by this issue, we recommend that all 2.1.0 users upgrade to 2.1.1.</p>
+
+<p>Detailed information on the issue is available in the Basho Documentation <a href="http://docs.basho.com/community/productadvisories/210-dataloss/">Product Advisories</a>.</p>
+
+<ul>
+  <li>Make default <code class="language-plaintext highlighter-rouge">handoff_ip</code> value 0.0.0.0 in vars.config.
+    <ul>
+      <li><a href="https://github.com/basho/riak/pull/734">riak/pull/734</a></li>
+    </ul>
+  </li>
+</ul>
+
+<h1 id="riak-210-release-notes">Riak 2.1.0 Release Notes</h1>
+
+<h2 id="new-features">New Features</h2>
+
+<h3 id="performance-improvements">Performance Improvements</h3>
+
+<p>The introduction of write-once buckets allows users to experience up to a 2x performance improvement for write-heavy, write-once workloads.  More details on implementing write-once buckets are available below.</p>
+
+<h3 id="write-once-bucket-type">Write-Once Bucket Type</h3>
+
+<p>Riak 2.1.0 introduces the concept of write-once buckets, buckets whose entries are intended to be written exactly once and never updated or overwritten. Since objects are intended to only be written once, Riak does not perform the usual “get, merge, update” cycle which reduces IOPs and improves throughput and latency.</p>
+
+<p>It is still possible for multiple entries to be written to a single key – through mis-use of the API, network partitions, simultaneous writes, etc.. In these cases, Riak will always resolve siblings using an algorithm based on the SHA-1 hashes of the conflicting objects. While this algorithm is repeatable and deterministic at the database level, it will have the appearance to the user of “random write wins”.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">write_once</code> property is a boolean value applied to a bucket type and may only be set at bucket creation time. Once a bucket type has been set and activated with the <code class="language-plaintext highlighter-rouge">write_once</code> property, the property may not be modified</p>
+
+<p>Limitations:</p>
+
+<ul>
+  <li>Pre/Post-commit hooks are not supported.</li>
+  <li>Large object warnings and limits are not enforced.</li>
+  <li>All nodes must be upgraded before enabling <code class="language-plaintext highlighter-rouge">write_once</code> - usage in mixed clusters will crash vnodes.</li>
+</ul>
+
+<h2 id="changes-1">Changes</h2>
+
+<ul>
+  <li><a href="https://github.com/basho/riak_kv/issues/679">Issue kv679</a> - Applies fix to most causes of data loss from repeated causal history. A monotonic counter is fsynced to disk when the vnode starts. Thus starting/re-starting a vnode has a cost associated that was not there before.
+    <ul>
+      <li><a href="https://github.com/basho/riak_kv/pull/1070">riak_kv/pull/1070</a></li>
+    </ul>
+  </li>
+  <li>Update API to retrieve active preflist based on particular bucket/key.
+Updates the Riak API with an operation to GET, e.g. <code class="language-plaintext highlighter-rouge">/types/Type/buckets/Bucket/keys/Key/preflist</code>, an annotated (nodes being primary or fallback) preflist of which nodes host a particular bucket/key combination is returned.
+    <ul>
+      <li><a href="https://github.com/basho/riak-erlang-http-client/pull/50">riak-erlang-http-client/pull/50</a></li>
+      <li><a href="https://github.com/basho/riak_core/pull/705">riak_core/pull/705</a></li>
+      <li><a href="https://github.com/basho/riak_pb/pull/105">riak_pb/pull/105</a></li>
+      <li><a href="https://github.com/basho/riak-erlang-client/pull/204">riak-erlang-client/pull/204</a></li>
+      <li><a href="https://github.com/basho/riak_kv/pull/1083">riak_kv/pull/1083</a></li>
+      <li><a href="https://github.com/basho/riak_api/pull/81">riak_api/pull/81</a></li>
+      <li><a href="https://github.com/basho/riak_api/pull/75">riak_api/pull/75</a></li>
+    </ul>
+  </li>
+  <li>Add a JSON writer for several riak-admin commands, including cluster status, cluster partition[s], cluster partition-count, any of the riak-admin handoff commands, and riak-admin set/show/describe.
+    <ul>
+      <li><a href="https://github.com/basho/clique/pull/47">clique/pull/47</a></li>
+    </ul>
+  </li>
+  <li>Integrate performance patches into Erlang R16 VM used by Riak.
+    <ul>
+      <li><a href="https://github.com/basho/otp/pull/10">opt/pull/10</a></li>
+    </ul>
+  </li>
+  <li>Add riak_core_ring_manager:is_stable_ring/0 to public API. Allows clients to ensure that the ring has not changed in X seconds (currently 90).
+    <ul>
+      <li><a href="https://github.com/basho/riak_core/pull/716">riak_core/pull/716</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/468">yokozuna/issues/468</a> - Add <code class="language-plaintext highlighter-rouge">search_query_latency_mean</code> and <code class="language-plaintext highlighter-rouge">search_index_latency_mean</code> metrics.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/473">yokozuna/pull/473</a></li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="fixes-1">Fixes</h2>
+
+<ul>
+  <li><a href="https://github.com/basho/yokozuna/issues/437">yokozuna/issues/437</a>: Timeouts during bulk data load, possible tie in to yz_events crash and a bad state on core create.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/458">yokozuna/pull/458</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/452">yokozuna/issues/452</a>:  Don’t delete siblings in YZ when using SC or CRDTs.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/457">yokozuna/pull/457</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/402">yokozuna/issues/402</a>: Creating a new search index via HTTP responds before the index is available.
+    <ul>
+      <li><a href="https://github.com/basho/riak_test/pull/745">riak_test/pull/745</a></li>
+      <li><a href="https://github.com/basho/riak_pb/pull/112">riak_pb/pull/112</a></li>
+      <li><a href="https://github.com/basho/riak_pb/pull/111">riak_pb/pull/111</a></li>
+      <li><a href="https://github.com/basho/riak-erlang-client/pull/207">riak-erlang-client/pull/207</a></li>
+      <li><a href="https://github.com/basho/yokozuna/pull/463">yokozuna/pull/463</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/450">yokozuna/issues/450</a>: AAE Failing hourly, with exit value {badarg,46}, [{base64,decode_binary[{base64.erl…
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/459">yokozuna/pull/459</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/437">yokozuna/issues/437</a>: yz_events:handle_info called with bad arguments.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/458">yokozuna/pull/458</a></li>
+      <li><a href="https://github.com/basho/yokozuna/pull/42">yokozuna/pull/42</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/469">yokozuna/issues/469</a>: Fix YZ stats name typo from throughput to throughput.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/470">yokozuna/pull/470</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/riak_core/issues/698">riak_core/issues/698</a>: SSL connections from peers with matching wildcard name are always rejected.
+    <ul>
+      <li><a href="https://github.com/basho/riak_core/pull/718">riak_core/pull/718</a></li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="known-issues">Known Issues</h2>
+
+<ul>
+  <li><a href="https://github.com/basho/yokozuna/issues/481">yokozuna/issues/481</a> - Search loses entries when Search AAE trees expire. We are currently investigating this issue.</li>
+  <li><a href="https://github.com/basho/riak/issues/727">riak/issues/727</a> - Users upgrading from 1.4.x to 2.1.x that choose to use the traditional <code class="language-plaintext highlighter-rouge">app.config</code> for configuration should be aware that the default settings for <code class="language-plaintext highlighter-rouge">allow_mult</code> and <code class="language-plaintext highlighter-rouge">dvv_enabled</code> have changed from <code class="language-plaintext highlighter-rouge">false</code> to <code class="language-plaintext highlighter-rouge">true</code> between these versions.  If your application depends on these being set to ‘false’, you must explicitly define this by adding <code class="language-plaintext highlighter-rouge">{default_bucket_props, [{allow_mult, false}, {dvv_enabled, false}]},</code> to the <code class="language-plaintext highlighter-rouge">riak_core</code> section of your <code class="language-plaintext highlighter-rouge">app.config</code> file to maintain backwards compatibility.</li>
+</ul>
+
+<h2 id="notes-on-upgrading">Notes on upgrading</h2>
+
+<ul>
+  <li>Write-Once Buckets
+    <ul>
+      <li>If you make use of write-once buckets, you must upgrade all of your Riak nodes in a cluster to 2.1.0.  There is no support for write-once buckets in a cluster with mixed Riak versions.</li>
+      <li>Pre/Post-commit hooks are not supported.</li>
+      <li>Large object warnings and limits are not enforced</li>
+    </ul>
+  </li>
+</ul>

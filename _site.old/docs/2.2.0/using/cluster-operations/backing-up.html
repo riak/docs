@@ -1,0 +1,418 @@
+
+<p>Riak KV is a <a href="/riak/kv/2.2.0/learn/concepts/clusters">clustered</a> system built to survive a wide range of failure scenarios, including the loss of nodes due to network or hardware failure. Although this is one of Riak KV’s core strengths, it cannot withstand all failure scenarios.</p>
+
+<p>Backing up data (duplicating the database on a different long-term storage system) is a common approach to mitigating potential failure scenarios.</p>
+
+<p>This page covers how to perform backups of Riak KV data.</p>
+
+<h2 id="overview">Overview</h2>
+
+<p>Riak KV backups can be performed using operating system features or filesystems that support snapshots, such as LVM or ZFS, or by using tools like rsync or tar.</p>
+
+<p>Choosing your Riak KV backup strategy will depend on your already-established backup methodologies and the backend configuration of your nodes.</p>
+
+<p>The basic process for getting a backup of Riak KV from a node is as follows:</p>
+
+<ol>
+  <li>Stop Riak KV with <code class="language-plaintext highlighter-rouge">riak stop</code>.</li>
+  <li>Backup the appropriate data, ring, and configuration directories.</li>
+  <li>Start Riak KV.</li>
+</ol>
+
+<p>Downtime of a node can be significantly reduced by using an OS feature or filesystem that supports snapshotting.</p>
+
+<p>Due to Riak KV’s eventually consistent nature, backups can become slightly inconsistent from node to node.</p>
+
+<p>Data could exist on some nodes and not others at the exact time a backup is made. Any inconsistency will be corrected once a backup is restored, either by Riak’s <a href="/riak/kv/2.2.0/learn/concepts/active-anti-entropy/">active anti-entropy</a> processes or when the object is read, via <a href="/riak/kv/2.2.0/learn/concepts/active-anti-entropy/#read-repair-vs-active-anti-entropy">read repair</a>.</p>
+
+<h2 id="os-specific-directory-locations">OS-Specific Directory Locations</h2>
+
+<p>The default Riak KV data, ring, and configuration directories for each of the supported operating systems is as follows:</p>
+
+<h4 id="debian-and-ubuntu">Debian and Ubuntu</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data</th>
+      <th style="text-align: left">Directory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Bitcask</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/bitcask</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">LevelDB</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/leveldb</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Ring</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/ring</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Configuration</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/etc/riak</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Cluster Metadata</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/cluster_meta</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/yz</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Strong consistency</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/ensembles</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="fedora-and-rhel">Fedora and RHEL</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data</th>
+      <th style="text-align: left">Directory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Bitcask</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/bitcask</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">LevelDB</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/leveldb</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Ring</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/ring</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Configuration</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/etc/riak</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Cluster Metadata</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/cluster_meta</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/yz</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Strong consistency</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/lib/riak/ensembles</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="freebsd">FreeBSD</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data</th>
+      <th style="text-align: left">Directory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Bitcask</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/bitcask</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">LevelDB</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/leveldb</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Ring</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/ring</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Configuration</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/usr/local/etc/riak</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Cluster Metadata</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/cluster_meta</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/yz</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Strong consistency</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/ensembles</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="os-x">OS X</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data</th>
+      <th style="text-align: left">Directory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Bitcask</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/bitcask</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">LevelDB</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/leveldb</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Ring</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/riak/ring</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Configuration</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./etc</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Cluster Metadata</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/riak/cluster_meta</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/riak/yz</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Strong consistency</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/ensembles</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Note</strong>: OS X paths are relative to the directory in which the package
+was extracted.</p>
+
+<h4 id="smartos">SmartOS</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data</th>
+      <th style="text-align: left">Directory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Bitcask</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/bitcask</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">LevelDB</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/leveldb</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Ring</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/ring</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Configuration</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/local/etc/riak</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Cluster Metadata</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/cluster_meta</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/yz</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Strong consistency</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/db/riak/ensembles</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="solaris">Solaris</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data</th>
+      <th style="text-align: left">Directory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Bitcask</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/data/bitcask</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">LevelDB</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/data/leveldb</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Ring</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/ring</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Configuration</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/etc</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Cluster Metadata</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/cluster_meta</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/yz</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Strong consistency</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/data/ensembles</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="performing-backups">Performing Backups</h2>
+
+<p>In previous versions of Riak KV, there was a <a href="/riak/kv/2.2.0/using/admin/riak-admin/#backup"><code class="language-plaintext highlighter-rouge">riak-admin backup</code></a> command commonly used for
+backups. This functionality is now deprecated. We strongly recommend using the backup procedure documented below instead.</p>
+
+<p>Backups can be accomplished through a variety of common methods. Standard utilities such <code class="language-plaintext highlighter-rouge">cp</code>, <code class="language-plaintext highlighter-rouge">rsync</code>, and <code class="language-plaintext highlighter-rouge">tar</code> can be used, as well as any backup system already in place in your environment.</p>
+
+<p>A simple shell command, like those in the following examples, are sufficient for creating a backup of your Bitcask or LevelDB data, ring, and Riak KV configuration directories for a binary package-based Riak KV Linux
+installation.</p>
+
+<p>The following examples use <code class="language-plaintext highlighter-rouge">tar</code>:</p>
+
+<p>Backups must be performed on while Riak KV is stopped to prevent data loss.</p>
+
+<h3 id="bitcask">Bitcask</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar</span> <span class="nt">-czf</span> /mnt/riak_backups/riak_data_<span class="sb">`</span><span class="nb">date</span> +%Y%m%d_%H%M<span class="sb">`</span>.tar.gz <span class="se">\</span>
+  /var/lib/riak/bitcask /var/lib/riak/ring /etc/riak
+</code></pre></div></div>
+
+<h3 id="leveldb">LevelDB</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar</span> <span class="nt">-czf</span> /mnt/riak_backups/riak_data_<span class="sb">`</span><span class="nb">date</span> +%Y%m%d_%H%M<span class="sb">`</span>.tar.gz <span class="se">\</span>
+  /var/lib/riak/leveldb /var/lib/riak/ring /etc/riak
+</code></pre></div></div>
+
+<h3 id="cluster-metadata">Cluster Metadata</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar</span> <span class="nt">-czf</span> /mnt/riak_backups/riak_data_<span class="sb">`</span><span class="nb">date</span> +%Y%m%d_%H%M<span class="sb">`</span>.tar.gz <span class="se">\</span>
+  /var/lib/riak/cluster_meta
+</code></pre></div></div>
+
+<h3 id="search--solr-data">Search / Solr Data</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar</span> <span class="nt">-czf</span> /mnt/riak_backups/riak_data_<span class="sb">`</span><span class="nb">date</span> +%Y%m%d_%H%M<span class="sb">`</span>.tar.gz <span class="se">\</span>
+  /var/lib/riak/yz
+</code></pre></div></div>
+
+<h3 id="strong-consistency-data">Strong Consistency Data</h3>
+
+<p>Persistently stored data used by Riak’s <a href="/riak/kv/2.2.0/using/reference/strong-consistency">strong consistency</a> feature
+can be stored in an analogous fashion:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar</span> <span class="nt">-czf</span> /mnt/riak_backups/riak_data_<span class="sb">`</span><span class="nb">date</span> +%Y%m%d_%H%M<span class="sb">`</span>.tar.gz <span class="se">\</span>
+  /var/lib/riak/ensembles
+</code></pre></div></div>
+
+<h2 id="restoring-a-node">Restoring a Node</h2>
+
+<p>The method you use to restore a node will differ depending on a combination of factors, including node name changes and your network environment.</p>
+
+<p>If you are replacing a node with a new node that has the same node name (typically a fully qualified domain name or IP address), then restoring the node is a simple process:</p>
+
+<ol>
+  <li>Install Riak on the new node.</li>
+  <li>Restore your old node’s configuration files, data directory, and ring
+directory.</li>
+  <li>Start the node and verify proper operation with <code class="language-plaintext highlighter-rouge">riak ping</code>,
+<code class="language-plaintext highlighter-rouge">riak-admin status</code>, and other methods you use to check node health.</li>
+</ol>
+
+<p>If the node name of a restored node (<code class="language-plaintext highlighter-rouge">-name</code> argument in <code class="language-plaintext highlighter-rouge">vm.args</code> or
+<code class="language-plaintext highlighter-rouge">nodename</code> parameter in <code class="language-plaintext highlighter-rouge">riak.conf</code>) is different than the name of the
+node that the restored backup was taken from, you will need to
+additionally:</p>
+
+<ol>
+  <li>Mark the original instance down in the cluster using
+<a href="/riak/kv/2.2.0/using/admin/riak-admin/#down"><code class="language-plaintext highlighter-rouge">riak-admin down &lt;node&gt;</code></a></li>
+  <li>Join the restored node to the cluster using
+<a href="/riak/kv/2.2.0/using/admin/riak-admin/#cluster-join"><code class="language-plaintext highlighter-rouge">riak-admin cluster join &lt;node&gt;</code></a></li>
+  <li>Replace the original instance with the renamed instance with
+<a href="/riak/kv/2.2.0/using/admin/riak-admin/#cluster-force-replace"><code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace &lt;node1&gt; &lt;node2&gt;</code></a></li>
+  <li>Plan the changes to the cluster with <code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></li>
+  <li>Finally, commit the cluster changes with <code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code></li>
+</ol>
+
+<p>For more information on the <code class="language-plaintext highlighter-rouge">riak-admin cluster</code> commands, refer to our documentation on <a href="/riak/kv/2.2.0/using/admin/">cluster administration</a>.</p>
+
+<p>For example, if there are five nodes in the cluster with the original node names <code class="language-plaintext highlighter-rouge">riak1.example.com</code> through <code class="language-plaintext highlighter-rouge">riak5.example.com</code> and you wish to restore <code class="language-plaintext highlighter-rouge">riak1.example.com</code> as <code class="language-plaintext highlighter-rouge">riak6.example.com</code>, you would execute the following commands on <code class="language-plaintext highlighter-rouge">riak6.example.com</code>.</p>
+
+<ol>
+  <li>
+    <p>Join to any existing cluster node.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster <span class="nb">join </span>riak@riak2.example.com
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Mark the old instance down.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin down riak@riak1.example.com
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Force-replace the original instance with the new one.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster force-replace <span class="se">\</span>
+     riak@riak1.example.com riak@riak6.example.com
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Display and review the cluster change plan.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster plan
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Commit the changes to the cluster.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster commit
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>Your <a href="/riak/kv/2.2.0/configuring/reference">configuration files</a> should also be changed to match the new name in addition to running the commands (the <code class="language-plaintext highlighter-rouge">-name</code> setting in <code class="language-plaintext highlighter-rouge">vm.args</code> in the older config system, and the <code class="language-plaintext highlighter-rouge">nodename</code> setting in <code class="language-plaintext highlighter-rouge">riak.conf</code> in the newer system).</p>
+
+<p>If the IP address of any node has changed, verify that the changes are reflected in your configuration files to ensure that the HTTP and Protocol Buffers interfaces are binding to the correct addresses.</p>
+
+<p>A robust DNS configuration can simplify the restore process if the IP addresses of the nodes change, but the hostnames are used for the node names and the hostnames stay the same. Additionally, if the HTTP and Protocol Buffers interface settings are configured to bind to all IP interfaces (0.0.0.0), then no changes will need to be made to your configuration files.</p>
+
+<p>When performing restore operations involving <code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace</code>, we recommend that you start only one node at a time and verify that each node that is started has the correct name for itself
+and for any other nodes whose names have changed:</p>
+
+<ol>
+  <li>Verify that the correct name is present your configuration file.</li>
+  <li>Once the node is started, run <code class="language-plaintext highlighter-rouge">riak attach</code> to connect to the node. The prompt obtained should contain the correct node name.
+    <ul>
+      <li>(It may be necessary to enter an Erlang atom by       typing <code class="language-plaintext highlighter-rouge">x.</code> and pressing Enter)</li>
+    </ul>
+  </li>
+  <li>Disconnect from the attached session with <strong>Ctrl-G + q</strong>.</li>
+  <li>Finally, run <code class="language-plaintext highlighter-rouge">riak-admin member_status</code> to list all of the nodes and verify that all nodes listed have the correct names.</li>
+</ol>
+
+<h2 id="restoring-a-cluster">Restoring a Cluster</h2>
+
+<p>Restoring a cluster from backups is documented <a href="/riak/kv/2.2.0/using/repair-recovery/failure-recovery/#cluster-recovery-from-backups">on its own page</a>.</p>

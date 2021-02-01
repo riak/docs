@@ -1,0 +1,374 @@
+
+<p>This page will walk you through setting up your environment for development with Riak Redis Add-on (RRA), as well as present examples and configuration parameters for basic development operations.</p>
+
+<h2 id="overview">Overview</h2>
+
+<p>Riak Redis Add-on (RRA) packages a cache proxy service. The cache proxy service provides accessibility to Riak KV, as a persistent data store, with Redis, as a cache through the various Redis client libraries and command-line interface tool <code class="language-plaintext highlighter-rouge">redis-cli</code>.</p>
+
+<p>As with Riak KV, the cache proxy service almost always performs best and most
+predictably when you use the basic CRUD operations – Create, Read, Update,
+Delete – that you’d find in any key/value store. Learning these operations
+is a great place to start when beginning to develop applications that use
+RRA.</p>
+
+<p>The set of clients (including recommendations) for Redis are listed at
+<a href="http://redis.io/clients">Redis clients</a>. For brevity sake, examples provided here are
+in:</p>
+
+<ul>
+  <li>Erlang (Eredis)</li>
+  <li>Javascript (node_redis)</li>
+  <li>Python (redis-py)</li>
+  <li>Ruby (redis-rb)</li>
+  <li>Scala (lettuce)</li>
+  <li>Java, see the Scala examples. The code intentionally uses as few Scala tricks as possible to focus on the use of the Redis client.</li>
+</ul>
+
+<h2 id="riak-kv-setup">Riak KV Setup</h2>
+
+<p>While you can use Riak Redis Add-on with Riak KV configured so either <code class="language-plaintext highlighter-rouge">last_write_wins</code> is set to ‘true’ or <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to ‘true’, we recommend using the  <code class="language-plaintext highlighter-rouge">allow_mult</code> setting in order to provide client sibling resolution in the event of a network partition. The examples and instructions on this page will assume <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to ‘true’.</p>
+
+<p>The cache proxy service is tested under both configurations. However, due to lack of support via the Redis protocol for returning multiple values for a single <code class="language-plaintext highlighter-rouge">GET</code>, effectively <code class="language-plaintext highlighter-rouge">last_write_wins</code> semantics apply.</p>
+
+<p>For a deeper explanation of Riak KV’s configurable behaviors, see John Daily’s
+blog series <a href="http://basho.com/posts/technical/riaks-config-behaviors-part-4/">part 4</a> .</p>
+
+<h3 id="bucket-type-setup">Bucket Type Setup</h3>
+
+<h4 id="create-a-bucket-type">Create a Bucket Type</h4>
+
+<p>If your application organizes data in a way that does not include bucket-type
+and instead only uses bucket to organize its keyspace, the <code class="language-plaintext highlighter-rouge">default</code> bucket-type
+can be used by omitting the bucket-type portion of the colon-delimited
+hierarchical namespaced key. Otherwise said, <code class="language-plaintext highlighter-rouge">test:food</code> is equivalent to
+<code class="language-plaintext highlighter-rouge">default:test:food</code> where the bucket-type is <code class="language-plaintext highlighter-rouge">default</code>, the bucket is <code class="language-plaintext highlighter-rouge">test</code>,
+and the key is <code class="language-plaintext highlighter-rouge">food</code>. For examples here, we will use <code class="language-plaintext highlighter-rouge">rra:test:food</code> to clearly
+use a bucket-type.</p>
+
+<p>If your application organizes data including a bucket-type, ensure that that
+bucket-type is created in Riak without specifying the data type, so effectively
+an opaque value, ie a <code class="language-plaintext highlighter-rouge">string</code>. The following command provides an example of
+creating the bucket-type <code class="language-plaintext highlighter-rouge">rra</code>:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="o">!</span> riak-admin bucket-type status rra <span class="o">&gt;</span>/dev/null 2&gt;&amp;1<span class="p">;</span> <span class="k">then
+    </span>riak-admin bucket-type create rra <span class="s1">'{"props":{}}'</span>
+    riak-admin bucket-type activate rra
+<span class="k">fi</span>
+</code></pre></div></div>
+
+<h4 id="set-bucket-props">Set Bucket Props</h4>
+
+<p>The following is an example, using Riak KV’s default HTTP port, of setting <code class="language-plaintext highlighter-rouge">allow_mult</code> to ‘true’ and <code class="language-plaintext highlighter-rouge">last_write_wins</code> to ‘false’:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-XPUT</span> <span class="nt">-H</span> <span class="s1">'Content-Type: application/json'</span> <span class="se">\</span>
+         <span class="nt">-d</span> <span class="s1">'{"props": {"allow_mult": true, "last_write_wins": false}}'</span> <span class="se">\</span>
+         <span class="s1">'http://127.0.0.1:8098/types/rra/buckets/test/props'</span>
+</code></pre></div></div>
+
+<p>For additional configuration options see <a href="/riak/kv/2.2.0/developing/api/http">bucket properties</a>.</p>
+
+<h2 id="objectkey-operations">Object/Key Operations</h2>
+
+<p>Riak KV organizes data into buckets, keys, and values, with
+<a href="/riak/kv/2.2.0/developing/usage/bucket-types/">bucket types</a> acting as an additional namespace in Riak KV
+versions 2.0 and greater. Values, which we’ll refer to as objects, are identifiable by a unique key, and each key/value pair is stored in a bucket.</p>
+
+<p>Objects accessed via the cache proxy service in Riak Redis Add-on are restricted to plaintext format. This plaintext format may be a simple string, JSON, XML, or other plaintext representations that can be parsed in the client application (e.g. YAML).</p>
+
+<p>While buckets are a flat namespace in Riak KV and you can name them
+whatever you’d like (<code class="language-plaintext highlighter-rouge">bucket</code> or <code class="language-plaintext highlighter-rouge">a90bf521c</code> or <code class="language-plaintext highlighter-rouge">___</code>), within the cache proxy
+service, Redis bucket_type:bucket:key is mapped to Riak KV
+bucket_type/bucket/key, so bucket type and bucket names should not contain
+colon (<code class="language-plaintext highlighter-rouge">:</code>). When not specified, bucket type defaults to “default”.</p>
+
+<p>Outside of the above restriction, bucket names have no intrinsic significance beyond allowing you to store objects with the same key in different buckets.</p>
+
+<p>The same goes for naming keys: many objects can have the same key as long as they’re in different buckets. There is no restriction on key containing colon (<code class="language-plaintext highlighter-rouge">:</code>), and this practice of representing a nested namespace is common in applications using Redis.</p>
+
+<p>Riak KV <a href="/riak/kv/2.2.0/developing/usage/bucket-types/">bucket types</a> enable you to provide common
+configurations for buckets (as many buckets as you wish). This means you can
+easily enable buckets to share common configurations, i.e. identical
+<a href="/riak/kv/2.2.0/developing/app-guide/replication-properties">replication properties</a> or
+<a href="/riak/kv/2.2.0/developing/usage/commit-hooks/">commit hooks</a>.</p>
+
+<h2 id="reading-objects">Reading Objects</h2>
+
+<p>Reads via the cache proxy service are analogous to a Redis <code class="language-plaintext highlighter-rouge">GET</code>, with the added benefit of reading-through to Riak KV which results in greater resilience through node outages and network partitions.</p>
+
+<p>To request a value at a bucket/key in Riak KV, issue the following:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">RedisClientPid</span><span class="p">}</span> <span class="o">=</span> <span class="nn">eredis</span><span class="p">:</span><span class="nf">start_link</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">22122</span><span class="p">).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Value</span><span class="p">}</span> <span class="o">=</span> <span class="nn">eredis</span><span class="p">:</span><span class="nf">q</span><span class="p">(</span><span class="nv">RedisClientPid</span><span class="p">,</span> <span class="p">[</span><span class="s">"GET"</span><span class="p">,</span> <span class="s">"rra:test:food"</span><span class="p">]).</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">redis</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">"</span><span class="s2">redis</span><span class="dl">"</span><span class="p">),</span>
+    <span class="nx">client</span> <span class="o">=</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">createClient</span><span class="p">(</span><span class="mi">22122</span><span class="p">,</span> <span class="dl">"</span><span class="s2">127.0.0.1</span><span class="dl">"</span><span class="p">);</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="kd">get</span><span class="p">(</span><span class="dl">"</span><span class="s2">rra:test:food</span><span class="dl">"</span><span class="p">,</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">print</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">redis</span>
+
+<span class="n">r</span> <span class="o">=</span> <span class="n">redis</span><span class="p">.</span><span class="n">StrictRedis</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">22122</span><span class="p">)</span>
+
+<span class="n">r</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">"rra:test:food"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">require</span> <span class="s2">"redis"</span>
+
+<span class="n">redis</span> <span class="o">=</span> <span class="no">Redis</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">host: </span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="ss">port: </span><span class="mi">22122</span><span class="p">)</span>
+
+<span class="n">redis</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s2">"rra:test:food"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nn">com.lambdaworks.redis._</span>
+
+<span class="k">var</span> <span class="n">client</span> <span class="k">=</span> <span class="nv">RedisClient</span><span class="o">.</span><span class="py">create</span><span class="o">(</span><span class="s">"redis://127.0.0.1:22122"</span><span class="o">)</span>
+<span class="k">var</span> <span class="n">connection</span> <span class="k">=</span> <span class="nv">client</span><span class="o">.</span><span class="py">connect</span><span class="o">()</span>
+
+<span class="k">var</span> <span class="n">value</span> <span class="k">=</span> <span class="nv">connection</span><span class="o">.</span><span class="py">get</span><span class="o">(</span><span class="s">"rra:test:food"</span><span class="o">)</span>
+</code></pre></div></div>
+
+<h3 id="get-configuration-parameters">Get Configuration Parameters</h3>
+
+<blockquote>
+  <p><strong>Note:</strong> The cache proxy service read option (related to replication factor and
+consistency concern) may optionally be set within the nutcracker.conf. This will  result in an override of the setting value at the bucket-level in Riak KV.</p>
+</blockquote>
+
+<p>The following configuration parameters apply to <code class="language-plaintext highlighter-rouge">GET</code> and may be set within the
+RRA configuration file <code class="language-plaintext highlighter-rouge">/etc/cache_proxy/cache_proxy_22122.yml</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">n_val</code></td>
+      <td>The number of replicas for objects in a bucket. The <code class="language-plaintext highlighter-rouge">n_val</code> should be an integer greater than 0 and less than or equal to the number of nodes in the cluster.<br /><br /><strong>NOTE</strong>: If you change the <code class="language-plaintext highlighter-rouge">n_val</code> after keys have been added to the bucket it may result in failed reads, as the new value may not be replicated to all of the appropriate partitions.</td>
+      <td><code class="language-plaintext highlighter-rouge">3</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pr</code></td>
+      <td>How many vnodes must respond for a read to be deemed successful.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">r</code></td>
+      <td>How many replicas need to agree when retrieving an existing object before responding.</td>
+      <td><code class="language-plaintext highlighter-rouge">2</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">basic_quorum</code></td>
+      <td>Whether to return early in some failure cases, e.g. when <code class="language-plaintext highlighter-rouge">r</code>=1 and you get 2 errors and a success.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code> (false)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sloppy_quorum</code></td>
+      <td>Whether to treat vnodes holding values for another vnode as acceptable within the quorum determination.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code> (false)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">notfound_ok</code></td>
+      <td>Whether to treat notfounds as successful reads for the purpose of <code class="language-plaintext highlighter-rouge">r</code>.</td>
+      <td>1 (true)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">timeout</code></td>
+      <td>The number of milliseconds to await a response.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code> (server specified)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="sibling-resolution">Sibling Resolution</h3>
+
+<p>As the Redis protocol does not provide a means to return multiple siblings,
+the cache proxy service must provide server-side sibling resolution. At present, only last-write-wins sibling resolution is available. The result is an effective
+last-write-wins configuration for access through the cache proxy service.</p>
+
+<h2 id="writing-objects">Writing Objects</h2>
+
+<p>Writes via the cache proxy service are analogous to a Redis <code class="language-plaintext highlighter-rouge">SET</code>, with the added
+benefit of writing to Riak KV followed by a <code class="language-plaintext highlighter-rouge">PEXPIRE</code> to Redis, invalidating
+cache. As with HTTP PUT, <code class="language-plaintext highlighter-rouge">SET</code> semantically covers both create and update
+operations.</p>
+
+<p>To set a value at a bucket/key in Riak KV, issue the following:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">RedisClientPid</span><span class="p">}</span> <span class="o">=</span> <span class="nn">eredis</span><span class="p">:</span><span class="nf">start_link</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">22122</span><span class="p">).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">KeysAffected</span><span class="p">}</span> <span class="o">=</span> <span class="nn">eredis</span><span class="p">:</span><span class="nf">q</span><span class="p">(</span><span class="nv">RedisClientPid</span><span class="p">,</span> <span class="p">[</span><span class="s">"SET"</span><span class="p">,</span> <span class="s">"rra:test:food"</span><span class="p">,</span> <span class="s">"apple"</span><span class="p">]).</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">redis</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">"</span><span class="s2">redis</span><span class="dl">"</span><span class="p">),</span>
+    <span class="nx">client</span> <span class="o">=</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">createClient</span><span class="p">(</span><span class="mi">22122</span><span class="p">,</span> <span class="dl">"</span><span class="s2">127.0.0.1</span><span class="dl">"</span><span class="p">);</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="kd">set</span><span class="p">(</span><span class="dl">"</span><span class="s2">rra:test:food</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">apple</span><span class="dl">"</span><span class="p">,</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">print</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">redis</span>
+
+<span class="n">r</span> <span class="o">=</span> <span class="n">redis</span><span class="p">.</span><span class="n">StrictRedis</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">22122</span><span class="p">)</span>
+
+<span class="n">r</span><span class="p">.</span><span class="nb">set</span><span class="p">(</span><span class="s">"rra:test:food"</span><span class="p">,</span> <span class="s">"apple"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">require</span> <span class="s2">"redis"</span>
+
+<span class="n">redis</span> <span class="o">=</span> <span class="no">Redis</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">host: </span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="ss">port: </span><span class="mi">22122</span><span class="p">)</span>
+
+<span class="n">redis</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="s2">"rra:test:food', 'apple"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nn">com.lambdaworks.redis._</span>
+
+<span class="k">var</span> <span class="n">client</span> <span class="k">=</span> <span class="nv">RedisClient</span><span class="o">.</span><span class="py">create</span><span class="o">(</span><span class="s">"redis://127.0.0.1:22122"</span><span class="o">)</span>
+<span class="k">var</span> <span class="n">connection</span> <span class="k">=</span> <span class="nv">client</span><span class="o">.</span><span class="py">connect</span><span class="o">()</span>
+
+<span class="nv">connection</span><span class="o">.</span><span class="py">set</span><span class="o">(</span><span class="s">"rra:test:food"</span><span class="o">,</span> <span class="s">"apple"</span><span class="o">)</span>
+</code></pre></div></div>
+
+<h3 id="set-configuration-parameters">Set Configuration Parameters</h3>
+
+<blockquote>
+  <p><strong>Note:</strong> The cache proxy service write option (related to replication factor and
+consistency concern) may optionally be set within the nutcracker.conf, resulting
+in an override of the setting value at the bucket-level in Riak KV.</p>
+</blockquote>
+
+<p>The following configuration parameters apply to <code class="language-plaintext highlighter-rouge">SET</code> and may be set within the
+RRA configuration file <code class="language-plaintext highlighter-rouge">/etc/cache_proxy/cache_proxy_22122.yml</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">n_val</code></td>
+      <td>The number of replicas for objects in a bucket. The <code class="language-plaintext highlighter-rouge">n_val</code> should be an integer greater than 0 and less than or equal to the number of nodes in the cluster.<br /><br /><strong>NOTE</strong>: If you change the <code class="language-plaintext highlighter-rouge">n_val</code> after keys have been added to the bucket it may result in failed reads, as the new value may not be replicated to all of the appropriate partitions.</td>
+      <td><code class="language-plaintext highlighter-rouge">3</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pw</code></td>
+      <td>How many vnodes must respond for a write to be deemed successful.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">w</code></td>
+      <td>How many replicas need to acknowledge the write before responding.</td>
+      <td><code class="language-plaintext highlighter-rouge">2</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sloppy_quorum</code></td>
+      <td>Whether to treat vnodes holding values for another vnode as acceptable within the quorum determination.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code> (false)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="sibling-explosion">Sibling Explosion</h3>
+
+<p>As noted in the section “Sibling Resolution” above, Riak KV provides for a line of
+descendency (known as the [causal context][<a href="/riak/kv/2.2.0/learn/concepts/causal-context">concept causal context</a>]) for a value stored at a key. Clients
+performing write operations provide this causal context by setting the vector
+clock (VClock) that they last read.</p>
+
+<p>If a client does not provide the causal context, Riak KV makes no assumptions and treats the write as a new causal context, semantically equivalent to a
+create. In the case that a value is already stored at the key, this would lead
+to a sibling.</p>
+
+<p>Since the Redis protocol does not provide a means to pass a VClock, the cache
+proxy service needs to perform a read-before-write to obtain the current VClock so the write can continue the causal context previously established and avoid
+“sibling explosion”.</p>
+
+<p>Despite these efforts, in the event of a network partition, siblings will still
+be created as clients writing to nodes on either side of the network partition
+can create divergent lines of descendency. Sibling resolution remains the means
+to merge these lines of descent into a coherent causal context.</p>
+
+<h2 id="deleting-objects">Deleting Objects</h2>
+
+<p>Deletes via the cache proxy service are analogous to a Redis <code class="language-plaintext highlighter-rouge">DEL</code>, with the added
+benefit of writing to Riak KV followed by a <code class="language-plaintext highlighter-rouge">PEXPIRE</code> to Redis, invalidating
+cache.</p>
+
+<p>To delete a value at a bucket/key in Riak KV, issue the following:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">RedisClientPid</span><span class="p">}</span> <span class="o">=</span> <span class="nn">eredis</span><span class="p">:</span><span class="nf">start_link</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">22122</span><span class="p">).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">KeysAffected</span><span class="p">}</span> <span class="o">=</span> <span class="nn">eredis</span><span class="p">:</span><span class="nf">q</span><span class="p">(</span><span class="nv">RedisClientPid</span><span class="p">,</span> <span class="p">[</span><span class="s">"DEL"</span><span class="p">,</span> <span class="s">"rra:test:food"</span><span class="p">]).</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">redis</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">"</span><span class="s2">redis</span><span class="dl">"</span><span class="p">),</span>
+    <span class="nx">client</span> <span class="o">=</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">createClient</span><span class="p">(</span><span class="mi">22122</span><span class="p">,</span> <span class="dl">"</span><span class="s2">127.0.0.1</span><span class="dl">"</span><span class="p">);</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">del</span><span class="p">(</span><span class="dl">"</span><span class="s2">rra:test:food</span><span class="dl">"</span><span class="p">,</span> <span class="nx">redis</span><span class="p">.</span><span class="nx">print</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">redis</span>
+
+<span class="n">r</span> <span class="o">=</span> <span class="n">redis</span><span class="p">.</span><span class="n">StrictRedis</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">22122</span><span class="p">)</span>
+
+<span class="n">r</span><span class="p">.</span><span class="k">del</span><span class="p">(</span><span class="s">"rra:test:food"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">require</span> <span class="s2">"redis"</span>
+
+<span class="n">redis</span> <span class="o">=</span> <span class="no">Redis</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">host: </span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="ss">port: </span><span class="mi">22122</span><span class="p">)</span>
+
+<span class="n">redis</span><span class="p">.</span><span class="nf">del</span><span class="p">(</span><span class="s2">"rra:test:food"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="nn">com.lambdaworks.redis._</span>
+
+<span class="k">var</span> <span class="n">client</span> <span class="k">=</span> <span class="nv">RedisClient</span><span class="o">.</span><span class="py">create</span><span class="o">(</span><span class="s">"redis://127.0.0.1:22122"</span><span class="o">)</span>
+<span class="k">var</span> <span class="n">connection</span> <span class="k">=</span> <span class="nv">client</span><span class="o">.</span><span class="py">connect</span><span class="o">()</span>
+
+<span class="nv">connection</span><span class="o">.</span><span class="py">del</span><span class="o">(</span><span class="s">"rra:test:food"</span><span class="o">)</span>
+</code></pre></div></div>
+
+<h3 id="delete-configuration-parameters">Delete Configuration Parameters</h3>
+
+<p>The following configuration parameters apply to <code class="language-plaintext highlighter-rouge">DEL</code> and may be set within the
+RRA configuration file <code class="language-plaintext highlighter-rouge">/etc/cache_proxy/cache_proxy_22122.yml</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">n_val</code></td>
+      <td>The number of replicas for objects in a bucket. The <code class="language-plaintext highlighter-rouge">n_val</code> should be an integer greater than 0 and less than or equal to the number of nodes in the cluster.<br /><br /><strong>NOTE</strong>: If you change the <code class="language-plaintext highlighter-rouge">n_val</code> after keys have been added to the bucket it may result in failed reads, as the new value may not be replicated to all of the appropriate partitions.</td>
+      <td><code class="language-plaintext highlighter-rouge">3</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pw</code></td>
+      <td>How many vnodes must respond for a write to be deemed successful.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">w</code></td>
+      <td>How many replicas need to acknowledge the write before responding.</td>
+      <td><code class="language-plaintext highlighter-rouge">2</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sloppy_quorum</code></td>
+      <td>Whether to treat vnodes holding values for another vnode as acceptable within the quorum determination.</td>
+      <td><code class="language-plaintext highlighter-rouge">0</code> (false)</td>
+    </tr>
+  </tbody>
+</table>

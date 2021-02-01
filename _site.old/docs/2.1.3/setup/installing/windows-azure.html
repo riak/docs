@@ -1,0 +1,198 @@
+<h2 id="creating-centos-vms">Creating CentOS VMs</h2>
+
+<p>You will need to sign up for the Windows Azure Virtual Machines preview feature in order to create a virtual machine. You can also sign up for a free trial account if you do not have a Windows Azure account.</p>
+
+<ol>
+  <li>
+    <p>Navigate to <a href="https://account.windowsazure.com/">https://account.windowsazure.com</a> and sign in with your Windows Azure account.</p>
+  </li>
+  <li>
+    <p>Click “preview features” to view the available previews.</p>
+
+    <p><img src="/images/antares-iaas-preview-01.png" alt="" /></p>
+  </li>
+  <li>
+    <p>Scroll down to Virtual Machines &amp; Virtual Networks and click “try it now”.</p>
+
+    <p><img src="/images/antares-iaas-preview-02.png" alt="" /></p>
+  </li>
+  <li>
+    <p>Select your subscription and click the check.</p>
+
+    <p><img src="/images/antares-iaas-preview-04.png" alt="" /></p>
+  </li>
+</ol>
+
+<h3 id="create-a-virtual-machine-running-centos-linux">Create a virtual machine running CentOS Linux</h3>
+
+<ol>
+  <li>
+    <p>Login to the Windows Azure (Preview) Management Portal using your Windows Azure account.</p>
+  </li>
+  <li>
+    <p>In the Management Portal, at the bottom left of the web page, click “+New”, click “Virtual Machine”, and then click “From Gallery”.</p>
+
+    <p><img src="/images/createvm_small.png" alt="" /></p>
+  </li>
+  <li>
+    <p>Select a CentOS virtual machine image from “Platform Images”, and then click the next arrow at the bottom right of the page.</p>
+
+    <p><img src="/images/vmconfiguration0.png" alt="" /></p>
+  </li>
+  <li>On the VM Configuration page, provide the following information:
+    <ul>
+      <li>Provide a “Virtual Machine Name”, such as “testlinuxvm”.</li>
+      <li>Specify a “New User Name”, such as “newuser”, which will be added to the Sudoers list file.  <strong>Do NOT</strong> use the username “riak”, as it may conflict with the installation package.</li>
+      <li>In the “New Password” box, type a strong password.</li>
+      <li>In the “Confirm Password” box, retype the password.</li>
+      <li>Select the appropriate “Size” from the drop down list.</li>
+      <li>Click the next arrow to continue.</li>
+    </ul>
+
+    <p><img src="/images/vmconfiguration1.png" alt="" /></p>
+  </li>
+  <li>On the VM Mode page, provide the following information:
+    <ul>
+      <li><strong>If this is the first node</strong>, select the “STANDALONE VIRTUAL MACHINE” radio button. <strong>Otherwise</strong>, select the “CONNECT TO EXISTING VIRTUAL MACHINE” radio button, and select the first node in the drop down list.</li>
+      <li>In the “DNS Name” box, type a valid DNS address, e.g “testlinuxvm”.</li>
+      <li>In the “Storage Account” box, select “Use Automatically Generated Storage Account”.</li>
+      <li>In the “Region/Affinity Group/Virtual Network” box, select a region where this virtual image will be hosted.</li>
+      <li>Click the next arrow to continue.</li>
+    </ul>
+
+    <p><img src="/images/vmconfiguration2.png" alt="" /></p>
+  </li>
+  <li>
+    <p>On the VM Options page, select “(none)” in the “Availability Set” box. Click the check mark to continue.</p>
+
+    <p><img src="/images/vmconfiguration3.png" alt="" /></p>
+  </li>
+  <li>Wait while Windows Azure prepares your virtual machine.</li>
+</ol>
+
+<h3 id="configure-endpoints">Configure Endpoints</h3>
+
+<p>Once the virtual machine is created you must configure endpoints in order to remotely connect.</p>
+
+<ol>
+  <li>
+    <p>In the Management Portal, click “Virtual Machines”, then click the name of your new VM, then click “Endpoints”.</p>
+  </li>
+  <li>
+    <p><strong>If this is the first node</strong>, click “Add Endpoint”, leave “Add Endpoint” checked, hit the right arrow and fill out the next form as follows:</p>
+    <ul>
+      <li>Name: https</li>
+      <li>Protocol: leave set to ‘TCP’</li>
+      <li>Public Port: 443</li>
+      <li>private Port: 8069</li>
+    </ul>
+  </li>
+</ol>
+
+<h2 id="connect-to-centos-vms-using-putty-or-ssh">Connect to CentOS VMs using PuTTY or SSH</h2>
+
+<p>When the virtual machine has been provisioned and the endpoints configured you can connect to it using SSH or PuTTY.</p>
+
+<h3 id="connecting-using-ssh">Connecting Using SSH</h3>
+
+<p><strong>For Linux &amp; Mac Users:</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ssh newuser@testlinuxvm.cloudapp.net <span class="nt">-o</span> <span class="nv">ServerAliveInterval</span><span class="o">=</span>180
+</code></pre></div></div>
+<p>Enter the user’s password.</p>
+
+<p><strong>For Windows Users, use PuTTY:</strong></p>
+
+<p>If you are using a Windows computer, connect to the VM using PuTTY. PuTTY can be downloaded from the <a href="http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html">PuTTY Download Page</a>.</p>
+
+<ol>
+  <li>
+    <p>Download and save putty.exe to a directory on your computer. Open a command prompt, navigate to that folder, and execute putty.exe.</p>
+  </li>
+  <li>
+    <p>Enter the SSH DETAILS as found on the Node’s Dashboard, i.e., “testlinuxvm.cloudapp.net” for the Host Name and “22” for the Port.</p>
+
+    <p><img src="/images/putty.png" alt="" /></p>
+  </li>
+</ol>
+
+<h2 id="install-riak-and-configure-using-a-shell-script">Install Riak and configure using a shell script</h2>
+
+<ol>
+  <li><strong>On each node</strong>, once you’ve connected using the steps above, execute:</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>su -
+curl <span class="nt">-s</span> https://raw.githubusercontent.com/basho/riak_on_azure/1.0/azure_install_riak.sh | sh
+</code></pre></div></div>
+
+<h2 id="configure-riak-using-riak-control">Configure Riak using Riak Control</h2>
+
+<p>You can either use Riak Control or the command line to add nodes to your Riak Cluster. If you wish to add nodes via the command line, skip down to the section entitled “Configure Riak using Command Line”</p>
+
+<ol>
+  <li>Find the dns name and “Deployment ID” in the virtual machine dashboard of the VM you created the https endpoint for.  For Example:
+    <ul>
+      <li><strong>dns:</strong> basho-example.cloudapp.net</li>
+      <li><strong>Deployment ID:</strong> 7ea145743aeb4402a088da1234567890</li>
+    </ul>
+  </li>
+  <li>
+    <p>Visit https://dns-name.cloudapp.net/admin in your browser</p>
+  </li>
+  <li>
+    <p>Enter ‘admin’ as the username, and the “Deployment ID” as the password.</p>
+  </li>
+  <li>
+    <p>Select ‘Cluster’ on the left.</p>
+  </li>
+  <li>Add VMs which also have the Riak software installed and configured by entering riak@yourhostnamehere in the input box, and clicking ‘Add Node’.  Use the short name of each vm, not the DNS name.  For Example:
+    <ul>
+      <li>riak@basho-centos1</li>
+    </ul>
+  </li>
+</ol>
+
+<p>You now have a Riak cluster on Azure</p>
+
+<h2 id="configure-riak-using-command-line">Configure Riak using Command Line</h2>
+
+<p>If you have already followed the instructions in the section “Configure Riak using Riak Control”, skip this section.</p>
+
+<p>First, SSH into the second (and subsequent nodes) and execute:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster <span class="nb">join </span>riak@yourhostnamehere
+</code></pre></div></div>
+
+<p>(Where ‘yourhostnamehere’ is the short name of the <strong>first node</strong> in your cluster)</p>
+
+<p>(NOTE: The host you choose can actually be any host that has already joined the cluster. The first host has no special significance, but it’s important not to attempt to join to a node that hasn’t joined a cluster yet.  Doing this would create a second cluster; thus we use the first node for these instructions.)</p>
+
+<p>After all the nodes have have been joined to the first node via the previous command, connect to any of the nodes via SSH or PuTTY and execute the following:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster plan
+</code></pre></div></div>
+
+<p>Verify all the nodes are listed as expected.  If the cluster plan looks good:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster commit
+</code></pre></div></div>
+
+<p>To check the status of clustering use:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin member-status
+</code></pre></div></div>
+
+<p>You now have a Riak cluster on Azure</p>
+
+<h2 id="load-test-data">Load Test Data</h2>
+
+<p>Execute on any one of the nodes:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-s</span> http://rekon.basho.com | sh
+</code></pre></div></div>
+
+<p>Visit DNS address listed on the dashboard, at the port we opened as an endpoint:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>http://testlinuxvm.cloudapp.net:8098/riak/rekon/go
+</code></pre></div></div>

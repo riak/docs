@@ -1,0 +1,1141 @@
+<p>When inspection of a Riak node to gather metrics on performance or
+potential issues is desired, a number of tools are available to help,
+and are either included with Riak itself or made available through the
+Riak community.</p>
+
+<p>This guide provides starting points and details on some of the available
+tools for inspecting a Riak node.</p>
+
+<h2 id="riak-admin-status">riak-admin status</h2>
+
+<p><code class="language-plaintext highlighter-rouge">riak-admin status</code> is a subcommand of the <code class="language-plaintext highlighter-rouge">riak-admin</code> command that is
+included with every installation of Riak. The <code class="language-plaintext highlighter-rouge">status</code> subcommand
+provides data related to the current operating status for a node. The
+output of <code class="language-plaintext highlighter-rouge">riak-admin status</code> is categorized and detailed below.</p>
+
+<p>Please note, for some counters, such as <code class="language-plaintext highlighter-rouge">node_get_fsm_objsize</code>, a
+minimum of 5 transactions is required for statistics to be generated.</p>
+
+<h4 id="performance">Performance</h4>
+
+<p>We recommended checking stats every 90-120 seconds for best performance.</p>
+
+<p>Repeated runs of the <code class="language-plaintext highlighter-rouge">riak-admin status</code> command should not have a
+negative performance impact as the statistics are cached internally in
+Riak.</p>
+
+<h3 id="active-stats">Active Stats</h3>
+
+<p>Active Stats represent current activity on the node.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pbc_active</code></td>
+      <td>Number of active Protocol Buffers connections</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_active</code></td>
+      <td>Number of active GET FSMs</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_active</code></td>
+      <td>Number of active PUT FSMs</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">index_fsm_active</code></td>
+      <td>Number of active Secondary Index FSMs</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">list_fsm_active</code></td>
+      <td>Number of active Keylisting FSMs</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_rejected</code></td>
+      <td>Number of GET FSMs actively being rejected by Sidejob’s overload protection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_rejected</code></td>
+      <td>Number of PUT FSMs actively being rejected by Sidejob’s overload protection</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="average-stats">Average Stats</h3>
+
+<p>Average Stats represent an average calculated as (total occurrences /
+number of samples) since this node was started.  In the below stats the
+sample time is 1s, giving us a per-second average.  Currently, the only
+Average Stats are reported by Sidejob - an Erlang library that
+implements a parallel, capacity-limited request pool.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_in_rate</code></td>
+      <td>Average number of GET FSMs enqueued by Sidejob</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_out_rate</code></td>
+      <td>Average number of GET FSMs dequeued by Sidejob</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_in_rate</code></td>
+      <td>Average number of PUT FSMs enqueued by Sidejob</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_out_rate</code></td>
+      <td>Average number of PUT FSMs dequeued by Sidejob</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="one-minute-stats">One-Minute Stats</h3>
+
+<p>One-Minute Stats represent the number of times a particular activity has
+occurred within the last minute on this node.</p>
+
+<h4 id="general-one-minute-stats">General One-Minute Stats</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_gets</code></td>
+      <td>Number of GETs coordinated by this node, including GETs to non-local vnodes in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_puts</code></td>
+      <td>Number of PUTs coordinated by this node, where a PUT is sent to a local vnode in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_gets</code></td>
+      <td>Number of GET operations coordinated by local vnodes on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_puts</code></td>
+      <td>Number of PUT operations coordinated by local vnodes on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_refreshes</code></td>
+      <td>Number of secondary indexes refreshed on this node during secondary index anti-entropy in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_reads</code></td>
+      <td>Number of local replicas participating in secondary index reads in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_writes</code></td>
+      <td>Number of local replicas participating in secondary index writes in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_writes_postings</code></td>
+      <td>Number of individual secondary index values written in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_deletes</code></td>
+      <td>Number of local replicas participating in secondary index deletes in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_deletes_postings</code></td>
+      <td>Number of individual secondary index values deleted in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pbc_connects</code></td>
+      <td>Number of Protocol Buffers connections made in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_active_60s</code></td>
+      <td>Number of GET FSMs active in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_active_60s</code></td>
+      <td>Number of PUT FSMs active in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_rejected_60s</code></td>
+      <td>Number of GET FSMs rejected by Sidejob’s overload protection in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_rejected_60s</code></td>
+      <td>Number of PUT FSMs rejected by Sidejob’s overload protection in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">index_fsm_create</code></td>
+      <td>Number of Secondary Index query FSMs created in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">index_fsm_create_error</code></td>
+      <td>Number of Secondary Index query FSM creation errors in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">list_fsm_create</code></td>
+      <td>Number of Keylisting FSMs created in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">list_fsm_create_error</code></td>
+      <td>Number of Keylisting FSM creation errors in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs</code></td>
+      <td>Number of read repair operations this node has coordinated in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_primary_outofdate_one</code></td>
+      <td>Number of read repair operations performed on primary vnodes in the last minute due to stale replicas</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_primary_notfound_one</code></td>
+      <td>Number of read repair operations performed on primary vnodes in the last minute due to missing replicas</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_fallback_outofdate_one</code></td>
+      <td>Number of read repair operations performed on fallback vnodes in the last minute due to stale replicas</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_fallback_notfound_one</code></td>
+      <td>Number of read repair operations performed on fallback vnodes in the last minute due to missing replicas</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="fsm-time">FSM Time</h4>
+
+<p>FSM Time Stats represent the amount of time in microseconds required to
+traverse the GET or PUT Finite State Machine code, offering a picture of
+general node health. From your application’s perspective, FSM Time
+effectively represents experienced latency. Mean, Median, and 95th-,
+99th-, and 100th-percentile (Max) counters are displayed. These are
+one-minute stats.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_time_mean</code></td>
+      <td>Mean time between reception of client GET request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_time_median</code></td>
+      <td>Median time between reception of client GET request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_time_95</code></td>
+      <td>95th percentile time between reception of client GET request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_time_99</code></td>
+      <td>99th percentile time between reception of client GET request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_time_100</code></td>
+      <td>100th percentile time between reception of client GET request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_time_mean</code></td>
+      <td>Mean time between reception of client PUT request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_time_median</code></td>
+      <td>Median time between reception of client PUT request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_time_95</code></td>
+      <td>95th percentile time between reception of client PUT request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_time_99</code></td>
+      <td>99th percentile time between reception of client PUT request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_time_100</code></td>
+      <td>100th percentile time between reception of client PUT request and subsequent response to client</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="get-fsm-siblings">GET FSM Siblings</h4>
+
+<p>GET FSM Sibling Stats offer a count of the number of siblings
+encountered by this node on the occasion of a GET request. These are
+one-minute stats.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_siblings_mean</code></td>
+      <td>Mean number of siblings encountered during all GET operations by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_siblings_median</code></td>
+      <td>Median number of siblings encountered during all GET operations by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_siblings_95</code></td>
+      <td>95th percentile of siblings encountered during all GET operations by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_siblings_99</code></td>
+      <td>99th percentile of siblings encountered during all GET operations by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_siblings_100</code></td>
+      <td>100th percentile of siblings encountered during all GET operations by this node within the last minute</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="get-fsm-objsize">GET FSM Objsize</h4>
+
+<p>GET FSM Objsize Stats represent a view of the sizes of objects flowing
+through this node’s GET FSMs. The size of an object is obtained by
+summing the length of the bucket name, key, serialized vector clock,
+value, and serialized metadata of each sibling. GET FSM Objsize and GET
+FSM Siblings are inextricably linked. These are one-minute stats.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_objsize_mean</code></td>
+      <td>Mean object size (bytes) encountered by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_objsize_median</code></td>
+      <td>Median object size (bytes) encountered by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_objsize_95</code></td>
+      <td>95th percentile object size (bytes) encountered by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_objsize_99</code></td>
+      <td>99th percentile object size (bytes) encountered by this node within the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_objsize_100</code></td>
+      <td>100th percentile object size (bytes) encountered by this node within the last minute</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="total-stats">Total Stats</h3>
+
+<p>Total Stats represent the total number of times a particular activity
+has occurred since this node was started.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_gets_total</code></td>
+      <td>Total number of GETs coordinated by this node, including GETs to non-local vnodes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_puts_total</code></td>
+      <td>Total number of PUTs coordinated by this node, including PUTs to non-local vnodes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_gets_total</code></td>
+      <td>Total number of GETs coordinated by local vnodes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_puts_total</code></td>
+      <td>Total number of PUTS coordinated by local vnodes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_total</code></td>
+      <td>Total number of Read Repairs this node has coordinated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">coord_redirs_total</code></td>
+      <td>Total number of requests this node has redirected to other nodes for coordination</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_refreshes_total</code></td>
+      <td>Total number of indexes refreshed during secondary index anti-entropy</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_reads_total</code></td>
+      <td>Total number of local replicas participating in secondary index reads</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_writes_total</code></td>
+      <td>Total number of local replicas participating in secondary index writes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_writes_postings_total</code></td>
+      <td>Total number of individual secondary index values written</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_deletes_total</code></td>
+      <td>Total number of local replicas participating in secondary index deletes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vnode_index_deletes_postings_total</code></td>
+      <td>Total number of individual secondary index values deleted</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pbc_connects_total</code></td>
+      <td>Total number of Protocol Buffers connections made</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">precommit_fail</code></td>
+      <td>Total number of pre-commit hook failures</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">postcommit_fail</code></td>
+      <td>Total number of post-commit hook failures</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_get_fsm_rejected_total</code></td>
+      <td>Total number of GET FSMs rejected by Sidejob’s overload protection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node_put_fsm_rejected_total</code></td>
+      <td>Total number of PUT FSMs rejected by Sidejob’s overload protection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_primary_outofdate_count</code></td>
+      <td>Total number of read repair operations performed on primary vnodes due to stale replicas</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_primary_notfound_count</code></td>
+      <td>Total number of read repair operations performed on primary vnodes due to missing replicas</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_fallback_outofdate_count</code></td>
+      <td>Total number of read repair operations performed on fallback vnodes due to stale replicas</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">read_repairs_fallback_notfound_count</code></td>
+      <td>Total number of read repair operations performed on fallback vnodes due to missing replicas</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="timestamps">Timestamps</h3>
+
+<p>Some of the Erlang applications that Riak is comprised of contribute
+statistics to <code class="language-plaintext highlighter-rouge">riak-admin status</code>.  The below timestamps record, in
+Epoch time, the last time statistics for that application were
+generated.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_kv_stat_ts</code></td>
+      <td>The last time Riak KV stats were generated.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_pipe_stat_ts</code></td>
+      <td>The last time Riak Pipe stats were generated.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="ring">Ring</h3>
+
+<p>General ring information is reported in <code class="language-plaintext highlighter-rouge">riak-admin status</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ring_members</code></td>
+      <td>List of nodes that are members of the ring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ring_num_partitions</code></td>
+      <td>The number of partitions in the ring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ring_ownership</code></td>
+      <td>List of all nodes in the ring and their associated partition ownership</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ring_creation_size</code></td>
+      <td>Ring size this cluster was created with</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="cpu-and-memory">CPU and Memory</h3>
+
+<p>CPU statistics are taken directly from Erlang’s cpu_sup module.
+Documentation for which can be found at <a href="http://erlang.org/doc/man/cpu_sup.html">ErlDocs:
+cpu_sup</a>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cpu_nprocs</code></td>
+      <td>Number of operating system processes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cpu_avg1</code></td>
+      <td>The average number of active processes for the last 1 minute (equivalent to top(1) command’s load average when divided by 256())</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cpu_avg5</code></td>
+      <td>The average number of active processes for the last 5 minutes (equivalent to top(1) command’s load average when divided by 256())</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cpu_avg15</code></td>
+      <td>The average number of active processes for the last 15 minutes (equivalent to top(1) command’s load average when divided by 256())</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Memory statistics are taken directly from the Erlang virtual machine.
+Documentation for which can be found at <a href="http://erlang.org/doc/man/erlang.html#memory-0#memory/0">ErlDocs:
+Memory</a>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_total</code></td>
+      <td>Total allocated memory (sum of processes and system)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_processes</code></td>
+      <td>Total amount of memory allocated for Erlang processes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_processes_used</code></td>
+      <td>Total amount of memory used by Erlang processes</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_system</code></td>
+      <td>Total allocated memory that is not directly related to an Erlang process</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_atom</code></td>
+      <td>Total amount of memory currently allocated for atom storage</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_atom_used</code></td>
+      <td>Total amount of memory currently used for atom storage</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_binary</code></td>
+      <td>Total amount of memory used for binaries</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_code</code></td>
+      <td>Total amount of memory allocated for Erlang code</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memory_ets</code></td>
+      <td>Total memory allocated for Erlang Term Storage</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mem_total</code></td>
+      <td>Total available system memory</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mem_allocated</code></td>
+      <td>Total memory allocated for this node</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="erlang-vm">Erlang VM</h3>
+
+<p>The below statistics describe properties of the Erlang VM.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nodename</code></td>
+      <td>The name this node uses to identify itself</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">connected_nodes</code></td>
+      <td>A list of the nodes that this node is aware of at this time</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_driver_version</code></td>
+      <td>String representing the Erlang driver version in use by the runtime system</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_global_heaps_size</code></td>
+      <td>Current size of the shared global heap</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_heap_type</code></td>
+      <td>String representing the heap type in use (one of private, shared, hybrid)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_logical_processors</code></td>
+      <td>Number of logical processors available on the system</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_otp_release</code></td>
+      <td>Erlang OTP release version in use on the node</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_process_count</code></td>
+      <td>Number of processes currently running in the Erlang VM</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_smp_support</code></td>
+      <td>Boolean value representing whether symmetric multi-processing (SMP) is available</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_system_version</code></td>
+      <td>Detailed Erlang version information</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_system_architecture</code></td>
+      <td>The node operating system and hardware architecture</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_threads_enabled</code></td>
+      <td>Boolean value representing whether threads are enabled</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_thread_pool_size</code></td>
+      <td>Number of threads in the asynchronous thread pool</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sys_wordsize</code></td>
+      <td>Size of Erlang term words in bytes as an integer, for examples, on 32-bit architectures 4 is returned and on 64-bit architectures 8 is returned</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="miscellaneous-information">Miscellaneous Information</h3>
+
+<p>Miscellaneous Information provide additional details particular to this
+node.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">leveldb_read_block_error</code></td>
+      <td>The number of LevelDB read block errors.  Will read as undefined if LevelDB is not being used.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">disk</code></td>
+      <td>Information about the disk, taken from Erlang’s disksup module.  Reported as [{“ID”,KBytes_Used,Percent_Util}].</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">storage_backend</code></td>
+      <td>The storage backend currently in use.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="pipeline-metrics">Pipeline Metrics</h3>
+
+<p>The following metrics from from riak_pipe are generated during MapReduce
+operations.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pipeline_active</code></td>
+      <td>The number of pipelines active in the last 60 seconds</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pipeline_create_count</code></td>
+      <td>The total number of pipelines created since the node was started</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pipeline_create_error_count</code></td>
+      <td>The total number of pipeline creation errors since the node was started</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pipeline_create_error_one</code></td>
+      <td>The number of pipeline creation errors in the last 60 seconds</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pipeline_create_one</code></td>
+      <td>The number of pipelines created in the last 60 seconds</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="application-and-subsystem-versions">Application and Subsystem Versions</h3>
+
+<p>The specific version of each Erlang application and subsystem which
+makes up a Riak node is present in the <code class="language-plaintext highlighter-rouge">riak-admin status</code> output.  Each
+application is linked below next to it’s version identifier.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">erlydtl_version</code></td>
+      <td><a href="http://github.com/erlydtl/erlydtl">ErlyDTL</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_control_version</code></td>
+      <td><a href="http://github.com/basho/riak_control">Riak Control</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cluster_info_version</code></td>
+      <td><a href="http://github.com/basho/cluster_info">Cluster Information</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_search_version</code></td>
+      <td><a href="http://github.com/basho/riak_search">Riak Search</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">merge_index_version</code></td>
+      <td><a href="http://github.com/basho/merge_index">Merge Index</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_kv_version</code></td>
+      <td><a href="http://github.com/basho/riak_kv">Riak KV</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sidejob_version</code></td>
+      <td><a href="http://github.com/basho/sidejob">Sidejob</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_api_version</code></td>
+      <td><a href="http://github.com/basho/riak_api">Riak API</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_pipe_version</code></td>
+      <td><a href="http://github.com/basho/riak_pipe">Riak Pipe</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_core_version</code></td>
+      <td><a href="http://github.com/basho/riak_core">Riak Core</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bitcask_version</code></td>
+      <td><a href="http://github.com/basho/bitcask">Bitcask</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">basho_stats_version</code></td>
+      <td><a href="http://github.com/basho/basho_stats">Basho Stats</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">webmachine_version</code></td>
+      <td><a href="http://github.com/basho/webmachine">Webmachine</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mochiweb_version</code></td>
+      <td><a href="http://github.com/basho/mochiweb">MochiWeb</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inets_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/inets/">inets</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">erlang_js_version</code></td>
+      <td><a href="http://github.com/basho/erlang_js">Erlang JS</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">runtime_tools_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/runtime_tools/">Erlang Runtime Tools</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">os_mon_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/os_mon/">Erlang Operating System Monitor</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_sysmon_version</code></td>
+      <td><a href="http://github.com/basho/riak_sysmon">Riak System Monitor</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ssl_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/ssl/">Erlang Secure Sockets Layer (SSL)</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">public_key_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/public_key/">Erlang Public Key</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">crypto_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/crypto/">Erlang crypto</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sasl_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/sasl/">SASL</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">lager_version</code></td>
+      <td><a href="http://github.com/DeadZen/lager">Lager</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">goldrush_version</code></td>
+      <td><a href="http://github.com/DeadZen/goldrush">Goldrush</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">compiler_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/compiler/">Erlang Compiler</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">syntax_tools_version</code></td>
+      <td><a href="http://www.erlang.org/doc/apps/syntax_tools/">Erlang Syntax Tools</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">stdlib_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/stdlib/">Standard Library</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">kernel_version</code></td>
+      <td><a href="http://erlang.org/doc/apps/kernel/">Kernel</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="riak-search-statistics">Riak Search Statistics</h3>
+
+<p>The following statistics related to Riak Search message queues are
+available.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stat</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_search_vnodeq_max</code></td>
+      <td>Maximum number of unprocessed messages all virtual node (vnode) message queues in the Riak Search subsystem have received on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_search_vnodeq_mean</code></td>
+      <td>Mean number of unprocessed messages all vnode message queues in the Riak Search subsystem have received on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_search_vnodeq_median</code></td>
+      <td>Median number of unprocessed messages all vnode message queues in the Riak Search subsystem have received on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_search_vnodeq_min</code></td>
+      <td>Minimum number of unprocessed messages all vnode message queues in the Riak Search subsystem have received on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_search_vnodeq_total</code></td>
+      <td>Total number of unprocessed messages all vnode message queues in the Riak Search subsystem have received on this node since it was started</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">riak_search_vnodes_running</code></td>
+      <td>Total number of vnodes currently running in the Riak Search subsystem</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Note that under ideal operation and with the exception of
+<code class="language-plaintext highlighter-rouge">riak_search_vnodes_running</code> these statistics should contain low values
+(e.g., 0-10). Presence of higher values could be indicative of an issue.</p>
+
+<h2 id="riak-debug"><code class="language-plaintext highlighter-rouge">riak-debug</code></h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak-debug</code> command is used to identify and diagnose common problems with your Riak KV nodes.</p>
+
+<p><code class="language-plaintext highlighter-rouge">riak-debug</code> also runs <code class="language-plaintext highlighter-rouge">riak-admin diag</code>, which runs a small suite of diagnostic checks against a Riak KV node to discover common problems. It often offers recommendations about how to resolve those problems as well.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak-debug</code> and <code class="language-plaintext highlighter-rouge">riak-admin diag</code> commands should only be used after a new installation or configuration change. It should not be used as part of regular monitoring. Overuse of <code class="language-plaintext highlighter-rouge">riak-debug</code> or <code class="language-plaintext highlighter-rouge">riak-admin diag</code> can eventually cause the node to crash from atom table exhaustion.</p>
+
+<h2 id="strong-consistency-stats">Strong Consistency Stats</h2>
+
+<p>Riak tabulates a variety of stats related to Riak’s optional <a href="../../reference/strong-consistency">strong consistency</a> feature. The table below lists those stats.</p>
+
+<h3 id="get-related-stats">GET-related stats</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Stat</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_gets</code></td>
+      <td style="text-align: left">Number of strongly consistent GETs coordinated by this node in the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_gets_total</code></td>
+      <td style="text-align: left">Total number of strongly consistent GETs coordinated by this node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_objsize_mean</code></td>
+      <td style="text-align: left">Mean object size (bytes) for strongly consistent GETs on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_objsize_median</code></td>
+      <td style="text-align: left">Median object size (bytes) for strongly consistent GETs on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_objsize_95</code></td>
+      <td style="text-align: left">95th-percentile object size (bytes) for strongly consistent GETs on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_objsize_99</code></td>
+      <td style="text-align: left">99th-percentile object size (bytes) for strongly consistent GETs on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_objsize_100</code></td>
+      <td style="text-align: left">100th-percentile object size (bytes) for strongly consistent GETs on this node in the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_time_mean</code></td>
+      <td style="text-align: left">Mean time between reception of client GETs to strongly consistent keys and subsequent response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_time_median</code></td>
+      <td style="text-align: left">Median time between reception of client GETs to strongly consistent keys and subsequent response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_time_95</code></td>
+      <td style="text-align: left">95th-percentile time between reception of client GETs to strongly consistent keys and subsequent response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_time_99</code></td>
+      <td style="text-align: left">99th-percentile time between reception of client GETs to strongly consistent keys and subsequent response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_time_100</code></td>
+      <td style="text-align: left">100th-percentile time between reception of client GETs to strongly consistent keys and subsequent response</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="put-related-stats">PUT-related stats</h3>
+
+<p>Stat | Description
+:—-|:———–
+<code class="language-plaintext highlighter-rouge">consistent_puts</code> | Number of strongly consistent PUTs coordinated by this node in the last minute
+<code class="language-plaintext highlighter-rouge">consistent_puts_total</code> | Total number of strongly consistent PUTs coordinated by this node
+<code class="language-plaintext highlighter-rouge">consistent_put_objsize_mean</code> | Mean object size (bytes) for strongly consistent PUTs on this node in the last minute
+<code class="language-plaintext highlighter-rouge">consistent_put_objsize_median</code> | Median object size (bytes) for strongly consistent PUTs on this node in the last minute
+<code class="language-plaintext highlighter-rouge">consistent_put_objsize_95</code> | 95th-percentile object size (bytes) for strongly consistent PUTs on this node in the last minute
+<code class="language-plaintext highlighter-rouge">consistent_put_objsize_99</code> | 99th-percentile object size (bytes) for strongly consistent PUTs on this node in the last minute
+<code class="language-plaintext highlighter-rouge">consistent_put_objsize_100</code> | 100th-percentile object size (bytes) for strongly consistent PUTs on this node in the last minute
+<code class="language-plaintext highlighter-rouge">consistent_put_time_mean</code> | Mean time between reception of client PUTs to strongly consistent keys and subsequent response
+<code class="language-plaintext highlighter-rouge">consistent_put_time_median</code> | Median time between reception of client PUTs to strongly consistent keys and subsequent response
+<code class="language-plaintext highlighter-rouge">consistent_put_time_95</code> | 95th-percentile time between reception of client PUTs to strongly consistent keys and subsequent response
+<code class="language-plaintext highlighter-rouge">consistent_put_time_99</code> | 99th-percentile time between reception of client PUTs to strongly consistent keys and subsequent response
+<code class="language-plaintext highlighter-rouge">consistent_put_time_100</code> | 100th-percentile time between reception of client PUTs to strongly consistent keys and subsequent response</p>
+<h2 id="riak-admin-diag">riak-admin diag</h2>
+
+<p>Running <code class="language-plaintext highlighter-rouge">riak-admin diag</code> by itself will perform a check of all of the
+data partitions in your cluster. It will return a listing of partitions
+that have been checked, each of which looks something like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>{1392993748081016843912887106182707253109560705024, % the partition checked
+ 'dev-rel@127.0.0.1'},                              % that partition's nodename
+</code></pre></div></div>
+
+<p>At the end of that (potentially very long) listing of checked
+partitions, it will print notices, warnings, and other pieces of
+information about issues that it has found, including date/time, message
+type, and a detailed description. Here’s an example:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>15:34:52.736 [warning] Riak crashed at Wed, 07 Dec 2011 21:47:50 GMT, leaving crash dump in /srv/riak/log/erl_crash.dump. Please inspect or remove the file.
+15:34:52.736 [notice] Data directory /srv/riak/data/bitcask is not mounted with 'noatime'. Please remount its disk with the 'noatime' flag to improve performance.
+</code></pre></div></div>
+
+<p>Messages bear the following types (derived from
+<a href="http://en.wikipedia.org/wiki/Syslog">syslog</a> security levels):</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">debug</code></li>
+  <li><code class="language-plaintext highlighter-rouge">info</code></li>
+  <li><code class="language-plaintext highlighter-rouge">notice</code></li>
+  <li><code class="language-plaintext highlighter-rouge">warning</code></li>
+  <li><code class="language-plaintext highlighter-rouge">error</code></li>
+  <li><code class="language-plaintext highlighter-rouge">critical</code></li>
+  <li><code class="language-plaintext highlighter-rouge">alert</code></li>
+  <li><code class="language-plaintext highlighter-rouge">emergency</code></li>
+</ul>
+
+<h4 id="command-flags">Command flags</h4>
+
+<p>Attaching the <code class="language-plaintext highlighter-rouge">--help</code> flag will return a list of flags and commands
+that can be used with Riaknostic:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Usage: riak-admin diag [-d &lt;level&gt;] [-l] [-h] [--export] [check_name ...]
+
+-h, --help            Display help/usage dialogue
+-d, --level           Minimum message severity level (default: notice)
+-l, --list            Describe available diagnostic tasks
+--export              Package system info in '/export.zip'
+check_name            A specific check to run
+</code></pre></div></div>
+
+<p>Running <code class="language-plaintext highlighter-rouge">riak-admin diag</code>  with the <code class="language-plaintext highlighter-rouge">--list</code> flag will return a list of
+available diagnostic checks. The following checks are available:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Check</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">disk</code></td>
+      <td style="text-align: left">Data directory permissions and atime</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">dumps</code></td>
+      <td style="text-align: left">Find crash dumps</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">memory_use</code></td>
+      <td style="text-align: left">Measure memory usage</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">nodes_connected</code></td>
+      <td style="text-align: left">Cluster node liveness</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ring_membership</code></td>
+      <td style="text-align: left">Cluster membership validity</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ring_preflists</code></td>
+      <td style="text-align: left">Check if the ring satisfies <code class="language-plaintext highlighter-rouge">n_val</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ring_size</code></td>
+      <td style="text-align: left">Check if the ring size valid</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search</code></td>
+      <td style="text-align: left">Check whether Riak Search is enabled on all nodes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The <code class="language-plaintext highlighter-rouge">--level</code> flag enables you to specify the log level and thus to
+filter messages based on type. You can pass in any of the message types
+listed above (<code class="language-plaintext highlighter-rouge">debug</code>, <code class="language-plaintext highlighter-rouge">info</code>, etc.).</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">--level</code> flag can be used when running <code class="language-plaintext highlighter-rouge">riak-admin diag</code> with or
+without specifying a diagnostic check.</p>
+
+<h4 id="contributing">Contributing</h4>
+
+<p>Do you have an idea that would help us improve Riaknostic? If so, fork
+the <a href="https://github.com/basho/riaknostic">GitHub repository</a> and send us
+a pull request with your changes. The code is documented with
+<a href="http://riaknostic.basho.com/edoc/index.html">edoc</a>, so give the API
+Docs a read before you contribute.</p>
+
+<p>If you want to run the Riaknostic script while developing and you don’t
+have it hooked up to your local Riak installation, you can invoke it
+directly like so:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./riaknostic <span class="nt">--etc</span> ~/code/riak/rel/riak/etc <span class="nt">--base</span> ~/code/riak/rel/riak <span class="nt">--user</span> <span class="sb">`</span><span class="nb">whoami</span><span class="sb">`</span> <span class="o">[</span>other options]
+</code></pre></div></div>
+
+<p>Those extra options are usually assigned by the <code class="language-plaintext highlighter-rouge">riak-admin</code> script for
+you, but here’s how to set them:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">--etc</code> — The location of your Riak configuration directory (usually
+  <code class="language-plaintext highlighter-rouge">/etc</code>). In the example above, configuration is in the generated
+  directory of a source checkout of Riak.</li>
+  <li><code class="language-plaintext highlighter-rouge">--base</code> — The “base” directory of Riak, usually the root of the
+  generated directory or <code class="language-plaintext highlighter-rouge">/usr/lib/riak</code> on Linux. Scan the
+  <code class="language-plaintext highlighter-rouge">riak-admin</code> script for how the <code class="language-plaintext highlighter-rouge">RUNNER_BASE_DIR</code> variable is
+  assigned on your platform.</li>
+  <li><code class="language-plaintext highlighter-rouge">--user</code> — The user/UID as which the Riak node runs. In a source
+  checkout, it’s the current user; on most systems, it’s <code class="language-plaintext highlighter-rouge">riak</code>.</li>
+</ul>
+
+<h2 id="related-resources">Related Resources</h2>
+
+<ul>
+  <li><a href="../../admin/riak-admin/">The riak-admin configuration management tool</a></li>
+  <li><a href="http://riaknostic.basho.com/">Riaknostic</a></li>
+  <li><a href="../../../developing/api/http/status/">HTTP API Status</a></li>
+</ul>

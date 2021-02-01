@@ -1,0 +1,218 @@
+<p>For reasons explained in the <a href="/riak/kv/2.2.3/developing/usage/conflict-resolution">Introduction to conflict resolution</a>, we strongly recommend adopting a
+conflict resolution strategy that requires applications to resolve
+siblings according to use-case-specific criteria. Here, we’ll provide a
+brief guide to conflict resolution using the official <a href="https://github.com/basho/riak-php-client">Riak PHP
+client</a>.</p>
+
+<h2 id="how-the-php-client-handles-conflict-resolution">How the PHP Client Handles Conflict Resolution</h2>
+
+<p>Every <code class="language-plaintext highlighter-rouge">\Basho\Riak\Object</code> command returns a <code class="language-plaintext highlighter-rouge">\Basho\Riak\Command\Object\Response</code>
+object, which provides what is needed to handle object conflicts. If siblings exist
+and have been returned from the server within the response body, they will be
+available within the response object. See below:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'conflicted_key'</span><span class="p">,</span> <span class="s1">'bucket_name'</span><span class="p">,</span> <span class="s1">'bucket_type'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="k">echo</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getStatusCode</span><span class="p">();</span> <span class="c1">// 300</span>
+<span class="k">echo</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">hasSiblings</span><span class="p">();</span> <span class="c1">// 1</span>
+<span class="k">echo</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getSiblings</span><span class="p">();</span> <span class="c1">// \Basho\Riak\Object[]</span>
+</code></pre></div></div>
+
+<h2 id="basic-conflict-resolution-example">Basic Conflict Resolution Example</h2>
+
+<p>Let’s say that we’re building a social network application and storing
+lists of usernames representing each user’s “friends” in the network.
+Each user will bear the class <code class="language-plaintext highlighter-rouge">User</code>, which we’ll create below. All of
+the data for our application will be stored in buckets that bear the
+<a href="/riak/kv/2.2.3/developing/usage/bucket-types">bucket type</a> <code class="language-plaintext highlighter-rouge">siblings</code>, and for this bucket type
+<code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">true</code>, which means that Riak will generate
+siblings in certain cases—siblings that our application will need to
+be equipped to resolve when they arise.</p>
+
+<p>The question that we need to ask ourselves now is this: if a given user
+has sibling values, i.e. if there are multiple <code class="language-plaintext highlighter-rouge">friends</code> lists and Riak
+can’t decide which one is most causally recent, which list should be
+deemed “correct” from the standpoint of the application? What criteria
+should be applied in making that decision? Should the lists be merged?
+Should we pick a <code class="language-plaintext highlighter-rouge">User</code> object at random?</p>
+
+<p>This decision will always be yours to make. Here, though, we’ll keep it
+simple and say that the following criterion will hold: if conflicting
+lists exist, <em>the longer list will be the one that our application deems
+correct</em>. So if the user <code class="language-plaintext highlighter-rouge">user1234</code> has a sibling conflict where one
+possible value has <code class="language-plaintext highlighter-rouge">friends</code> lists with 100, 75, and 10 friends,
+respectively, the list of 100 friends will win out.  While this might
+not make sense in real-world applications, it’s a good jumping-off
+point. We’ll explore the drawbacks of this approach, as well as a better
+alternative, in this document as well.</p>
+
+<h3 id="creating-our-data-class">Creating Our Data Class</h3>
+
+<p>We’ll start by creating a <code class="language-plaintext highlighter-rouge">User</code> class for each user’s data. Each <code class="language-plaintext highlighter-rouge">User</code>
+object will consist of a <code class="language-plaintext highlighter-rouge">username</code> as well as a <code class="language-plaintext highlighter-rouge">friends</code> property that
+lists the usernames, as strings, of the user’s friends. We’ll use a
+<code class="language-plaintext highlighter-rouge">Set</code> for the <code class="language-plaintext highlighter-rouge">friends</code> property to avoid duplicates.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">class</span> <span class="nc">User</span> <span class="p">{</span>
+    <span class="k">public</span> <span class="nv">$username</span><span class="p">;</span>
+    <span class="k">public</span> <span class="nv">$friends</span><span class="p">;</span>
+
+    <span class="k">public</span> <span class="k">function</span> <span class="n">__construct</span><span class="p">(</span><span class="nv">$username</span><span class="p">,</span> <span class="kt">array</span> <span class="nv">$friends</span> <span class="o">=</span> <span class="p">[])</span>
+    <span class="p">{</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">username</span> <span class="o">=</span> <span class="nv">$username</span><span class="p">;</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">friends</span> <span class="o">=</span> <span class="nv">$friends</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="k">function</span> <span class="n">__toString</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="k">return</span> <span class="nb">json_encode</span><span class="p">([</span>
+            <span class="s1">'username'</span> <span class="o">=&gt;</span> <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">username</span><span class="p">,</span>
+            <span class="s1">'friends'</span> <span class="o">=&gt;</span> <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">friends</span><span class="p">,</span>
+            <span class="s1">'friends_count'</span> <span class="o">=&gt;</span> <span class="nb">count</span><span class="p">(</span><span class="nv">$this</span><span class="o">-&gt;</span><span class="n">friends</span><span class="p">)</span>
+        <span class="p">]);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Here’s an example of instantiating a new <code class="language-plaintext highlighter-rouge">User</code> object:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$bashobunny</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">User</span><span class="p">(</span><span class="s1">'bashobunny'</span><span class="p">,</span> <span class="p">[</span><span class="s1">'fred'</span><span class="p">,</span> <span class="s1">'barney'</span><span class="p">]);</span>
+</code></pre></div></div>
+
+<h3 id="implementing-a-conflict-resolution-function">Implementing a Conflict Resolution Function</h3>
+
+<p>Let’s say that we’ve stored a bunch of <code class="language-plaintext highlighter-rouge">User</code> objects in Riak and that a
+few concurrent writes have led to siblings. How is our application going
+to deal with that? First, let’s say that there’s a <code class="language-plaintext highlighter-rouge">User</code> object stored
+in the bucket <code class="language-plaintext highlighter-rouge">users</code> (which is of the bucket type <code class="language-plaintext highlighter-rouge">siblings</code>, as
+explained above) under the key <code class="language-plaintext highlighter-rouge">bashobunny</code>. We can fetch the object
+that is stored there and see if it has siblings:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'bashobunny'</span><span class="p">,</span> <span class="s1">'users'</span><span class="p">,</span> <span class="s1">'siblings'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="k">echo</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">hasSiblings</span><span class="p">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<p>If we get <code class="language-plaintext highlighter-rouge">true</code>, then there are siblings. So what do we do in that
+case? At this point, we need to write a function that resolves the list
+of siblings, i.e. reduces the <code class="language-plaintext highlighter-rouge">$response-&gt;getSiblings()</code> array down to one member.
+In our case, we need a function that takes a Riak response object as its argument,
+applies some logic to the list of values contained in the <code class="language-plaintext highlighter-rouge">siblings</code> property
+of the object, and returns a single value. For our example use case here, we’ll
+return the sibling with the longest <code class="language-plaintext highlighter-rouge">friends</code> list:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak</span><span class="p">;</span>
+<span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak\Command</span><span class="p">;</span>
+
+<span class="k">function</span> <span class="n">longest_friends_list_resolver</span><span class="p">(</span><span class="kt">Command</span><span class="err">\</span><span class="nc">Object\Response</span> <span class="nv">$response</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">hasSiblings</span><span class="p">())</span> <span class="p">{</span>
+        <span class="nv">$siblings</span> <span class="o">=</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getSiblings</span><span class="p">();</span>
+        <span class="nv">$max_key</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">foreach</span> <span class="p">(</span><span class="nv">$siblings</span> <span class="k">as</span> <span class="nv">$key</span> <span class="o">=&gt;</span> <span class="nv">$sibling</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nv">$sibling</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">()[</span><span class="s1">'friends_count'</span><span class="p">]</span> <span class="o">&gt;</span> <span class="nv">$siblings</span><span class="p">[</span><span class="nv">$max_key</span><span class="p">]</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">()[</span><span class="s1">'friends_count'</span><span class="p">])</span> <span class="p">{</span>
+                <span class="nv">$max_key</span> <span class="o">=</span> <span class="nv">$key</span><span class="p">;</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nv">$siblings</span><span class="p">[</span><span class="nv">$max_key</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>We can then embed this function into a more general function for fetching 
+objects from the users bucket:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">function</span> <span class="n">fetch_user_by_username</span><span class="p">(</span><span class="nv">$username</span><span class="p">,</span> <span class="kt">Riak</span> <span class="nv">$riak</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+      <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="nv">$username</span><span class="p">,</span> <span class="s1">'users'</span><span class="p">,</span> <span class="s1">'siblings'</span><span class="p">)</span>
+      <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+      <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+    <span class="k">return</span> <span class="nf">longest_friends_list_resolver</span><span class="p">(</span><span class="nv">$response</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="n">bashobunny</span> <span class="o">=</span> <span class="nf">fetch_user_by_username</span><span class="p">(</span><span class="s1">'bashobunny'</span><span class="p">,</span> <span class="nv">$riak</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>Now, when a <code class="language-plaintext highlighter-rouge">User</code> object is fetched (assuming that the username acts as
+a key for the object), a single value is returned for the <code class="language-plaintext highlighter-rouge">friends</code>
+list. This means that our application can now use a “correct” value
+instead of having to deal with multiple values.</p>
+
+<h2 id="conflict-resolution-and-writes">Conflict Resolution and Writes</h2>
+
+<p>In the above example, we created a conflict resolver that resolves a
+list of discrepant <code class="language-plaintext highlighter-rouge">User</code> objects and returns a single <code class="language-plaintext highlighter-rouge">User</code>. It’s
+important to note, however, that this resolver will only provide the
+application with a single “correct” value; it will <em>not</em> write that
+value back to Riak. That requires a separate step. When this step should
+be undertaken depends on your application. In general, though, we
+recommend writing objects to Riak only when the application is ready to
+commit them, i.e. when all of the changes that need to be made to the
+object have been made and the application is ready to persist the state
+of the object in Riak.</p>
+
+<p>Correspondingly, we recommend that updates to objects in Riak follow
+these steps:</p>
+
+<ol>
+  <li><strong>Read</strong> the object from Riak</li>
+  <li><strong>Resolving sibling conflicts</strong> if they exist, allowing the
+application to reason about one “correct” value for the object (this
+step is the subject of this tutorial)</li>
+  <li><strong>Modify</strong> the object</li>
+  <li><strong>Write</strong> the object to Riak once the necessary changes have been
+made</li>
+</ol>
+
+<p>You can find more on writing objects to Riak, including examples from
+the official PHP client library, in the <a href="/riak/kv/2.2.3/developing/usage">Developing with Riak KV: Usage</a> section.</p>
+
+<h2 id="more-advanced-example">More Advanced Example</h2>
+
+<p>Resolving sibling <code class="language-plaintext highlighter-rouge">User</code> values on the basis of which user has the longest
+friends list has the benefit of being simple but it’s probably not a
+good resolution strategy for our social networking application because
+it means that unwanted data loss is inevitable. If one friend list
+contains <code class="language-plaintext highlighter-rouge">A</code>, <code class="language-plaintext highlighter-rouge">B</code>, and <code class="language-plaintext highlighter-rouge">C</code> and the other contains <code class="language-plaintext highlighter-rouge">D</code> and <code class="language-plaintext highlighter-rouge">E</code>, the list
+containing <code class="language-plaintext highlighter-rouge">A</code>, <code class="language-plaintext highlighter-rouge">B</code>, and <code class="language-plaintext highlighter-rouge">C</code> will be chosen. So what about friends <code class="language-plaintext highlighter-rouge">D</code>
+and <code class="language-plaintext highlighter-rouge">E</code>? Those usernames are essentially lost. In the sections below,
+we’ll implement an alternative strategy as an example.</p>
+
+<h3 id="merging-the-lists">Merging the Lists</h3>
+
+<p>To avoid losing data like this, a better strategy would be to merge the
+lists. We can modify our original resolver function to accomplish
+precisely that and will also store the resulting <code class="language-plaintext highlighter-rouge">User</code> object.</p>
+
+<p>The drawback to this approach is that it’s more or less inevitable that a user
+will remove a friend from their friends list, and then that friend will
+end up back on the list during a conflict resolution operation. While
+that’s certainly not desirable, that is likely better than the
+alternative proposed in the first example, which entails usernames being
+simply dropped from friends lists. Sibling resolution strategies almost
+always carry potential drawbacks of this sort.</p>
+
+<h2 id="riak-data-types">Riak Data Types</h2>
+
+<p>An important thing to always bear in mind when working with conflict
+resolution is that Riak offers a variety of <a href="/riak/kv/2.2.3/developing/data-types/">Data Types</a> that have
+specific conflict resolution mechanics built in. If you have data that
+can be modeled as a <a href="/riak/kv/2.2.3/developing/data-types/#counters">counter</a>, <a href="/riak/kv/2.2.3/developing/data-types/#sets">set</a>, or <a href="/riak/kv/2.2.3/developing/data-types/#maps">map</a>, then you should seriously
+consider using those Data Types instead of creating your own
+application-side resolution logic.</p>
+
+<p>In the example above, we were dealing with conflict resolution within a
+set, in particular the <code class="language-plaintext highlighter-rouge">friends</code> list associated with each <code class="language-plaintext highlighter-rouge">User</code>
+object. The merge operation that we built to handle conflict resolution
+is analogous to the resolution logic that is built into Riak sets. For
+more information on how you could potentially replace the client-side
+resolution that we implemented above, see our <a href="/riak/kv/2.2.3/developing/data-types/#sets">tutorial on Riak sets</a>.</p>

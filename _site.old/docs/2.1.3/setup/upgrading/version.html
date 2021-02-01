@@ -1,0 +1,235 @@
+<p>When upgrading to Riak 2.0 from an earlier version, we strongly
+recommend reading each section of the following guide. This guide
+explains which default Riak behaviors have changed and specific steps 
+to take for a successful upgrade.</p>
+
+<p>For an overview of the new features and functionality
+included in version 2.0, check out our guide to <a href="/riak/kv/2.1.3/introduction">Riak 2.0</a>.</p>
+
+<h2 id="new-clients">New Clients</h2>
+
+<p>To take advantage of the new features available in Riak 2.0, we
+recommend upgrading your application to an official Basho client that
+was built with those features in mind. There are official
+2.0-compatible clients in the following languages:</p>
+
+<ul>
+  <li><a href="https://github.com/basho/riak-java-client">Java</a></li>
+  <li><a href="https://github.com/basho/riak-ruby-client">Ruby</a></li>
+  <li><a href="https://github.com/basho/riak-python-client">Python</a></li>
+  <li><a href="https://github.com/basho/riak-erlang-client">Erlang</a></li>
+</ul>
+
+<p>While we strongly recommend using the newest versions of these clients,
+older versions will still work with Riak 2.0, with the drawback that
+those older clients will not able to take advantage of <a href="/riak/kv/2.1.3/introduction">new features</a> like <a href="/riak/kv/2.1.3/developing/data-types">data types</a> or the new <a href="/riak/kv/2.1.3/using/reference/search">Riak Search</a>.</p>
+
+<h2 id="bucket-types">Bucket Types</h2>
+
+<p>In versions of Riak prior to 2.0, the location of objects was
+determined by objects’ <a href="/riak/kv/2.1.3/learn/concepts/buckets">bucket</a> and <a href="/riak/kv/2.1.3/learn/concepts/keys-and-objects">key</a>, while all bucket-level configurations were managed by setting <a href="/riak/kv/2.1.3/developing/usage/bucket-types/">bucket properties</a>.</p>
+
+<p>In Riak 2.0, <a href="/riak/kv/2.1.3/using/cluster-operations/bucket-types">bucket types</a> are both an additional namespace for locating objects <em>and</em> a new way of configuring bucket properties in a systematic fashion. More comprehensive details on usage can be found in the documentation on <a href="/riak/kv/2.1.3/using/reference/bucket-types">using bucket types</a>.
+Here, we’ll list some of the things to be aware of when upgrading.</p>
+
+<h4 id="bucket-types-and-object-location">Bucket types and object location</h4>
+
+<p>With the introduction of bucket types, the location of all Riak objects
+is determined by:</p>
+
+<ul>
+  <li>bucket type</li>
+  <li>bucket</li>
+  <li>key</li>
+</ul>
+
+<p>This means there are 3 namespaces involved in object location instead of 2.
+A full tutorial can be found in <a href="/riak/kv/2.1.3/using/reference/bucket-types">Using Bucket Types</a>.</p>
+
+<p>If your application was written using a version of Riak
+prior to 2.0, you should make sure that any endpoint in Riak targeting
+a bucket/key pairing is changed to accommodate a bucket
+type/bucket/key location.</p>
+
+<p>If you’re using a pre-2.0-specific client and targeting a location
+specified only by bucket and key, Riak will use the default bucket
+configurations. The following URLs are equivalent in Riak 2.0:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+/types/default/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre></div></div>
+
+<p>If you use object locations that don’t specify a bucket type, you have
+three options:</p>
+
+<ul>
+  <li>Accept Riak’s <a href="/riak/kv/2.1.3/using/reference/bucket-types/#buckets-as-namespaces">default bucket configurations</a></li>
+  <li>Change Riak’s defaults using your <a href="/riak/kv/2.1.3/configuring/reference/#default-bucket-properties">configuration files</a></li>
+  <li>Manage multiple sets of bucket properties by specifying those
+properties for all operations (not recommended)</li>
+</ul>
+
+<h4 id="features-that-rely-on-bucket-types">Features that rely on bucket types</h4>
+
+<p>One reason we recommend using bucket types for Riak 2.0
+and later is because many newer Riak features were built with
+bucket types as a precondition:</p>
+
+<ul>
+  <li><a href="/riak/2.1.3/using/reference/strong-consistency">Strong consistency</a> — Using Riak’s strong consistency subsystem
+requires you to set the <code class="language-plaintext highlighter-rouge">consistent</code> parameter on a bucket type to
+<code class="language-plaintext highlighter-rouge">true</code></li>
+  <li><a href="/riak/kv/2.1.3/developing/data-types">Riak Data Types</a> — In order to use Riak Data
+Types, you must <a href="/riak/kv/2.1.3/developing/data-types/#setting-up-buckets-to-use-riak-data-types">create bucket types</a> specific to the
+Data Type you are using</li>
+</ul>
+
+<h4 id="bucket-types-and-downgrades">Bucket types and downgrades</h4>
+
+<p>If you decide to use bucket types, please remember that you
+cannot <a href="/riak/kv/2.1.3/setup/downgrade">downgrade</a> your cluster to a version of
+Riak prior to 2.0 if you have both created and activated a
+bucket type.</p>
+
+<h2 id="new-allow_mult-behavior">New allow_mult Behavior</h2>
+
+<p>One of the biggest changes in version 2.0 regarding
+application development involves Riak’s default
+<a href="/riak/kv/2.1.3/learn/concepts/causal-context/#siblings">siblings</a> behavior.</p>
+
+<p>In versions prior to 2.0, the
+<code class="language-plaintext highlighter-rouge">allow_mult</code> setting was set to <code class="language-plaintext highlighter-rouge">false</code> by default for all buckets.
+So Riak’s default behavior was to resolve
+object replica <a href="/riak/kv/2.1.3/developing/usage/conflict-resolution">conflicts</a> between nodes on its
+own; relieving connecting clients of the need to resolve those
+conflicts.</p>
+
+<p><strong>In 2.0, <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">true</code> for any bucket type that you
+create and activate.</strong></p>
+
+<p>This means that the default when <a href="/riak/kv/2.1.3/using/reference/bucket-types/">using bucket types</a> is to handle <a href="/riak/kv/2.1.3/developing/usage/conflict-resolution">conflict resolution</a> on the client side using
+either traditional <a href="/riak/kv/2.1.3/learn/concepts/causal-context/#vector-clocks">vector clocks</a> or the newer <a href="/riak/kv/2.1.3/learn/concepts/causal-context/#dotted-version-vector">dotted version vectors</a>.</p>
+
+<p>If you wish to set <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code> in version 2.0, you have two
+options:</p>
+
+<ul>
+  <li>Set your bucket type’s <code class="language-plaintext highlighter-rouge">allow_mult</code> property to <code class="language-plaintext highlighter-rouge">false</code>.</li>
+  <li>Don’t use bucket types.</li>
+</ul>
+
+<p>More information on handling siblings can be found in our documentation
+on <a href="/riak/kv/2.1.3/developing/usage/conflict-resolution">conflict resolution</a>.</p>
+
+<h2 id="enabling-security">Enabling Security</h2>
+
+<p>The <a href="/riak/kv/2.1.3/using/security/basics">authentication and authorization</a> mechanisms included with Riak 2.0 should only be turned
+on after careful testing in a non-production environment. Security
+changes the way all applications interact with Riak.</p>
+
+<h2 id="when-downgrading-is-no-longer-an-option">When Downgrading is No Longer an Option</h2>
+
+<p>If you decide to upgrade to version 2.0, you can still downgrade your
+cluster to an earlier version of Riak if you wish, <em>unless</em> you perform
+one of the following actions in your cluster:</p>
+
+<ul>
+  <li>Index data to be used in conjunction with the new <a href="/riak/kv/2.1.3/using/reference/search">Riak Search</a>.</li>
+  <li>Create <em>and</em> activate one or more <a href="/riak/kv/2.1.3/using/reference/bucket-types/">bucket types</a>. By extension, you will not be able to downgrade your cluster if you have used the following features, both of which rely on bucket types:
+    <ul>
+      <li><a href="/riak/2.1.3/using/reference/strong-consistency">Strong consistency</a></li>
+      <li><a href="/riak/kv/2.1.3/developing/data-types">Riak Data Types</a></li>
+    </ul>
+  </li>
+</ul>
+
+<p>If you use other new features, such as <a href="/riak/kv/2.1.3/using/security/basics">Riak Security</a> or the new <a href="/riak/kv/2.1.3/configuring/reference/">configuration files</a>, you can still
+downgrade your cluster, but you will no longer be able to use those
+features after the downgrade.</p>
+
+<h2 id="upgrading-your-configuration-system">Upgrading Your Configuration System</h2>
+
+<p>Riak 2.0 offers a new configuration system that both simplifies
+configuration syntax and uses one configuration file, <code class="language-plaintext highlighter-rouge">riak.conf</code>,
+instead of the two files, <code class="language-plaintext highlighter-rouge">app.config</code> and <code class="language-plaintext highlighter-rouge">vm.args</code>, required by the
+older system. Full documentation of the new system can be found in
+<a href="/riak/kv/2.1.3/configuring/reference/">Configuration Files</a>.</p>
+
+<p>If you’re upgrading to Riak 2.0 from an earlier version, you have two
+configuration options:</p>
+
+<ol>
+  <li>Manually port your configuration from the older system into the new
+system.</li>
+  <li>Keep your configuration files from the older system, which are still
+recognized in Riak 2.0.</li>
+</ol>
+
+<p>If you choose the first option, make sure to consult the
+<a href="/riak/kv/2.1.3/configuring/reference/">configuration files</a> documentation, as many configuration parameters have changed names, some no longer exist, and others have been added that were not previously available.</p>
+
+<p>If you choose the second option, Riak will automatically determine that
+the older configuration system is being used. You should be aware,
+however, that some settings must be set in an <code class="language-plaintext highlighter-rouge">advanced.config</code> file.
+For a listing of those parameters, see our documentation on <a href="/riak/kv/2.1.3/configuring/reference/#advanced-configuration">advanced configuration</a>.</p>
+
+<p>If you choose to keep the existing <code class="language-plaintext highlighter-rouge">app.config</code> files, you <em>must</em> add the
+following additional settings in the <code class="language-plaintext highlighter-rouge">riak_core</code> section:</p>
+
+<pre><code class="language-appconfig">{riak_core,
+     [{default_bucket_props,
+          [{allow_mult,false}, %% or the same as an existing setting
+           {dvv_enabled,false}]},
+          %% other settings
+     ]
+},
+</code></pre>
+<p>This is to ensure backwards compatibility with 1.4 for these bucket properties.</p>
+
+<h2 id="upgrading-leveldb">Upgrading LevelDB</h2>
+
+<p>If you are using LevelDB and upgrading to 2.0, no special steps need to
+be taken, <em>unless</em> you wish to use your old <code class="language-plaintext highlighter-rouge">app.config</code> file for
+configuration. If so, make sure that you set the
+<code class="language-plaintext highlighter-rouge">total_leveldb_mem_percent</code> parameter in the <code class="language-plaintext highlighter-rouge">eleveldb</code> section of the
+file to 70.</p>
+
+<pre><code class="language-appconfig">{eleveldb, [
+    %% ...
+    {total_leveldb_mem_percent, 70},
+    %% ...
+]}
+</code></pre>
+
+<p>If you do not assign a value to <code class="language-plaintext highlighter-rouge">total_leveldb_mem_percent</code>, Riak will
+default to a value of <code class="language-plaintext highlighter-rouge">15</code>, which can cause problems in some clusters.</p>
+
+<h2 id="upgrading-search">Upgrading Search</h2>
+
+<p>Information on upgrading Riak Search to 2.0 can be found in our
+<a href="/riak/kv/2.1.3/setup/upgrading/search">Search upgrade guide</a>.</p>
+
+<h2 id="migrating-from-short-names">Migrating from Short Names</h2>
+
+<p>Although undocumented, versions of Riak prior to 2.0 did not prevent the
+use of the Erlang VM’s <code class="language-plaintext highlighter-rouge">-sname</code> configuration parameter. As of 2.0 this
+is no longer permitted. Permitted in 2.0 are <code class="language-plaintext highlighter-rouge">nodename</code> in <code class="language-plaintext highlighter-rouge">riak.conf</code>
+and <code class="language-plaintext highlighter-rouge">-name</code> in <code class="language-plaintext highlighter-rouge">vm.args</code>. If you are upgrading from a previous version
+of Riak to 2.0 and are using <code class="language-plaintext highlighter-rouge">-sname</code> in your <code class="language-plaintext highlighter-rouge">vm.args</code>, the below steps
+are required to migrate away from <code class="language-plaintext highlighter-rouge">-sname</code>.</p>
+
+<ol>
+  <li>Upgrade to Riak
+<a href="http://docs.basho.com/riak/1.4.12/downloads/">1.4.12</a>.</li>
+  <li>Back up the ring directory on each node, typically located in
+<code class="language-plaintext highlighter-rouge">/var/lib/riak/ring</code>.</li>
+  <li>Stop all nodes in your cluster.</li>
+  <li>Run <a href="/riak/kv/2.1.3/using/admin/riak-admin/#reip"><code class="language-plaintext highlighter-rouge">riak-admin reip &lt;old_nodename&gt; &lt;new_nodename&gt;</code></a> on each node in your cluster, for each node in your
+cluster. For example, in a 5 node cluster this will be run 25 total
+times, 5 times on each node. The <code class="language-plaintext highlighter-rouge">&lt;old_nodename&gt;</code> is the current
+shortname, and the <code class="language-plaintext highlighter-rouge">&lt;new_nodename&gt;</code> is the new fully qualified hostname.</li>
+  <li>Change <code class="language-plaintext highlighter-rouge">riak.conf</code> or <code class="language-plaintext highlighter-rouge">vm.args</code>, depending on which configuration
+system you’re using, to use the new fully qualified hostname on each
+node.</li>
+  <li>Start each node in your cluster.</li>
+</ol>

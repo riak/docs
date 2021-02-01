@@ -1,0 +1,101 @@
+<h2 id="launching-riak-vms-via-the-aws-marketplace">Launching Riak VMs via the AWS Marketplace</h2>
+
+<p>In order to launch a Riak virtual machine via the AWS Marketplace, you will first need to sign up for an <a href="http://aws.amazon.com">Amazon Web Services</a> account.</p>
+
+<ol>
+  <li>
+    <p>Navigate to <a href="https://aws.amazon.com/marketplace/">https://aws.amazon.com/marketplace/</a> and sign in with your Amazon Web Services account.</p>
+  </li>
+  <li>
+    <p>Locate Riak in the <strong>Databases &amp; Caching</strong> category or search for Riak from any page.</p>
+  </li>
+  <li>
+    <p>Set your desired AWS region, EC2 instance type, firewall settings, and key pair</p>
+
+    <p><img src="/images/aws-marketplace-settings.png" alt="AWS Marketplace Instance Settings" /></p>
+  </li>
+  <li>
+    <p>Click the <strong>Accept Terms and Launch with 1-Click</strong> button.</p>
+  </li>
+</ol>
+
+<h3 id="security-group-settings">Security Group Settings</h3>
+
+<p>Once the virtual machine is created, you should verify that your selected EC2 security group is properly configured for Riak.</p>
+
+<ol>
+  <li>
+    <p>In the AWS EC2 Management Console, click <strong>Security Groups</strong>, then click the name of the security group for your Riak VM.</p>
+  </li>
+  <li>
+    <p>Click on the <strong>Inbound</strong> tab in the lower pane.  Your security group should include the following open ports:</p>
+  </li>
+</ol>
+
+<ul>
+  <li>22 (SSH)</li>
+  <li>8087 (Riak Protocol Buffers Interface)</li>
+  <li>8098 (Riak HTTP Interface)</li>
+</ul>
+
+<ol>
+  <li>You will need to add additional rules within this security group to allow your Riak instances to communicate.  For each port range below, create a new <strong>Custom TCP rule</strong> with the source set to the current security group ID (found on the <strong>Details</strong> tab).</li>
+</ol>
+
+<ul>
+  <li>Port range: 4369</li>
+  <li>Port range: 6000-7999</li>
+  <li>Port range: 8099</li>
+</ul>
+
+<ol>
+  <li>
+    <p>When complete, your security group should contain all of the rules listed below. If you are missing any rules, add them in the lower panel and then click the <strong>Apply Rule Changes</strong> button.</p>
+
+    <p><img src="/images/aws-marketplace-security-group.png" alt="EC2 Security Group Settings" /></p>
+  </li>
+</ol>
+
+<p>We also recommend that you read more about Riak’s <a href="/riak/kv/2.1.3/using/security/">Security and Firewalls</a>.</p>
+
+<h2 id="clustering-riak-on-aws">Clustering Riak on AWS</h2>
+
+<p>You will need need to launch at least 3 instances to form a Riak cluster.  When the instances have been provisioned and the security group is configured, you can connect to them using SSH or PuTTY as the ec2-user.</p>
+
+<p>You can find more information on connecting to an instance on the official <a href="http://docs.amazonwebservices.com/AWSEC2/latest/UserGuide/AccessingInstances.html">Amazon EC2 instance guide</a>.</p>
+
+<p>The following clustering setup will <em>not</em> be resilient to instance restarts
+unless deployed in Amazon VPC.</p>
+
+<ol>
+  <li>
+    <p>On the first node, obtain the internal IP address:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> curl http://169.254.169.254/latest/meta-data/local-ipv4
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>For all other nodes, use the internal IP address of the first node:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nb">sudo </span>riak-admin cluster <span class="nb">join </span>riak@&lt;ip.of.first.node&gt;
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>After all of the nodes are joined, execute the following:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nb">sudo </span>riak-admin cluster plan
+</code></pre></div>    </div>
+
+    <p>If this looks good:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nb">sudo </span>riak-admin cluster commit
+</code></pre></div>    </div>
+
+    <p>To check the status of clustering use:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nb">sudo </span>riak-admin member_status
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>You now have a Riak cluster running on AWS.</p>

@@ -1,0 +1,13 @@
+<p>Assigns a set of <a href="/riak/kv/2.1.3/developing/api/protocol-buffers/set-bucket-props">bucket properties</a> to a
+<a href="/riak/kv/2.1.3/developing/usage/bucket-types">bucket type</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbSetBucketTypeReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="n">RpbBucketProps</span> <span class="na">props</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">type</code> field specifies the name of the bucket type as a binary. The
+<code class="language-plaintext highlighter-rouge">props</code> field contains an <a href="/riak/kv/2.1.3/developing/api/protocol-buffers/get-bucket-props"><code class="language-plaintext highlighter-rouge">RpbBucketProps</code></a>.</p>

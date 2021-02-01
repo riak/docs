@@ -1,0 +1,405 @@
+<p>Riak was written almost exclusively in <a href="http://www.erlang.org">Erlang</a>
+and runs on an Erlang virtual machine (VM), which makes proper Erlang VM
+tuning an important part of optimizing Riak performance. The Erlang VM
+itself provides a wide variety of <a href="http://erlang.org/doc/man/erl.html">configurable parameters</a> that you can use to tune its performance; Riak enables you to tune a subset of those parameters in each node’s <a href="../../../configuring/reference/#erlang-vm">configuration files</a>.</p>
+
+<p>The table below lists some of the parameters that are available, showing
+both their names as used in Erlang and their names as Riak parameters.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Erlang parameter</th>
+      <th style="text-align: left">Riak parameter</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#async_thread_pool_size"><code class="language-plaintext highlighter-rouge">+A</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.async_threads</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#emu_flags"><code class="language-plaintext highlighter-rouge">+K</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.K</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#+P"><code class="language-plaintext highlighter-rouge">+P</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.process_limit</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#+Q"><code class="language-plaintext highlighter-rouge">+Q</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.max_ports</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#+S"><code class="language-plaintext highlighter-rouge">+S</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.schedulers.total</code>, <code class="language-plaintext highlighter-rouge">erlang.schedulers.online</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#emu_flags"><code class="language-plaintext highlighter-rouge">+W</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.W</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#async_thread_stack_size"><code class="language-plaintext highlighter-rouge">+a</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.async_threads.stack_size</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://www.erlang.org/doc/man/ets.html#+e"><code class="language-plaintext highlighter-rouge">+e</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.max_ets_tables</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://www.erlang.org/doc/main/erl.html#+scl"><code class="language-plaintext highlighter-rouge">+scl</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.schedulers.compaction_of_load</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://www.erlang.org/doc/man/erl.html#+sfwi"><code class="language-plaintext highlighter-rouge">+sfwi</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.schedulers.force_wakeup_interval</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#smp"><code class="language-plaintext highlighter-rouge">-smp</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.smp</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://www.erlang.org/doc/man/erl.html#+sub"><code class="language-plaintext highlighter-rouge">+sub</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.schedulers.utilization_balancing</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://erlang.org/doc/man/erl.html#+zdbbl"><code class="language-plaintext highlighter-rouge">+zdbbl</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.distribution_buffer_size</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://www.erlang.org/doc/man/kernel_app.html#net_ticktime"><code class="language-plaintext highlighter-rouge">-kernel net_ticktime</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.distribution.net_ticktime</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://www.erlang.org/doc/man/erlang.html#system_flag-2"><code class="language-plaintext highlighter-rouge">-env FULLSWEEP_AFTER</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.fullsweep_after</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://www.erlang.org/doc/apps/erts/crash_dump.html"><code class="language-plaintext highlighter-rouge">-env ERL_CRASH_DUMP</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.crash_dump</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><a href="http://learnyousomeerlang.com/ets"><code class="language-plaintext highlighter-rouge">-env ERL_MAX_ETS_TABLES</code></a></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.max_ets_tables</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">-name</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">nodename</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>In versions of Riak prior to 2.0, Erlang VM-related parameters were specified
+in a <code class="language-plaintext highlighter-rouge">vm.args</code> configuration file; in versions 2.0 and later, all
+Erlang-VM-specific parameters are set in the <code class="language-plaintext highlighter-rouge">riak.conf</code> file. If you’re
+upgrading to 2.0 from an earlier version, you can still use your old <code class="language-plaintext highlighter-rouge">vm.args</code>
+if you wish.  Please note, however, that if you set one or more parameters in
+both <code class="language-plaintext highlighter-rouge">vm.args</code> and in <code class="language-plaintext highlighter-rouge">riak.conf</code>, the settings in <code class="language-plaintext highlighter-rouge">vm.args</code> will override
+those in <code class="language-plaintext highlighter-rouge">riak.conf</code>.</p>
+
+<h2 id="smp">SMP</h2>
+
+<p>Some operating systems provide Erlang VMs with Symmetric Multiprocessing
+capabilities
+(<a href="http://en.wikipedia.org/wiki/Symmetric_multiprocessing">SMP</a>) for
+taking advantage of multi-processor hardware architectures. SMP support
+can be turned on or off by setting the <code class="language-plaintext highlighter-rouge">erlang.smp</code> parameter to
+<code class="language-plaintext highlighter-rouge">enable</code> or <code class="language-plaintext highlighter-rouge">disable</code>. It is enabled by default. The following would
+disable SMP support:</p>
+
+<pre><code class="language-riakconf">erlang.smp = disable
+</code></pre>
+
+<p>Because Riak is supported on some operating systems that do not provide
+SMP support. Make sure that your OS supports SMP before enabling it for
+use by Riak’s Erlang VM. If it does not, you should set <code class="language-plaintext highlighter-rouge">erlang.smp</code> to
+<code class="language-plaintext highlighter-rouge">disable</code> prior to starting up your cluster.</p>
+
+<p>Another safe option is to set <code class="language-plaintext highlighter-rouge">erlang.smp</code> to <code class="language-plaintext highlighter-rouge">auto</code>. This will instruct
+the Erlang VM to start up with SMP support enabled if (a) SMP support is
+available on the current OS and (b) more than one logical processor is
+detected. If neither of these conditions is met, the Erlang VM will
+start up with SMP disabled.</p>
+
+<h2 id="schedulers">Schedulers</h2>
+
+<blockquote>
+  <p><strong>Note on missing scheduler flags</strong></p>
+
+  <p>We recommend that <em>all</em> users set the <code class="language-plaintext highlighter-rouge">+sfwi</code> to <code class="language-plaintext highlighter-rouge">500</code> (milliseconds)
+and the <code class="language-plaintext highlighter-rouge">+scl</code> flag to <code class="language-plaintext highlighter-rouge">false</code> if using the older, <code class="language-plaintext highlighter-rouge">vm.args</code>-based
+configuration system. If you are using the new, <code class="language-plaintext highlighter-rouge">riak.conf</code>-based
+configuration system, the corresponding parameters are
+<code class="language-plaintext highlighter-rouge">erlang.schedulers.force_wakeup_interval</code> and
+<code class="language-plaintext highlighter-rouge">erlang.schedulers.compaction_of_load</code>.</p>
+
+  <p>Please note that you will need to uncomment the appropriate lines in
+your <code class="language-plaintext highlighter-rouge">riak.conf</code> for this configuration to take effect.</p>
+</blockquote>
+
+<p>If <a href="#smp">SMP support</a> has been enabled on your Erlang
+VM, i.e. if <code class="language-plaintext highlighter-rouge">erlang.smp</code> is set to <code class="language-plaintext highlighter-rouge">enable</code> or <code class="language-plaintext highlighter-rouge">auto</code> on a machine
+providing SMP support <em>and</em> more than one logical processor, you can
+configure the number of logical processors, or <a href="http://www.erlang.org/doc/man/erl.html#+S">scheduler
+threads</a>, that are created
+when starting Riak, as well as the number of threads that are set
+online.</p>
+
+<p>The total number of threads can be set using the
+<code class="language-plaintext highlighter-rouge">erlang.schedulers.total</code> parameter, whereas the number of threads set
+online can be set using <code class="language-plaintext highlighter-rouge">erlang.schedulers.online</code>. These parameters map
+directly onto <code class="language-plaintext highlighter-rouge">Schedulers</code> and <code class="language-plaintext highlighter-rouge">SchedulersOnline</code>, both of which are
+used by <a href="http://www.erlang.org/doc/man/erl.html#+S"><code class="language-plaintext highlighter-rouge">erl</code></a>.</p>
+
+<p>While the maximum for both parameters is 1024, there is no universal
+default for either. Instead, the Erlang VM will attempt to determine the
+number of configured processors, as well as the number of available
+processors, on its own. If the Erlang VM <em>can</em> make that determination,
+<code class="language-plaintext highlighter-rouge">schedulers.total</code> will default to the total number of configured
+processors while <code class="language-plaintext highlighter-rouge">schedulers.online</code> will default to the number of
+processors available; if the Erlang VM can’t make that determination,
+both values will default to 1.</p>
+
+<p>If either parameter is set to a negative integer, that value will be
+subtracted from the default number of processors that are configured or
+available, depending on the parameter. For example, if there are 100
+configured processors and <code class="language-plaintext highlighter-rouge">schedulers.total</code> is set to <code class="language-plaintext highlighter-rouge">-50</code>, then the
+calculated value for <code class="language-plaintext highlighter-rouge">schedulers.total</code> will be 50. Setting either
+parameter to 0, on the other hand, will reset both values to their
+defaults.</p>
+
+<p>If SMP support is not enabled, i.e. if <code class="language-plaintext highlighter-rouge">erlang.smp</code> is set to <code class="language-plaintext highlighter-rouge">disable</code>
+(or set to <code class="language-plaintext highlighter-rouge">auto</code> on a machine without SMP support or with only one
+logical processor), then the values of <code class="language-plaintext highlighter-rouge">schedulers.total</code> and
+<code class="language-plaintext highlighter-rouge">schedulers.online</code> will be ignored.</p>
+
+<h3 id="scheduler-wakeup-interval">Scheduler Wakeup Interval</h3>
+
+<p>Scheduler wakeup is an optional process whereby Erlang VM schedulers are
+periodically scanned to determine whether they have “fallen asleep,”
+i.e. whether they have an empty <a href="http://en.wikipedia.org/wiki/Run_queue">run
+queue</a>. The interval at which
+this process occurs can be set, in milliseconds, using the
+<code class="language-plaintext highlighter-rouge">erlang.schedulers.force_wakeup_interval</code> parameter, which corresponds
+to the Erlang VM’s <code class="language-plaintext highlighter-rouge">+sfwi</code> flag. This parameter is set to <code class="language-plaintext highlighter-rouge">0</code> by
+default, which disables scheduler wakeup.</p>
+
+<p>Erlang distributions like R15Bx have a tendency to put schedulers to
+sleep too often. If you are using a more recent distribution, i.e. a if
+you are running Riak 2.0 or later, you most likely won’t need to enable
+scheduler wakeup.</p>
+
+<h3 id="scheduler-compaction-and-balancing">Scheduler Compaction and Balancing</h3>
+
+<p>The Erlang scheduler offers two methods of distributing load across
+schedulers: <strong>compaction of load</strong> and <strong>utilization balancing</strong> of
+load.</p>
+
+<p>Compaction of load is used by default. When enabled, the Erlang VM will
+attempt to fully load as many scheduler threads as possible, i.e. it
+will attempt to ensure that scheduler threads do not run out of work. To
+that end, the VM will take into account the frequency with which
+schedulers run out of work when making decisions about which schedulers
+should be assigned work. You can disable compaction of load by setting
+the <code class="language-plaintext highlighter-rouge">erlang.schedulers.compaction_of_load</code> setting to <code class="language-plaintext highlighter-rouge">false</code> (in the
+older configuration system, set <code class="language-plaintext highlighter-rouge">+scl</code> to <code class="language-plaintext highlighter-rouge">true</code>).</p>
+
+<p>The other option, utilization balancing, is disabled by default in favor
+of load balancing. When utilization balancing is enabled instead, the
+Erlang VM will strive to balance scheduler utilization as equally as
+possible between schedulers, without taking into account the frequency
+at which schedulers run out of work. You can enable utilization
+balancing by setting the <code class="language-plaintext highlighter-rouge">erlang.schedulers.utilization_balancing</code>
+setting to <code class="language-plaintext highlighter-rouge">true</code> (or the <code class="language-plaintext highlighter-rouge">+scl</code> parameter to <code class="language-plaintext highlighter-rouge">false</code> in the older
+configuration system).</p>
+
+<p>At any given time, only compaction of load <em>or</em> utilization balancing
+can be used. If you set both parameters to <code class="language-plaintext highlighter-rouge">false</code>, Riak will default to
+using compaction of load; if both are set to <code class="language-plaintext highlighter-rouge">true</code>, Riak will enable
+whichever setting is listed first in <code class="language-plaintext highlighter-rouge">riak.conf</code> (or <code class="language-plaintext highlighter-rouge">vm.args</code> if you’re
+using the older configuration system).</p>
+
+<h2 id="port-settings">Port Settings</h2>
+
+<p>Riak uses <a href="http://www.erlang.org/doc/man/epmd.html">epmd</a>, the Erlang
+Port Mapper Daemon, for most inter-node communication. In this system,
+other nodes in the <a href="../../../learn/concepts/clusters">cluster</a> use the Erlang identifiers specified by the <code class="language-plaintext highlighter-rouge">nodename</code> parameter (or <code class="language-plaintext highlighter-rouge">-name</code> in <code class="language-plaintext highlighter-rouge">vm.args</code>), for example <code class="language-plaintext highlighter-rouge">riak@10.9.8.7</code>. On each node, the daemon resolves these node
+identifiers to a TCP port. You can specify a port or range of ports for
+Riak nodes to listen on as well as the maximum number of concurrent
+ports/sockets.</p>
+
+<h3 id="port-range">Port Range</h3>
+
+<p>By default, epmd binds to TCP port 4369 and listens on the wildcard
+interface. epmd uses an unpredictable port for inter-node communication
+by default, binding to port 0, which means that it uses the first
+available port. This can make it difficult to configure <a href="../../security">firewalls</a>.</p>
+
+<p>To make configuring firewalls easier, you can instruct the Erlang VM to
+use either a limited range of TCP ports or a single TCP port. The
+minimum and maximum can be set using the
+<code class="language-plaintext highlighter-rouge">erlang.distribution.port_range.minimum</code> and
+<code class="language-plaintext highlighter-rouge">erlang.distribution.port.maximum</code> parameters, respectively. The
+following would set the range to ports between 3000 and 5000:</p>
+
+<pre><code class="language-riakconf">erlang.distribution.port_range.minimum = 3000
+erlang.distribution.port_range.maximum = 5000
+</code></pre>
+
+<pre><code class="language-appconfig">%% The older, app.config-based system uses different parameter names
+%% for specifying the minimum and maximum port
+
+{kernel, [
+          % ...
+          {inet_dist_listen_min, 3000},
+          {inet_dist_listen_max, 5000}
+          % ...
+         ]}
+</code></pre>
+
+<p>You can set the Erlang VM to use a single port by setting the minimum to
+the desired port while setting no maximum. The following would set the
+port to 5000:</p>
+
+<pre><code class="language-riakconf">erlang.distribution.port_range.minimum = 5000
+</code></pre>
+
+<pre><code class="language-appconfig">{kernel, [
+          % ...
+          {inet_dist_listen_min, 5000},
+          % ...
+         ]}
+</code></pre>
+
+<p>If the minimum port is unset, the Erlang VM will listen on a random
+high-numbered port.</p>
+
+<h3 id="maximum-ports">Maximum Ports</h3>
+
+<p>You can set the maximum number of concurrent ports/sockets used by the
+Erlang VM using the <code class="language-plaintext highlighter-rouge">erlang.max_ports</code> setting. Possible values range
+from 1024 to 134217727. The default is 65536. In <code class="language-plaintext highlighter-rouge">vm.args</code> you can use
+either <code class="language-plaintext highlighter-rouge">+Q</code> or <code class="language-plaintext highlighter-rouge">-env ERL_MAX_PORTS</code>.</p>
+
+<h2 id="asynchronous-thread-pool">Asynchronous Thread Pool</h2>
+
+<p>If thread support is available in your Erlang VM, you can set the number
+of asynchronous threads in the Erlang VM’s asynchronous thread pool
+using <code class="language-plaintext highlighter-rouge">erlang.async_threads</code> (<code class="language-plaintext highlighter-rouge">+A</code> in <code class="language-plaintext highlighter-rouge">vm.args</code>).  The valid range is 0
+to 1024. If thread support is available on your OS, the default is 64.
+Below is an example setting the number of async threads to 600:</p>
+
+<pre><code class="language-riakconf">erlang.async_threads = 600
+</code></pre>
+
+<pre><code class="language-vmargs">+A 600
+</code></pre>
+
+<h3 id="stack-size">Stack Size</h3>
+
+<p>In addition to the number of asynchronous threads, you can determine the
+memory allocated to each thread using the
+<code class="language-plaintext highlighter-rouge">erlang.async_threads.stack_size</code> parameter, which corresponds to the
+<code class="language-plaintext highlighter-rouge">+a</code> Erlang flag. You can determine that size in Riak using KB, MB, GB,
+etc. The valid range is 16-8192 kilowords, which translates to 64-32768
+KB on 32-bit architectures. While there is no default, we suggest a
+stack size of 16 kilowords, which translates to 64 KB. We suggest such a
+small size because the number of asynchronous threads, as determined by
+<code class="language-plaintext highlighter-rouge">erlang.async_threads</code> might be quite large in your Erlang VM. The 64 KB
+default is enough for drivers delivered with Erlang/OTP but might not be
+large enough to accommodate drivers that use the <code class="language-plaintext highlighter-rouge">driver_async()</code>
+functionality, documented
+<a href="http://www.erlang.org/doc/man/erl_driver.html">here</a>. We recommend
+setting higher values with caution, always keeping the number of
+available threads in mind.</p>
+
+<h2 id="kernel-polling">Kernel Polling</h2>
+
+<p>You can utilize kernel polling in your Erlang distribution if your OS
+supports it. Kernel polling can improve performance if many file
+descriptors are in use; the more file descriptors, the larger an effect
+kernel polling may have on performance. Kernel polling is enabled by
+default on Riak’s Erlang VM, i.e. the default for <code class="language-plaintext highlighter-rouge">erlang.K</code> is <code class="language-plaintext highlighter-rouge">on</code>.
+This corresponds to the
+<a href="http://erlang.org/doc/man/erl.html#emu_flags"><code class="language-plaintext highlighter-rouge">+K</code></a> setting on the
+Erlang VM. You can disable it by setting <code class="language-plaintext highlighter-rouge">erlang.K</code> to <code class="language-plaintext highlighter-rouge">off</code>.</p>
+
+<h2 id="warning-messages">Warning Messages</h2>
+
+<p>Erlang’s
+<a href="http://www.erlang.org/doc/man/error_logger.html"><code class="language-plaintext highlighter-rouge">error_logger</code></a> is an
+event manager that registers error, warning, and info events from the
+Erlang runtime. By default, events from the <code class="language-plaintext highlighter-rouge">error_logger</code> are mapped as
+warnings, but you can also set messages to be mapped as errors or info
+reports using the <code class="language-plaintext highlighter-rouge">erlang.W</code> parameter (or <code class="language-plaintext highlighter-rouge">+W</code> in <code class="language-plaintext highlighter-rouge">vm.args</code>). The
+possible values are <code class="language-plaintext highlighter-rouge">w</code> (warnings), <code class="language-plaintext highlighter-rouge">errors</code>, or <code class="language-plaintext highlighter-rouge">i</code> (info reports).</p>
+
+<h2 id="process-limit">Process Limit</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">erlang.process_limit</code> parameter can be used to set the maximum
+number of simultaneously existing system processes (corresponding to
+Erlang’s <code class="language-plaintext highlighter-rouge">+P</code> parameter). The valid range is 1024 to 134217727. The
+default is 256000.</p>
+
+<h2 id="distribution-buffer">Distribution Buffer</h2>
+
+<p>You can set the size of the Erlang VM’s distribution buffer busy limit
+(denoted by <code class="language-plaintext highlighter-rouge">+zdbbl</code> on the VM and in <code class="language-plaintext highlighter-rouge">vm.args</code>) using
+<code class="language-plaintext highlighter-rouge">erlang.distribution_buffer_size</code>.  Modifying this setting can be useful
+on nodes with many <code class="language-plaintext highlighter-rouge">busy_dist_port</code> events, i.e. instances when the
+Erlang distribution is overloaded. The default is 32 MB (i.e. <code class="language-plaintext highlighter-rouge">32MB</code>),
+but this may be insufficient for some workloads. The maximum value is
+2097151 KB.</p>
+
+<p>A larger buffer limit will allow processes to buffer more outgoing
+messages. When the limit is reached, sending processes will be suspended
+until the the buffer size has shrunk below the limit specified by
+<code class="language-plaintext highlighter-rouge">erlang.distribution_buffer_size</code>. Higher values will tend to produce
+lower latency and higher throughput but at the expense of higher RAM
+usage. You should evaluate your RAM resources prior to increasing this
+setting.</p>
+
+<h2 id="erlang-built-in-storage">Erlang Built-in Storage</h2>
+
+<p>Erlang uses a built-in database called
+<a href="http://www.erlang.org/doc/man/ets.html">ets</a> (Erlang Term Storage)
+for some processes that require fast access from memory in constant
+access time (rather than logarithmic access time).  The maximum number
+of tables can be set using the <code class="language-plaintext highlighter-rouge">erlang.max_ets_tables</code> setting. The
+default is 256000, which is higher than the default limit of 1400 on the
+Erlang VM. The corresponding setting in <code class="language-plaintext highlighter-rouge">vm.args</code> is <code class="language-plaintext highlighter-rouge">+e</code>.</p>
+
+<p>Higher values for <code class="language-plaintext highlighter-rouge">erlang.max_ets_tables</code> will tend to provide more
+quick-access data storage but at the cost of higher RAM usage. Please
+note that the default values for <code class="language-plaintext highlighter-rouge">erlang.max_ets_tables</code> and
+<code class="language-plaintext highlighter-rouge">erlang.distribution_size</code> (explained in the section <a href="#distribution-buffer">above</a>) are the same.</p>
+
+<h2 id="crash-dumps">Crash Dumps</h2>
+
+<p>By default, crash dumps from Riak’s Erlang distribution are deposited in
+<code class="language-plaintext highlighter-rouge">./log/erl_crash.dump</code>. You can change this location using
+<code class="language-plaintext highlighter-rouge">erlang.crash_dump</code>. This is the equivalent of setting the
+<a href="http://www.erlang.org/doc/man/erl.html#environment_variables"><code class="language-plaintext highlighter-rouge">ERL_CRASH_DUMP</code></a>
+environment variable for the Erlang VM.</p>
+
+<h2 id="net-kernel-tick-time">Net Kernel Tick Time</h2>
+
+<p>The <a href="http://erlang.org/doc/man/net_kernel.html">net kernel</a> is an Erlang
+system process that provides various forms of network monitoring. In a
+Riak cluster, one of the functions of the net kernel is to periodically
+check node liveness. <strong>Tick time</strong> is the frequency with which those
+checks happen. You can determine that frequency using the
+<code class="language-plaintext highlighter-rouge">erlang.distribution.net_ticktime</code>. The tick will occur every N seconds,
+where N is the value set. Thus, setting
+<code class="language-plaintext highlighter-rouge">erlang.distribution.net_ticktime</code> to <code class="language-plaintext highlighter-rouge">60</code> will make the tick occur once
+every minute. The corresponding flag in <code class="language-plaintext highlighter-rouge">vm.args</code> is <code class="language-plaintext highlighter-rouge">-kernel
+net_ticktime</code>.</p>
+
+<h2 id="shutdown-time">Shutdown Time</h2>
+
+<p>You can determine how long the Erlang VM spends shutting down using the
+<code class="language-plaintext highlighter-rouge">erlang.shutdown_time</code> parameter. The default is <code class="language-plaintext highlighter-rouge">10s</code> (10 seconds).
+Once this duration elapses, all existing processes are killed.
+Decreasing shutdown time can be useful in situations in which you are
+frequently starting and stopping a cluster, e.g. in test clusters. In
+<code class="language-plaintext highlighter-rouge">vm.args</code> you can set the <code class="language-plaintext highlighter-rouge">-shutdown_time</code> flag in milliseconds.</p>

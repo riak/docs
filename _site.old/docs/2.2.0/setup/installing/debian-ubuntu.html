@@ -1,0 +1,193 @@
+
+<p>Riak KV can be installed on Debian or Ubuntu-based systems using a binary
+package or by compiling from source code.</p>
+
+<p>The following steps have been tested to work with Riak KV on:</p>
+
+<ul>
+  <li>Ubuntu 16.04</li>
+  <li>Ubuntu 14.04</li>
+  <li>Ubuntu 12.04</li>
+  <li>Debian 8.6</li>
+  <li>Debian 7.6</li>
+</ul>
+
+<h2 id="installing-with-apt">Installing with apt</h2>
+
+<p>Basho has Riak KV packages on the <a href="https://packagecloud.io/basho/riak?filter=debs">packagecloud.io</a> hosting service. Instructions for installing via shell scripts, manual installation, Chef, and Puppet can be found in packagecloud’s <a href="https://packagecloud.io/basho/riak/install">installation docs</a>.</p>
+
+<p>Platform-specific pages are linked below:</p>
+
+<ul>
+  <li><a href="https://packagecloud.io/basho/riak/packages/ubuntu/xenial/riak_2.2.0-1_amd64.deb">Ubuntu 16.04 (Xenial)</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/ubuntu/trusty/riak_2.2.0-1_amd64.deb">Ubuntu 14.04 (Trusty)</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/ubuntu/precise/riak_2.2.0-1_amd64.deb">Ubuntu 12.04 (Precise)</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/debian/jessie/riak_2.2.0-1_amd64.deb">Debian 8 (Jessie)</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/debian/wheezy/riak_2.2.0-1_amd64.deb">Debian 7 (Wheezy)</a></li>
+</ul>
+
+<p>Our documentation also includes instructions regarding signing keys and
+sources lists, which can be found in the Advanced apt Installation section below.</p>
+
+<h2 id="advanced-apt-installation">Advanced apt Installation</h2>
+
+<blockquote>
+  <p><strong>Note on Debian 7</strong></p>
+
+  <p>If you wish to install Riak on Debian 7, you may need to install
+<a href="https://packages.debian.org/search?keywords=libc6">libc6</a> version 2.15 or
+later, which in turn requires upgrading your system to
+<a href="https://www.debian.org/releases/sid/">sid</a>. Installation instructions
+can be found
+<a href="https://wiki.debian.org/DebianUnstable#How_do_I_install_Sid.3F">here</a>.</p>
+
+  <p>Once sid has been installed, you can install libc6 with the following
+command:</p>
+
+  <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>apt-get <span class="nt">-t</span> sid <span class="nb">install </span>libc6 libc6-dev libc6-dbg
+</code></pre></div>  </div>
+</blockquote>
+
+<p>For the simplest installation process on LTS (Long-Term Support)
+releases, use <code class="language-plaintext highlighter-rouge">apt-get</code>. First, you must retrieve the signing key:</p>
+
+<pre><code class="language-curl">curl https://packagecloud.io/gpg.key | sudo apt-key add -
+</code></pre>
+
+<p>Second, you must install the <code class="language-plaintext highlighter-rouge">apt-transport-https</code> package in order to
+be able to fetch packages over HTTPS:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install</span> <span class="nt">-y</span> apt-transport-https
+</code></pre></div></div>
+
+<p>With HTTPS enabled, we recommend adding the desired Riak package to your
+<code class="language-plaintext highlighter-rouge">.list</code> file. packagecloud can autogenerate such a file on the basis of
+a name that you specify, e.g. a hostname, and the desired operating
+system and distribution. The following example script would store your
+hostname in the variable <code class="language-plaintext highlighter-rouge">HOSTNAME</code>, send that information to
+packagecloud to autogenerate a <code class="language-plaintext highlighter-rouge">.list</code> file, and then store the return
+value in a file called <code class="language-plaintext highlighter-rouge">basho.list</code>, which is stored in the
+<code class="language-plaintext highlighter-rouge">/etc/apt/sources.list.d</code> directory. This example script is specific to
+the Precise Ubuntu distribution:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+
+<span class="nv">HOSTNAME</span><span class="o">=</span><span class="sb">`</span><span class="nb">hostname</span> <span class="nt">-f</span><span class="sb">`</span>
+<span class="nv">FILENAME</span><span class="o">=</span>/etc/apt/sources.list.d/basho.list
+<span class="nv">OS</span><span class="o">=</span>ubuntu
+<span class="nv">DIST</span><span class="o">=</span>precise
+<span class="nv">PACKAGE_CLOUD_RIAK_DIR</span><span class="o">=</span>https://packagecloud.io/install/repositories/basho/riak
+curl <span class="s2">"</span><span class="k">${</span><span class="nv">PACKAGE_CLOUD_RIAK_DIR</span><span class="k">}</span><span class="s2">/config_file.list?os=</span><span class="k">${</span><span class="nv">OS</span><span class="k">}</span><span class="s2">&amp;dist=</span><span class="k">${</span><span class="nv">DIST</span><span class="k">}</span><span class="s2">&amp;name=</span><span class="k">${</span><span class="nv">HOSTNAME</span><span class="k">}</span><span class="s2">"</span> <span class="o">&gt;</span> <span class="nv">$FILENAME</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">name</code> that you submit to packagecloud can be anything you like. The
+<code class="language-plaintext highlighter-rouge">HOSTNAME</code> used above was for example purposes. The resulting file
+should hold contents like the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># this file was generated by packagecloud.io for
+# the repository at https://packagecloud.io/basho/riak
+
+deb https://packagecloud.io/basho/riak/ubuntu/ precise main
+deb-src https://packagecloud.io/basho/riak/ubuntu/ precise main
+</code></pre></div></div>
+
+<p>With your <code class="language-plaintext highlighter-rouge">basho.list</code> file populated, you can update your apt sources
+list:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get update
+</code></pre></div></div>
+
+<p>Now install the <code class="language-plaintext highlighter-rouge">riak</code> package.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install </span>riak
+</code></pre></div></div>
+
+<p>That should be all.</p>
+
+<h2 id="installing-from-package">Installing From Package</h2>
+
+<p>If you wish to install the deb packages by hand, follow these
+instructions.</p>
+
+<h3 id="installing-on-non-lts-ubuntu-releases">Installing on Non-LTS Ubuntu Releases</h3>
+
+<p>Typically we only package Riak for LTS releases to keep our build and
+testing matrix focused.  In some cases, such as Ubuntu 11.04 (Natty),
+there are changes that affect how Riak is packaged, so we will release a
+separate package for that non-LTS release. In most other cases, however,
+if you are running a non-LTS release (such as 12.10) it is safe to
+follow the below instructions for the LTS release prior to your release.
+In the case of Ubuntu 12.10, follow the installation instructions for
+Ubuntu 12.04.</p>
+
+<h3 id="pam-library-requirement-for-ubuntu">PAM Library Requirement for Ubuntu</h3>
+
+<p>One dependency that may be missing on your machine is the <code class="language-plaintext highlighter-rouge">libpam0g-dev</code>
+package used for Pluggable Authentication Module (PAM) authentication,
+associated with <a href="/riak/kv/2.2.0/using/security/">Riak security</a>.</p>
+
+<p>To install:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install </span>libpam0g-dev
+</code></pre></div></div>
+
+<h3 id="ssl-library-requirement-for-ubuntu">SSL Library Requirement for Ubuntu</h3>
+
+<p>Riak currently requires libssl version 0.9.8 on some versions of Ubuntu.
+Starting at Ubuntu 12.04 this is no longer an issue. Before installing
+Riak via package on Ubuntu, install the <code class="language-plaintext highlighter-rouge">libssl0.9.8</code> package. Note that
+this version of libssl can be safely installed alongside
+current/existing libssl installations.</p>
+
+<p>To install the libssl version 0.9.8 package, execute the following
+command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install </span>libssl0.9.8
+</code></pre></div></div>
+
+<p>After the libssl package installation, proceed to installing Riak from
+the pre-built package by executing the following commands as appropriate
+for the target platform:</p>
+
+<h3 id="riak-64-bit-installation">Riak 64-bit Installation</h3>
+
+<h4 id="ubuntu-lucid-lynx-1004">Ubuntu Lucid Lynx (10.04)</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.0/ubuntu/lucid/riak_2.2.0-1_amd64.deb
+<span class="nb">sudo </span>dpkg <span class="nt">-i</span> riak_2.2.0-1_amd64.deb
+</code></pre></div></div>
+
+<h4 id="ubuntu-natty-narwhal-1104">Ubuntu Natty Narwhal (11.04)</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.0/ubuntu/natty/riak_2.2.0-1_amd64.deb
+<span class="nb">sudo </span>dpkg <span class="nt">-i</span> riak_2.2.0-1_amd64.deb
+</code></pre></div></div>
+
+<h4 id="ubuntu-precise-pangolin-1204">Ubuntu Precise Pangolin (12.04)</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.0/ubuntu/precise/riak_2.2.0-1_amd64.deb
+<span class="nb">sudo </span>dpkg <span class="nt">-i</span> riak_2.2.0-1_amd64.deb
+</code></pre></div></div>
+
+<h2 id="installing-from-source">Installing From Source</h2>
+
+<p>First, install Riak dependencies using apt:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install </span>build-essential libc6-dev-i386 git
+</code></pre></div></div>
+
+<p>Riak requires an <a href="http://www.erlang.org/">Erlang</a> installation.
+Instructions can be found in <a href="/riak/kv/2.2.0/setup/installing/source/erlang">Installing Erlang</a>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.0/riak-2.2.0.tar.gz
+<span class="nb">tar </span>zxvf riak-2.2.0.tar.gz
+<span class="nb">cd </span>riak-2.2.0
+make rel
+</code></pre></div></div>
+
+<p>If the build was successful, a fresh build of Riak will exist in the
+<code class="language-plaintext highlighter-rouge">rel/riak</code> directory.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Now that Riak is installed, check out <a href="/riak/kv/2.2.0/setup/installing/verify">Verifying a Riak Installation</a>.</p>

@@ -1,0 +1,156 @@
+<p>Riak KV is a fundamentally content-agnostic database. You can use it to
+store anything you want, from JSON to XML to HTML to binaries to images
+and beyond. It’s important to note that <em>all</em> objects stored in
+Riak need a specified content type. If you don’t specify a
+content type, the reaction will vary based on your client library:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Java client, the response when storing an object without</span>
+<span class="c1">// specifying a content type will depend on what is being stored. If you</span>
+<span class="c1">// store a Java Map, for example, the client will automatically specify</span>
+<span class="c1">// that the object is "application/json"; if you store a String, the</span>
+<span class="c1">// client will specify "application/x-www-form-urlencoded"; POJOs are</span>
+<span class="c1">// stored as JSON by default, and so on.</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># In the Ruby client, you must always specify a content type. If you</span>
+<span class="c1"># you don't, you'll see the following error:</span>
+<span class="no">ArgumentError</span><span class="p">:</span> <span class="n">content_type</span> <span class="n">is</span> <span class="n">not</span> <span class="n">defined!</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># PHP will default to cURLs default content-type for POST &amp; PUT requests:</span>
+<span class="c1">#   application/x-www-form-urlencoded</span>
+
+<span class="c1"># If you use the StoreObject::buildJsonObject() method when building your command, </span>
+<span class="c1"># it will store the item with application/json as the content-type</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># In the Python client, the default content type is "application/json".
+# Because of this, you should always make sure to specify the content
+# type when storing other types of data.
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the Riak .NET Client, the response when storing an object without</span>
+<span class="c1">// specifying a content type will depend on what is being stored.</span>
+<span class="c1">// If you store a Dictionary, for example, the client will</span>
+<span class="c1">// automatically specify that the object is "application/json";</span>
+<span class="c1">// POCOs are stored as JSON by default, and so on.</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Node.js client, the default content type is "application/json".</span>
+<span class="c1">// Because of this, you should always make sure to specify the content</span>
+<span class="c1">// type when storing other types of data.</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% In the Erlang client, the response when storing an object without
+%% specify8ing a content type will depend on what is being stored. If
+%% you store a simple binary, for example, the client will automatically
+%% specify that the object is "application/octet-stream"; if you store a
+%% string, the client will specify "application/x-erlang-binary"; and so
+%% on.
+</span></code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// In the Go client, you must always specify a content type.</span>
+</code></pre></div></div>
+
+<p>Because content type negotiation varies so widely from client to client,
+we recommend consulting the documentation for your preferred client for
+more information.</p>
+
+<h2 id="specifying-content-type">Specifying Content Type</h2>
+
+<p>For all writes to Riak, you will need to specify a content type, for
+example <code class="language-plaintext highlighter-rouge">text/plain</code> or <code class="language-plaintext highlighter-rouge">application/json</code>.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">wildeGeniusQuote</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"quotes"</span><span class="o">,</span> <span class="s">"oscar_wilde"</span><span class="o">),</span> <span class="s">"genius"</span><span class="o">);</span>
+<span class="nc">BinaryValue</span> <span class="n">text</span> <span class="o">=</span> <span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"I have nothing to declare but my genius"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="n">text</span><span class="o">);</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">myKey</span><span class="o">,</span> <span class="n">obj</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'quotes'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'oscar_wilde'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'genius'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'I have nothing to declare but my genius'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'genius'</span><span class="p">,</span> <span class="s1">'oscar_wilde'</span><span class="p">,</span> <span class="s1">'quotes'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildObject</span><span class="p">(</span><span class="s1">'I have nothing to declare but my genius!'</span><span class="p">,</span> <span class="s1">'text/plain'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'quotes'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'oscar_wilde'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'genius'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'I have nothing to declare but my genius'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"quotes"</span><span class="p">,</span> <span class="s">"oscar_wilde"</span><span class="p">,</span> <span class="s">"genius"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"I have nothing to declare but my genius"</span><span class="p">,</span>
+    <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">I have nothing to declare but my genius</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">quotes</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">oscar_wilde</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">genius</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">value</span><span class="p">:</span> <span class="nx">riakObj</span>
+<span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Object</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"quotes"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"oscar_wilde"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"genius"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"I have nothing to declare but my genius"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"text/plain"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Object</span><span class="p">).</span>
+</code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">obj</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="n">ContentType</span><span class="o">:</span>     <span class="s">"text/plain"</span><span class="p">,</span>
+    <span class="n">Charset</span><span class="o">:</span>         <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">ContentEncoding</span><span class="o">:</span> <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">Value</span><span class="o">:</span>           <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"I have nothing to declare but my genius"</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucketType</span><span class="p">(</span><span class="s">"quotes"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="s">"oscar_wilde"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="s">"genius"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="n">svc</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">StoreValueCommand</span><span class="p">)</span>
+<span class="n">rsp</span> <span class="o">:=</span> <span class="n">svc</span><span class="o">.</span><span class="n">Response</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT \
+  -H "Content-Type: text/plain" \
+  -d "I have nothing to declare but my genius" \
+  http://localhost:8098/types/quotes/buckets/oscar_wilde/keys/genius
+
+# Please note that POST is also a valid method for writes, for the sake
+# of compatibility
+</code></pre>

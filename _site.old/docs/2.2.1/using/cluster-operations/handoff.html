@@ -1,0 +1,122 @@
+<p>Riak KV provides a command-line interface for enabling and disabling handoff on the fly, without needing to set your configuration and restart the node. To
+enable handoff:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin handoff <span class="nb">enable</span> &lt;inbound|outbound|both&gt; &lt;nodename&gt;
+</code></pre></div></div>
+
+<p>You must specify two things when enabling handoff:</p>
+
+<ul>
+  <li>whether you’d like to enable inbound handoff, outbound handoff, or
+  both</li>
+  <li>the node to be targeted by the command (or all nodes)</li>
+</ul>
+
+<p>You can select a target node using either the <code class="language-plaintext highlighter-rouge">--node</code> or the <code class="language-plaintext highlighter-rouge">-n</code> flag.
+You can select a direction by specifying <code class="language-plaintext highlighter-rouge">inbound</code>, <code class="language-plaintext highlighter-rouge">outbound</code>, or
+<code class="language-plaintext highlighter-rouge">both</code>. The following equivalent commands would enable outbound handoff
+on the node <code class="language-plaintext highlighter-rouge">riak3@100.0.0.1</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin handoff <span class="nb">enable </span>outbound <span class="nt">--node</span> riak3@100.0.0.1
+riak-admin handoff <span class="nb">enable </span>outbound <span class="nt">-n</span> riak3@100.0.0.1
+</code></pre></div></div>
+
+<p>These two equivalent commands would enable inbound handoff on the node
+<code class="language-plaintext highlighter-rouge">riak5@100.0.0.1</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin handoff <span class="nb">enable </span>inbound <span class="nt">--node</span> riak5@100.0.0.1
+riak-admin handoff <span class="nb">enable </span>inbound <span class="nt">-n</span> riak5@127.0.0.1
+</code></pre></div></div>
+
+<p>Alternatively, you can enable handoff on all nodes at the same time
+using either the <code class="language-plaintext highlighter-rouge">-a</code> or <code class="language-plaintext highlighter-rouge">--all</code> flag. This command would enable both
+inbound and outbound handoff on all nodes:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin handoff <span class="nb">enable </span>both <span class="nt">--all</span>
+</code></pre></div></div>
+
+<p>As for enabling handoff, the <code class="language-plaintext highlighter-rouge">riak-admin disable</code> command requires that
+you specify both both a node or nodes to be targeted by the command and
+whether you’d like to disable inbound handoff, outbound handoff, or
+both. The <code class="language-plaintext highlighter-rouge">disable</code> command works just like <code class="language-plaintext highlighter-rouge">enable</code>. This command
+would disable all forms of handoff on all nodes, to give just one
+example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin handoff disable both <span class="nt">--all</span>
+</code></pre></div></div>
+
+<h2 id="other-command-line-tools">Other Command-line Tools</h2>
+
+<p>In addition to enabling and disabling handoff, the
+<a href="/riak/kv/2.2.1/using/admin/riak-admin/"><code class="language-plaintext highlighter-rouge">riak-admin</code></a> interface enables you to
+retrieve a summary of handoff-related activity and other information.</p>
+
+<h3 id="summary">summary</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">summary</code> command provides high-level information about active
+handoffs in a cluster.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin handoff summary
+</code></pre></div></div>
+
+<p>This will return a table that will provide the following information
+about each node in your cluster:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Header</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Node</code></td>
+      <td style="text-align: left">The name of the node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Total</code></td>
+      <td style="text-align: left">Total number of active transfers throughout the entire cluster</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Ownership</code></td>
+      <td style="text-align: left">Total number of ownership exchanges</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Resize</code></td>
+      <td style="text-align: left">Total handoffs related to ring resizing operations (This should always be 0, as the Resize Ring feature has been deprecated)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Hinted</code></td>
+      <td style="text-align: left">Total number of <a href="../../reference/handoff#types-of-handoff">hinted handoffs</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Repair</code></td>
+      <td style="text-align: left">Total repair-related handoffs. More information can be found <a href="https://github.com/basho/riak_core/commit/036e409eb83903315dd43a37c7a93c9256863807">here</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="details">details</h3>
+
+<p>This command provides information only about active transfers.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin handoff details
+</code></pre></div></div>
+
+<p>If no transfers are currently underway, this command will output <code class="language-plaintext highlighter-rouge">No
+ongoing transfers</code>. Otherwise, you will something like this:</p>
+
+<h3 id="config">config</h3>
+
+<p>This command displays the values for handoff-specific <a href="/riak/kv/2.2.1/configuring/reference/#intra-cluster-handoff">configurable parameters</a> on each node in
+the cluster, including:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">transfer_limit</code></li>
+  <li><code class="language-plaintext highlighter-rouge">handoff.outbound</code></li>
+  <li><code class="language-plaintext highlighter-rouge">handoff.inbound</code></li>
+  <li><code class="language-plaintext highlighter-rouge">handoff.port</code></li>
+</ul>
+
+<p>Descriptions of those parameters can be found in the sections above.</p>

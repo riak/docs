@@ -1,0 +1,236 @@
+
+<blockquote>
+  <p><strong>Note on the <code class="language-plaintext highlighter-rouge">cluster_mgr</code> setting</strong></p>
+
+  <p>The <code class="language-plaintext highlighter-rouge">cluster_mgr</code> setting <em>must</em> be set in order for version 3 replication to run.</p>
+</blockquote>
+
+<p>The configuration for Multi-Datacenter (MDC) Replication is kept in
+both the <code class="language-plaintext highlighter-rouge">riak_core</code> and <code class="language-plaintext highlighter-rouge">riak_repl</code> sections of the <code class="language-plaintext highlighter-rouge">app.config</code>
+configuration file.</p>
+
+<p>If you are using Riak Enterprise version 2.0, configuration is managed
+using the <code class="language-plaintext highlighter-rouge">advanced.config</code> files on
+each node. The semantics of the <code class="language-plaintext highlighter-rouge">advanced.config</code> file are similar to
+the formerly used <code class="language-plaintext highlighter-rouge">app.config</code> file. For more information and for a list
+of configurable parameters, see our documentation on <a href="/riak/kv/2.1.1/configuring/reference/#advanced-configuration">Advanced Configuration</a>.</p>
+
+<p>Here is a sample of the syntax:</p>
+
+<pre><code class="language-advancedconfig">{riak_core, [
+    %% Every *node* runs one cluster_mgr
+    {cluster_mgr, {"0.0.0.0", 9080 }},
+    % ...
+]},
+{riak_repl, [
+    %% Pick the correct data_root for your platform
+    %% Debian/Centos/RHEL:
+    {data_root, "/var/lib/riak/data/riak_repl"},
+    %% Solaris:
+    %% {data_root, "/opt/riak/data/riak_repl"},
+    %% FreeBSD/SmartOS:
+    %% {data_root, "/var/db/riak/riak_repl"},
+    {max_fssource_cluster, 5},
+    {max_fssource_node, 2},
+    {max_fssink_node, 2},
+    {fullsync_on_connect, false},
+    % ...
+]}
+</code></pre>
+
+<h2 id="settings">Settings</h2>
+
+<p>Riak MDC configuration is set using the standard Erlang config file
+syntax <code class="language-plaintext highlighter-rouge">{Setting, Value}</code>. For example, if you wished to set
+<code class="language-plaintext highlighter-rouge">fullsync_on_connect</code> to <code class="language-plaintext highlighter-rouge">false</code>, you would insert this line into the
+<code class="language-plaintext highlighter-rouge">riak_repl</code> section (appending a comma if you have more settings to
+follow):</p>
+
+<pre><code class="language-advancedconfig">{fullsync_on_connect, false}
+</code></pre>
+
+<p>Once your configuration is set, you can verify its correctness by
+running the <code class="language-plaintext highlighter-rouge">riak</code> command-line tool:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak chkconfig
+</code></pre></div></div>
+
+<h2 id="riak_repl-settings">riak_repl Settings</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Setting</th>
+      <th style="text-align: left">Options</th>
+      <th style="text-align: left">Default</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cluster_mgr</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{ip_address, port}</code></td>
+      <td style="text-align: left"><strong>REQUIRED</strong></td>
+      <td style="text-align: left">The cluster manager will listen for connections from remote clusters on this <code class="language-plaintext highlighter-rouge">ip_address</code> and <code class="language-plaintext highlighter-rouge">port</code>. Every node runs one cluster manager, but only the cluster manager running on the <code class="language-plaintext highlighter-rouge">cluster_leader</code> will service requests. This can change as nodes enter and leave the cluster. The value is a combination of an IP address (<strong>not hostname</strong>) followed by a port number.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">max_fssource_cluster</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">nodes</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">5</code></td>
+      <td style="text-align: left">The hard limit on the number of workers which will participate in the source cluster during a fullsync replication. This means that if one has configured fullsync for two different clusters, both with a <code class="language-plaintext highlighter-rouge">max_fssource_cluster</code> of 5, 10 fullsync workers can be in progress. Only affects nodes on the source cluster on which this parameter is defined via the configuration file or command line.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">max_fssource_node</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">nodes</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">1</code></td>
+      <td style="text-align: left">Limits the number of fullsync workers that will be running on each individual node in a source cluster. This is a hard limit for all fullsyncs enabled; additional fullsync configurations will not increase the number of fullsync workers allowed to run on any node. Only affects nodes on the source cluster on which this parameter is defined via the configuration file or command line.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">max_fssink_node</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">nodes</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">1</code></td>
+      <td style="text-align: left">Limits the number of fullsync workers allowed to run on each individual node in a sink cluster.  This is a hard limit for all fullsync sources interacting with the sink cluster. Thus, multiple simultaneous source connections to the sink cluster will have to share the sink nodes number of maximum connections. Only affects nodes on the sink cluster on which this parameter is defined via the configuration file or command line.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">fullsync_on_connect</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">true</code>, <code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td style="text-align: left">Whether to initiate a fullsync on initial connection from the secondary cluster</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">data_root</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">path</code> (string)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">data/riak_repl</code></td>
+      <td style="text-align: left">Path (relative or absolute) to the working directory for the replication process</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">fullsync_interval</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">minutes</code> (integer) OR <code class="language-plaintext highlighter-rouge">[{sink_cluster, minutes(integer)}, ...]</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">360</code></td>
+      <td style="text-align: left">A single integer value representing the duration to wait in minutes between fullsyncs, or a list of <code class="language-plaintext highlighter-rouge">{"clustername", time_in_minutes}</code> pairs for each sink participating in fullsync replication.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">rtq_overload_threshold</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">length</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">2000</code></td>
+      <td style="text-align: left">The maximum length to which the realtime replication queue can grow before new objects are dropped. Dropped objects will need to be replicated with a fullsync.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">rtq_overload_recover</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">length</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">1000</code></td>
+      <td style="text-align: left">The length to which the realtime replication queue, in an overload mode, must shrink before new objects are replicated again.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">rtq_max_bytes</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">bytes</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">104857600</code></td>
+      <td style="text-align: left">The maximum size to which the realtime replication queue can grow before new objects are dropped. Defaults to 100MB. Dropped objects will need to be replicated with a fullsync.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">proxy_get</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">enabled</code>, <code class="language-plaintext highlighter-rouge">disabled</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">disabled</code></td>
+      <td style="text-align: left">Enable Riak CS <code class="language-plaintext highlighter-rouge">proxy_get</code> and block filter.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">rt_heartbeat_interval</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">seconds</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">15</code></td>
+      <td style="text-align: left">A full explanation can be found <a href="#heartbeat-settings">below</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">rt_heartbeat_timeout</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">seconds</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">15</code></td>
+      <td style="text-align: left">A full explanation can be found <a href="#heartbeat-settings">below</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="riak_core-settings">riak_core Settings</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Setting</th>
+      <th style="text-align: left">Options</th>
+      <th style="text-align: left">Default</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">keyfile</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">path</code> (string)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">undefined</code></td>
+      <td style="text-align: left">Fully qualified path to an ssl <code class="language-plaintext highlighter-rouge">.pem</code> key file</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cacertdir</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">path</code> (string)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">undefined</code></td>
+      <td style="text-align: left">The <code class="language-plaintext highlighter-rouge">cacertdir</code> is a fully-qualified directory containing all the CA certificates needed to verify the CA chain back to the root</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">certfile</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">path</code> (string)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">undefined</code></td>
+      <td style="text-align: left">Fully qualified path to a <code class="language-plaintext highlighter-rouge">.pem</code> cert file</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ssl_depth</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">depth</code> (integer)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">1</code></td>
+      <td style="text-align: left">Set the depth to check for SSL CA certs. See <a href="#f1">1</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ssl_enabled</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">true</code>, <code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left">Enable SSL communications</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">peer_common_name_acl</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cert</code> (string)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">"*"</code></td>
+      <td style="text-align: left">Verify an SSL peer’s certificate common name. You can provide an ACL as a list of common name <em>patterns</em>, and you can wildcard the leftmost part of any of the patterns, so <code class="language-plaintext highlighter-rouge">*.basho.com</code> would match <code class="language-plaintext highlighter-rouge">site3.basho.com</code> but not <code class="language-plaintext highlighter-rouge">foo.bar.basho.com</code> or <code class="language-plaintext highlighter-rouge">basho.com</code>. See <a href="#f2">2</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="heartbeat-settings">Heartbeat Settings</h2>
+
+<p>There are two realtime-replication-related settings in the <code class="language-plaintext highlighter-rouge">riak_repl</code>
+section of <code class="language-plaintext highlighter-rouge">advanced.config</code> related to the periodic “heartbeat” that is sent
+from the source to the sink cluster to verify the sink cluster’s
+liveness. The <code class="language-plaintext highlighter-rouge">rt_heartbeat_interval</code> setting determines how often the
+heartbeat is sent (in seconds). If a heartbeat is sent and a response is
+not received, Riak will wait <code class="language-plaintext highlighter-rouge">rt_heartbeat_timeout</code> seconds before
+attempting to re-connect to the sink; if any data is received from the
+sink, even if it is not heartbeat data, the timer will be reset. Setting
+<code class="language-plaintext highlighter-rouge">rt_heartbeat_interval</code> to <code class="language-plaintext highlighter-rouge">undefined</code> will disable the heartbeat.</p>
+
+<p>One of the consequences of lowering the timeout threshold arises when
+connections are working properly but are slow to respond (perhaps due to
+heavy load). In this case, shortening the timeout means that Riak may
+attempt to re-connect more often that it needs to. On the other hand,
+lengthening the timeout will make Riak less sensitive to cases in which
+the connection really has been compromised.</p>
+
+<ol>
+  <li>
+    <p><a name="f1"></a>SSL depth is the maximum number of non-self-issued
+ intermediate certificates that may follow the peer certificate in a valid
+ certificate chain. If depth is <code class="language-plaintext highlighter-rouge">0</code>, the PEER must be signed by the trusted
+ ROOT-CA directly; if <code class="language-plaintext highlighter-rouge">1</code> the path can be PEER, CA, ROOT-CA; if depth is <code class="language-plaintext highlighter-rouge">2</code>
+ then PEER, CA, CA, ROOT-CA and so on.</p>
+  </li>
+  <li>
+    <p><a name="f2"></a>If the ACL is specified and not the special value <code class="language-plaintext highlighter-rouge">*</code>,
+  peers presenting certificates not matching any of the patterns will not be
+  allowed to connect.
+  If no ACLs are configured, no checks on the common name are done, except
+  as described for <a href="/riak/kv/2.1.1/configuring/v3-multi-datacenter/ssl/#verifying-peer-certificates">Identical Local and Peer Common Names</a>.</p>
+  </li>
+</ol>

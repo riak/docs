@@ -1,0 +1,38 @@
+<p>The use of client IDs in conflict resolution is now deprecated in Riak. If you
+are building or maintaining a Riak client that is intended to be compatible
+with Riak 1.4 or later, you can safely ignore client IDs.</p>
+
+<p>Set the client ID for this connection. A library may want to set the
+client ID if it has a good way to uniquely identify actors across
+reconnects. This will reduce vector clock bloat.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbSetClientIdReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">client_id</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">// Client id to use for this connection</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="response">Response</h2>
+
+<p>Just the <code class="language-plaintext highlighter-rouge">RpbSetClientIdResp</code> message code.</p>
+
+<h2 id="example">Example</h2>
+
+<p>Request</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 07 05 0A 04 01 65 01 B6
+Erlang &lt;&lt;0,0,0,7,5,10,4,1,101,1,182&gt;&gt;
+
+RpbSetClientIdReq protoc decode:
+client_id: "001e001266"
+
+</code></pre></div></div>
+
+<p>Response</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 01 06
+Erlang &lt;&lt;0,0,0,1,6&gt;&gt;
+
+RpbSetClientIdResp - only message code defined
+</code></pre></div></div>

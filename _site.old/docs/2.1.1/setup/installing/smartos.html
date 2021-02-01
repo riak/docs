@@ -1,0 +1,83 @@
+
+<p>The following steps have been tested to work with Riak version 1.2 on SmartOS version <strong>joyent_20120614T184600Z</strong>. They demonstrate installation of a Riak node on SmartOS as the root user.</p>
+
+<h2 id="open-files-limit">Open Files Limit</h2>
+
+<p>Before proceeding with installation, you should ensure that the system’s open
+files limit is at least 65536. Check the current limits to verify this:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">ulimit</span> <span class="nt">-a</span>
+</code></pre></div></div>
+
+<p>To temporarily increase this limit <em>for the life of your session</em>, use the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">ulimit</span> <span class="nt">-n</span> 65536
+</code></pre></div></div>
+
+<p>To increase this value in a persistent manner that will be enforced after restarting the system, add the following to <code class="language-plaintext highlighter-rouge">/etc/system</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">set </span><span class="nv">rlim_fd_max</span><span class="o">=</span>65536
+</code></pre></div></div>
+
+<h2 id="choosing-a-version">Choosing a Version</h2>
+
+<p>SmartOS, albeit powerful, can make some easy tasks (like figuring out a “version” of SmartOS) difficult. Defining the correct version is a combination of the Global Zone snapshot version and the pkgsrc version in the guest zones. Here is the way to determine which Riak package to use.</p>
+
+<p>The thing that really matters for Riak is what dataset was used to make the SmartOS VM. These datasets come from joyent and appear like this with the <code class="language-plaintext highlighter-rouge">dsadm</code> command:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>fdea06b0-3f24-11e2-ac50-0b645575ce9d smartos 2012-12-05 sdc:sdc:base64:1.8.4
+f4c23828-7981-11e1-912f-8b6d67c68076 smartos 2012-03-29 sdc:sdc:smartos64:1.6.1
+</code></pre></div></div>
+
+<p>This is where the <code class="language-plaintext highlighter-rouge">1.6</code> and <code class="language-plaintext highlighter-rouge">1.8</code> versions come from in the package naming. It isn’t perfect, but if you know what dataset you used to make your SmartOS VM, you will know which package to use.</p>
+
+<p>For Joyent Cloud users who don’t know what dataset was used, in the guest zone type:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cat /opt/local/etc/pkgin/repositories.conf
+</code></pre></div></div>
+
+<ul>
+  <li>If this returns <code class="language-plaintext highlighter-rouge">http://pkgsrc.joyent.com/sdc6/2012Q2/x86_64/All</code> or any other <em>2012Q2</em> you need to use the <code class="language-plaintext highlighter-rouge">1.8</code> download.</li>
+  <li>If this returns <code class="language-plaintext highlighter-rouge">http://pkgsrc.joyent.com/sdc6/2011Q4/x86_64/All</code> or any other <em>2011</em> you need to use the <code class="language-plaintext highlighter-rouge">1.6</code> download.</li>
+</ul>
+
+<h2 id="download-and-install">Download and Install</h2>
+
+<p>Download your version of the Riak binary package for SmartOS:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-o</span> /tmp/riak-2.1.1-SmartOS-x86_64.tgz http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.1/smartos/1.8/riak-2.1.1-SmartOS-x86_64.tgz
+</code></pre></div></div>
+
+<p>Next, install the package:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pkg_add /tmp/riak-2.1.1-SmartOS-x86_64.tgz
+</code></pre></div></div>
+
+<p>After installing the package, enable the Riak and Erlang Port Mapper Daemon (epmd) services:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>svcadm <span class="nt">-v</span> <span class="nb">enable</span> <span class="nt">-r</span> riak
+</code></pre></div></div>
+
+<p>Finally, after enabling the services, check to see that they are online:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>svcs -a | grep -E 'epmd|riak'
+</code></pre></div></div>
+
+<p>Output from the above command should resemble the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>online    17:17:16 svc:/network/epmd:default
+online    17:17:16 svc:/application/riak:default
+</code></pre></div></div>
+
+<p>Finally, and provided that the services are shown to be in an <strong>online</strong> state, go ahead and ping Riak:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak ping
+</code></pre></div></div>
+
+<p>Pinging Riak will result in a <code class="language-plaintext highlighter-rouge">pong</code> response if the node is up and reachable. If the node is not up and reachable, a <code class="language-plaintext highlighter-rouge">Node &lt;nodename&gt; not responding to pings</code> error will result instead.</p>
+
+<p>If all responses indicate that riak is up and running, then you have successfully installed and configured Riak as service on SmartOS.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Now that Riak is installed, check out <a href="/riak/kv/2.1.1/setup/installing/verify">Verifying a Riak Installation</a>.</p>

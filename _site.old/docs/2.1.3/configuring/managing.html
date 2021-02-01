@@ -1,0 +1,91 @@
+
+<h2 id="retrieving-a-configuration-listing">Retrieving a Configuration Listing</h2>
+
+<p>At any time, you can get a snapshot of currently applied configurations
+through the command line. For a listing of <em>all</em> of the configs
+currently applied in the node:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak config effective
+</code></pre></div></div>
+
+<p>This will output a long list of the following form:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>anti_entropy = active
+anti_entropy.bloomfilter = on
+anti_entropy.concurrency_limit = 2
+# and so on
+</code></pre></div></div>
+
+<p>For detailed information about a particular configuration variable, use
+the <code class="language-plaintext highlighter-rouge">config describe &lt;variable&gt;</code> command. This command will output a
+description of what the parameter configures, which datatype you should
+use to set the parameter (integer, string, enum, etc.), the default
+value of the parameter, the currently set value in the node, and the
+name of the parameter in <code class="language-plaintext highlighter-rouge">app.config</code> in older versions of Riak (if
+applicable).</p>
+
+<p>For in-depth information about the <code class="language-plaintext highlighter-rouge">ring_size</code> variable, for example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak config describe ring_size
+</code></pre></div></div>
+
+<p>This will output the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Documentation for ring_size
+Number of partitions in the cluster (only valid when first
+creating the cluster). Must be a power of 2, minimum 8 and maximum
+1024.
+
+   Datatype     : [integer]
+   Default Value: 64
+   Set Value    : undefined
+   app.config   : riak_core.ring_creation_size
+</code></pre></div></div>
+
+<h2 id="checking-your-configuration">Checking Your Configuration</h2>
+
+<p>The <a href="/riak/kv/2.1.3/using/admin/riak-cli"><code class="language-plaintext highlighter-rouge">riak</code></a> command line tool has a
+<a href="/riak/kv/2.1.3/using/admin/riak-cli/#chkconfig"><code class="language-plaintext highlighter-rouge">chkconfig</code></a> command that enables you to
+determine whether the syntax in your configuration files is correct.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak chkconfig
+</code></pre></div></div>
+
+<p>If your configuration files are syntactically sound, you should see the
+output <code class="language-plaintext highlighter-rouge">config is OK</code> followed by a listing of files that were checked.
+You can safely ignore this listing. If, however, something is
+syntactically awry, you’ll see an error output that provides details
+about what is wrong. To give an example, the <code class="language-plaintext highlighter-rouge">search.solr.jmx_port</code>
+setting (in the <a href="/riak/kv/2.1.3/configuring/reference/#search">Search</a> section below)
+must be set as an integer. Imagine that we set it to something else:</p>
+
+<pre><code class="language-riakconf">search.solr.jmx_port = banana
+</code></pre>
+
+<p>If we run <code class="language-plaintext highlighter-rouge">riak chkconfig</code> now, we’ll get an error:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[error] Error generating configuration in phase transform_datatypes
+[error] Error transforming datatype for: search.solr.jmx_port
+[error] "banana" can't be converted to an integer
+</code></pre></div></div>
+
+<p>The error message will specify which configurable parameters are
+syntactically unsound and attempt to provide an explanation why.</p>
+
+<p>Please note that the <code class="language-plaintext highlighter-rouge">chkconfig</code> command only checks for syntax. It will
+<em>not</em> be able to discern if your configuration is otherwise unsound,
+e.g. if your configuration will cause problems on your operating system
+or doesn’t activate subsystems that you would like to use.</p>
+
+<h2 id="debugging-your-configuration">Debugging Your Configuration</h2>
+
+<p>If there is a problem with your configuration but you’re having trouble
+identifying the problem, there is a command that you can use to debug
+your configuration:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak config generate <span class="nt">-l</span> debug
+</code></pre></div></div>
+
+<p>If there are issues with your configuration, you will see detailed
+output that might provide a better sense of what has gone wrong in the
+config generation process.</p>

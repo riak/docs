@@ -1,0 +1,138 @@
+
+<p>After you’ve installed Riak KV, we recommend checking the liveness of
+each node to ensure that requests are being properly served.</p>
+
+<p>In this document, we cover ways of verifying that your Riak nodes are operating
+correctly. After you’ve determined that your nodes are functioning and you’re
+ready to put Riak KV to work, be sure to check out the resources in the
+<strong>Now What?</strong> section below.</p>
+
+<h2 id="starting-a-riak-node">Starting a Riak Node</h2>
+
+<blockquote>
+  <p><strong>Note about source installations</strong></p>
+
+  <p>To start a Riak KV node that was installed by compiling the source code, you
+can add the Riak KV binary directory from the installation directory you’ve
+chosen to your <code class="language-plaintext highlighter-rouge">PATH</code>.</p>
+
+  <p>For example, if you compiled Riak KV from source in
+the <code class="language-plaintext highlighter-rouge">/home/riak</code> directory, then you can add the binary directory
+(<code class="language-plaintext highlighter-rouge">/home/riak/rel/riak/bin</code>) to your <code class="language-plaintext highlighter-rouge">PATH</code> so that Riak KV commands can be used in the same manner as with a packaged installation.</p>
+</blockquote>
+
+<p>To start a Riak node, use the <code class="language-plaintext highlighter-rouge">riak start</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>A successful start will return no output. If there is a problem starting the
+node, an error message is printed to standard error.</p>
+
+<p>To run Riak with an attached interactive Erlang console:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak console
+</code></pre></div></div>
+
+<p>A Riak node is typically started in console mode as part of debugging or
+troubleshooting to gather more detailed information from the Riak startup
+sequence. Note that if you start a Riak node in this manner, it is running as
+a foreground process that will be exited when the console is closed.</p>
+
+<p>You can close the console by issuing this command at the Erlang prompt:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">q</span><span class="p">().</span>
+</code></pre></div></div>
+
+<p>Once your node has started, you can initially check that it is running with
+the <code class="language-plaintext highlighter-rouge">riak ping</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak ping
+</code></pre></div></div>
+
+<p>The command will respond with <code class="language-plaintext highlighter-rouge">pong</code> if the node is running or <code class="language-plaintext highlighter-rouge">Node &lt;nodename&gt;  not responding to pings</code> if it is not.</p>
+
+<blockquote>
+  <p><strong>Open Files Limit</strong></p>
+
+  <p>As you may have noticed, if you haven’t adjusted your open files limit (<code class="language-plaintext highlighter-rouge">ulimit -n</code>), Riak will warn you at startup. You’re advised
+to increase the operating system default open files limit when running Riak.
+You can read more about why in the <a href="/riak/kv/2.1.1/using/performance/open-files-limit">Open Files Limit</a> documentation.</p>
+</blockquote>
+
+<h2 id="does-it-work">Does it work?</h2>
+
+<p>One convenient means of testing the readiness of an individual Riak node and
+its ability to read and write data is with the <code class="language-plaintext highlighter-rouge">riak-admin test</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin <span class="nb">test</span>
+</code></pre></div></div>
+
+<p>Successful output from <code class="language-plaintext highlighter-rouge">riak-admin test</code> looks like this:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Attempting to restart script through sudo -H -u riak
+Successfully completed 1 read/write cycle to '&lt;nodename&gt;'
+</code></pre></div></div>
+
+<p>You can also test whether Riak is working by using the <code class="language-plaintext highlighter-rouge">curl</code> command-line
+tool. When you have Riak running on a node, try this command to retrieve
+the the properties associated with the <a href="/riak/kv/2.1.1/using/cluster-operations/bucket-types">bucket type</a> <code class="language-plaintext highlighter-rouge">test</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-v</span> http://127.0.0.1:8098/types/default/props
+</code></pre></div></div>
+
+<p>Replace <code class="language-plaintext highlighter-rouge">127.0.0.1</code> in the example above with your Riak node’s IP address or
+fully qualified domain name, and you should get a response that looks like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; GET /riak/test HTTP/1.1
+&gt; User-Agent: curl/7.21.6 (x86_64-pc-linux-gnu)
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt;
+&lt; HTTP/1.1 200 OK
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (someone had painted it blue)
+&lt; Date: Wed, 26 Dec 2012 15:50:20 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 422
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+{"props":{"name":"test","allow_mult":false,"basic_quorum":false,
+ "big_vclock":50,"chash_keyfun":{"mod":"riak_core_util",
+ "fun":"chash_std_keyfun"},"dw":"quorum","last_write_wins":false,
+ "linkfun":{"mod":"riak_kv_wm_link_walker","fun":"mapreduce_linkfun"},
+ "n_val":3,"notfound_ok":true,"old_vclock":86400,"postcommit":[],"pr":0,
+ "precommit":[],"pw":0,"r":"quorum","rw":"quorum","small_vclock":50,
+ "w":"quorum","young_vclock":20}}
+</code></pre></div></div>
+
+<p>The output above shows a successful response (<code class="language-plaintext highlighter-rouge">HTTP 200 OK</code>) and additional
+details from the verbose option. The response also contains the bucket
+properties for the <code class="language-plaintext highlighter-rouge">default</code> bucket type.</p>
+
+<h2 id="riaknostic">Riaknostic</h2>
+
+<p>It is a good idea to verify some basic configuration and general health
+of the Riak node after installation by using Riak’s built-in diagnostic
+utility <a href="http://riaknostic.basho.com/">Riaknostic</a>.</p>
+
+<p>To start up Riaknostic, ensure that Riak is running on the node and issue the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin diag
+</code></pre></div></div>
+
+<p>More extensive documentation for Riaknostic can be found in the <a href="/riak/kv/2.1.1/using/cluster-operations/inspecting-node">Inspecting a Node</a> guide.</p>
+
+<h2 id="now-what">Now what?</h2>
+
+<p>You have a working Riak node!</p>
+
+<p>From here you might want to check out the following resources:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.1.1/developing/client-libraries">Client Libraries</a> to use Riak with your favorite programming language</li>
+</ul>

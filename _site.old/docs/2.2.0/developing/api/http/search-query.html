@@ -1,0 +1,56 @@
+<p>Performs a <a href="/riak/kv/2.2.0/developing/usage/search">Riak KV Search</a> query.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /search/query/&lt;index_name&gt;
+</code></pre></div></div>
+
+<h2 id="optional-query-parameters">Optional Query Parameters</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">wt</code> — The <a href="https://cwiki.apache.org/confluence/display/solr/Response+Writers">response
+  writer</a>
+  to be used when returning the Search payload. The currently
+  available options are <code class="language-plaintext highlighter-rouge">json</code> and <code class="language-plaintext highlighter-rouge">xml</code>. The default is <code class="language-plaintext highlighter-rouge">xml</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">q</code> — The actual Search query itself. Examples can be found in
+  <a href="/riak/kv/2.2.0/developing/usage/search">Using Search</a>. If a query is not specified, Riak will return
+  information about the index itself, e.g. the number of documents
+  indexed.</li>
+</ul>
+
+<h2 id="normal-response-codes">Normal Response Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+</ul>
+
+<h2 id="typical-error-codes">Typical Error Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">400 Bad Request</code> — Returned when, for example, a malformed query is
+  supplied</li>
+  <li><code class="language-plaintext highlighter-rouge">404 Object Not Found</code> — Returned if the Search index you are
+  attempting to query does not exist</li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> — The request timed out internally</li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>If a <code class="language-plaintext highlighter-rouge">200 OK</code> is returned, then the Search query has been successful.
+Below is an example JSON response from querying an index that currently
+has no documents associated with it:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"response"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"docs"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span><span class="w">
+    </span><span class="nl">"maxScore"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"numFound"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"responseHeader"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"status"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"QTime"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"params"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">/*</span><span class="w"> </span><span class="err">internal</span><span class="w"> </span><span class="err">info</span><span class="w"> </span><span class="err">from</span><span class="w"> </span><span class="err">the</span><span class="w"> </span><span class="err">query</span><span class="w"> </span><span class="err">*/</span><span class="w"> </span><span class="p">}</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>

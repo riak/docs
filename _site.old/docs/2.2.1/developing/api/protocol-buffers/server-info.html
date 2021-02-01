@@ -1,0 +1,38 @@
+<p>A message from Riak that contains two pieces of information about the
+server: the name of the node and the version of Riak in use on that
+node.</p>
+
+<h2 id="request">Request</h2>
+
+<p>A request consists only of the <code class="language-plaintext highlighter-rouge">RpbGetServerInfoReq</code> message code. No
+request message is defined.</p>
+
+<h2 id="response">Response</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbGetServerInfoResp</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">node</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">server_version</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="example">Example</h2>
+
+<h4 id="request-1">Request</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 01 07
+Erlang <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,1,7&gt;&gt;
+
+RpbGetServerInfoReq - only message code defined
+</span></code></pre></div></div>
+
+<h4 id="response-1">Response</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 17 08 0A 0E 72 69 61 6B 40 31 32 37 2E
+         30 2E 30 2E 31 12 04 30 2E 31 30
+Erlang <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,23,8,10,14,114,105,97,107,64,49,50,55,46,48,46,48,46,49,18,4,48,
+         46,49,48&gt;&gt;
+
+RpbGetServerInfoResp protoc decode:
+node: "riak@127.0.0.1"
+server_version: "0.10"
+</span></code></pre></div></div>

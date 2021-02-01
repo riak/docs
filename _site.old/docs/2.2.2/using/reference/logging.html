@@ -1,0 +1,321 @@
+
+<p>Logging in Riak KV is handled by a Basho-produced logging framework for
+<a href="http://www.erlang.org">Erlang</a> called
+<a href="https://github.com/basho/lager">lager</a>.</p>
+
+<p>lager provides a number of configuration options that you can use to fine-tune your Riak cluster’s logging output. A compact listing of parameters can be found in our <a href="/riak/kv/2.2.2/configuring/reference/#lager">configuration files</a> documentation. A more thorough explanation of these options can be found in this document.</p>
+
+<h2 id="log-directory">Log Directory</h2>
+
+<p>Riak’s log files are stored in a <code class="language-plaintext highlighter-rouge">/log</code> directory on each node. The
+location of that directory differs from platform to platform. The table
+below shows you where log files are stored on all supported operating
+systems.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">OS</th>
+      <th style="text-align: left">Directory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Ubuntu, Debian, CentOS, RHEL</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/var/log/riak</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Solaris, OpenSolaris</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/opt/riak/log</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Source install and Mac OS X</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./log</code> (where the <code class="language-plaintext highlighter-rouge">.</code> represents the root installation directory)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="log-files">Log Files</h2>
+
+<p>Below is a list of files that can be found in each node’s <code class="language-plaintext highlighter-rouge">/log</code>
+directory:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">File</th>
+      <th style="text-align: left">Significance</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">console.log</code></td>
+      <td style="text-align: left">Console log output</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">crash.log</code></td>
+      <td style="text-align: left">Crash logs</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.log</code></td>
+      <td style="text-align: left">Logs emitted by the <a href="../../performance/erlang">Erlang VM</a> on which Riak runs.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">error.log</code></td>
+      <td style="text-align: left"><a href="../../repair-recovery/errors">Common errors</a> emitted by Riak.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">run_erl.log</code></td>
+      <td style="text-align: left">The log file for an Erlang process called <code class="language-plaintext highlighter-rouge">run_erl</code>. This file can typically be ignored.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="log-syntax">Log Syntax</h2>
+
+<p>Riak logs tend to be structured like this:</p>
+
+<pre><code class="language-log">&lt;date&gt; &lt;time&gt; [&lt;level&gt;] &lt;PID&gt; &lt;prefix&gt;: &lt;message&gt;
+</code></pre>
+
+<p>The <code class="language-plaintext highlighter-rouge">date</code> segment is structured <code class="language-plaintext highlighter-rouge">YYYY-MM-DD</code>, <code class="language-plaintext highlighter-rouge">time</code> is structured
+<code class="language-plaintext highlighter-rouge">hh:mm:ss.sss</code>, <code class="language-plaintext highlighter-rouge">level</code> depends on which log levels are available in the
+file you are looking at (consult the sections below), the <code class="language-plaintext highlighter-rouge">PID</code> is the
+Erlang process identifier for the process in which the event occurred,
+and the message <code class="language-plaintext highlighter-rouge">prefix</code> will often identify the Riak subsystem
+involved, e.g. <code class="language-plaintext highlighter-rouge">riak_ensemble_peer</code> or <code class="language-plaintext highlighter-rouge">alarm_handler</code> (amongst many
+other possibilities).</p>
+
+<p>The exception to this syntax is in crash logs (stored in <code class="language-plaintext highlighter-rouge">crash.log</code>
+files). For crash logs, the syntax tends to be along the following
+lines:</p>
+
+<pre><code class="language-log">&lt;date&gt; &lt;time&gt; =&lt;report title&gt;====
+&lt;message&gt;
+</code></pre>
+
+<p>Here is an example crash report:</p>
+
+<pre><code class="language-log">2014-10-17 15:56:38 =ERROR REPORT====
+Error in process &lt;0.4330.323&gt; on node 'dev1@127.0.0.1' with exit value: ...
+</code></pre>
+
+<h2 id="log-files-1">Log Files</h2>
+
+<p>In each node’s <code class="language-plaintext highlighter-rouge">/log</code> directory, you will see at least one of each of
+the following:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">File</th>
+      <th style="text-align: left">Contents</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">console.log</code></td>
+      <td style="text-align: left">General messages from all Riak subsystems</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">crash.log</code></td>
+      <td style="text-align: left">Catastrophic events, such as node failures, running out of disk space, etc.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">erlang.log</code></td>
+      <td style="text-align: left">Events from the Erlang VM on which Riak runs</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">run_erl.log</code></td>
+      <td style="text-align: left">The command-line arguments used when starting Riak</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="log-file-rotation">Log File Rotation</h3>
+
+<p>Riak maintains multiple separate files for <code class="language-plaintext highlighter-rouge">console.log</code>, <code class="language-plaintext highlighter-rouge">crash.log</code>,
+<code class="language-plaintext highlighter-rouge">erlang.log</code>, and <code class="language-plaintext highlighter-rouge">error.log</code>, which are rotated as each file reaches
+its maximum capacity of 100 KB. In each node’s <code class="language-plaintext highlighter-rouge">/log</code> directory, you may
+see, for example, files name <code class="language-plaintext highlighter-rouge">console.log</code>, <code class="language-plaintext highlighter-rouge">console.log.0</code>,
+<code class="language-plaintext highlighter-rouge">console.log.1</code>, and so on. Riak’s log rotation is somewhat non
+traditional, as it does not always log to <code class="language-plaintext highlighter-rouge">*.1</code> (e.g. <code class="language-plaintext highlighter-rouge">erlang.log.1</code>)
+but rather to the oldest log file.</p>
+
+<p>After, say, <code class="language-plaintext highlighter-rouge">erlang.log.1</code> is filled up, the logging system will begin
+writing to <code class="language-plaintext highlighter-rouge">erlang.log.2</code>, then <code class="language-plaintext highlighter-rouge">erlang.log.3</code>, and so on. When
+<code class="language-plaintext highlighter-rouge">erlang.log.5</code> is filled up, it will loop back to <code class="language-plaintext highlighter-rouge">erlang.log.1</code>.</p>
+
+<h2 id="sasl">SASL</h2>
+
+<p><a href="http://www.erlang.org/doc/man/sasl_app.html">SASL</a> (System Architecture
+Support Libraries) is Erlang’s built-in error logger. You can enable it
+and disable it using the <code class="language-plaintext highlighter-rouge">sasl</code> parameter (which can be set to <code class="language-plaintext highlighter-rouge">on</code> or
+<code class="language-plaintext highlighter-rouge">off</code>). It is disabled by default. The following would enable it:</p>
+
+<pre><code class="language-riakconf">sasl = on
+</code></pre>
+
+<h2 id="error-messages">Error Messages</h2>
+
+<p>By default, Riak stores error messages in <code class="language-plaintext highlighter-rouge">./log/error.log</code> by default.
+You can change this using the <code class="language-plaintext highlighter-rouge">log.error.file</code> parameter. Here is an
+example, which uses the default:</p>
+
+<pre><code class="language-riakconf">log.error.file = ./log/error.log
+</code></pre>
+
+<p>By default, error messages are redirected into lager, i.e. the
+<code class="language-plaintext highlighter-rouge">log.error.redirect</code> parameter is set to <code class="language-plaintext highlighter-rouge">on</code>. The following would
+disable the redirect:</p>
+
+<pre><code class="language-riakconf">log.error.redirect = off
+</code></pre>
+
+<p>You can also throttle the number of error messages that are handled per
+second. The default is 100.</p>
+
+<pre><code class="language-riakconf">log.error.messages_per_second = 100
+</code></pre>
+
+<h2 id="crash-logs">Crash Logs</h2>
+
+<p>Riak crash logs are stored in <code class="language-plaintext highlighter-rouge">./log/crash.log</code> by default. You can
+change this using the <code class="language-plaintext highlighter-rouge">log.crash.file</code> parameter. This example uses the
+default:</p>
+
+<pre><code class="language-riakconf">log.crash.file = ./log/crash.log
+</code></pre>
+
+<p>While crash logs are kept by default, i.e. the <code class="language-plaintext highlighter-rouge">log.crash</code> parameter is
+set to <code class="language-plaintext highlighter-rouge">on</code>, you can disable crash logs like this:</p>
+
+<pre><code class="language-riakconf">log.crash = off
+</code></pre>
+
+<h3 id="crash-log-rotation">Crash Log Rotation</h3>
+
+<p>Like other Riak logs, crash logs are rotated. You can set the crash logs
+to be rotated either when a certain size threshold is reached and/or at
+designated times.</p>
+
+<p>You can set the rotation time using the <code class="language-plaintext highlighter-rouge">log.crash.rotation</code> parameter.
+The default is <code class="language-plaintext highlighter-rouge">$D0</code>, which rotates the logs every day at midnight. You
+can also set the rotation to occur weekly, on specific days of the
+month, etc. Complete documentation of the syntax can be found
+<a href="https://github.com/basho/lager/blob/master/README.md#internal-log-rotation">here</a>.
+Below are some examples:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">$D0</code> — Every night at midnight</li>
+  <li><code class="language-plaintext highlighter-rouge">$D23</code> — Every day at 23:00 (11 pm)</li>
+  <li><code class="language-plaintext highlighter-rouge">$W0D20</code> — Every week on Sunday at 20:00 (8 pm)</li>
+  <li><code class="language-plaintext highlighter-rouge">$M1D0</code> — On the first day of every month at midnight</li>
+  <li><code class="language-plaintext highlighter-rouge">$M5D6</code> — On the fifth day of the month at 6:00 (6 am)</li>
+</ul>
+
+<p>To set the maximum size of the crash log before it is rotated, use the
+<code class="language-plaintext highlighter-rouge">log.crash.size</code> parameter. You can specify the size in KB, MB, etc. The
+default is <code class="language-plaintext highlighter-rouge">10MB</code>.</p>
+
+<h3 id="other-crash-log-settings">Other Crash Log Settings</h3>
+
+<p>The maximum size of individual crash log messages can be set using the
+<code class="language-plaintext highlighter-rouge">log.crash.maximum_message_size</code>, using any size denomination you wish,
+e.g. <code class="language-plaintext highlighter-rouge">KB</code> or <code class="language-plaintext highlighter-rouge">MB</code>  The default is 64 KB. The following would set that
+maximum message size to 1 MB:</p>
+
+<pre><code class="language-riakconf">log.crash.maximum_message_size = 1MB
+</code></pre>
+
+<h2 id="syslog">Syslog</h2>
+
+<p>Riak log output does not go to syslog by default, i.e. the <code class="language-plaintext highlighter-rouge">log.syslog</code>
+setting is set to <code class="language-plaintext highlighter-rouge">off</code> by default. To enable syslog output:</p>
+
+<pre><code class="language-riakconf">log.syslog = on
+</code></pre>
+
+<p>If syslog output is enabled, you can choose a prefix to be appended to
+each syslog message. The prefix is <code class="language-plaintext highlighter-rouge">riak</code> by default.</p>
+
+<pre><code class="language-riakconf">log.syslog.ident = riak
+</code></pre>
+
+<h3 id="syslog-level-and-facility-level">Syslog Level and Facility Level</h3>
+
+<p>If syslog is enabled, i.e. if <code class="language-plaintext highlighter-rouge">log.syslog</code> is set to <code class="language-plaintext highlighter-rouge">on</code>, you can
+select the log level of syslog output from amongst the available levels,
+which are listed in the table below. The default is <code class="language-plaintext highlighter-rouge">info</code>.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">alert</code></li>
+  <li><code class="language-plaintext highlighter-rouge">critical</code></li>
+  <li><code class="language-plaintext highlighter-rouge">debug</code></li>
+  <li><code class="language-plaintext highlighter-rouge">emergency</code></li>
+  <li><code class="language-plaintext highlighter-rouge">error</code></li>
+  <li><code class="language-plaintext highlighter-rouge">info</code></li>
+  <li><code class="language-plaintext highlighter-rouge">none</code></li>
+  <li><code class="language-plaintext highlighter-rouge">notice</code></li>
+  <li><code class="language-plaintext highlighter-rouge">warning</code></li>
+</ul>
+
+<p>In addition to a log level, you must also select a <a href="http://en.wikipedia.org/wiki/Syslog#Facility_levels">facility
+level</a> for syslog
+messages amongst the available levels, which are listed in the table
+below. The default is <code class="language-plaintext highlighter-rouge">daemon</code>.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">auth</code></li>
+  <li><code class="language-plaintext highlighter-rouge">authpriv</code></li>
+  <li><code class="language-plaintext highlighter-rouge">clock</code></li>
+  <li><code class="language-plaintext highlighter-rouge">cron</code></li>
+  <li><code class="language-plaintext highlighter-rouge">daemon</code></li>
+  <li><code class="language-plaintext highlighter-rouge">ftp</code></li>
+  <li><code class="language-plaintext highlighter-rouge">kern</code></li>
+  <li><code class="language-plaintext highlighter-rouge">lpr</code></li>
+  <li><code class="language-plaintext highlighter-rouge">mail</code></li>
+  <li><code class="language-plaintext highlighter-rouge">news</code></li>
+  <li><code class="language-plaintext highlighter-rouge">syslog</code></li>
+  <li><code class="language-plaintext highlighter-rouge">user</code></li>
+  <li><code class="language-plaintext highlighter-rouge">uucp</code></li>
+</ul>
+
+<p>In addition to these options, you may also choose one of <code class="language-plaintext highlighter-rouge">local0</code>
+through <code class="language-plaintext highlighter-rouge">local7</code>.</p>
+
+<h2 id="console-logs">Console Logs</h2>
+
+<p>Riak console logs can be emitted to one of three places: to a log file
+(you can choose the name and location of that file), to standard output,
+or to neither. This is determined by the value that you give to the
+<code class="language-plaintext highlighter-rouge">log.console</code> parameter, which gives you one of four options:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">file</code> — Console logs will be emitted to a file. This is Riak’s
+  default behavior. The location of that file is determined by the
+  <code class="language-plaintext highlighter-rouge">log.console.file</code> parameter. The default location is
+  <code class="language-plaintext highlighter-rouge">./log/console.log</code> on an installation from <a href="/riak/kv/2.2.2/setup/installing/source">source</a>, but will differ on platform-specific installation,
+  e.g.  <code class="language-plaintext highlighter-rouge">/var/log/riak</code> on Ubuntu, Debian, CentOS, and RHEL or
+  <code class="language-plaintext highlighter-rouge">/opt/riak/log</code> on Solaris-based platforms.</li>
+  <li><code class="language-plaintext highlighter-rouge">console</code> — Console logs will be emitted to standard output, which
+  can be viewed by running the <a href="/riak/kv/2.2.2/using/admin/riak-cli/#attach-direct"><code class="language-plaintext highlighter-rouge">riak attach-direct</code></a> command</li>
+  <li><code class="language-plaintext highlighter-rouge">both</code> — Console logs will be emitted both to a file and to standard
+  output</li>
+  <li><code class="language-plaintext highlighter-rouge">off</code> — Console log messages will be disabled</li>
+</ul>
+
+<p>In addition to the the placement of console logs, you can also choose
+the severity of those messages using the <code class="language-plaintext highlighter-rouge">log.console.level</code> parameter.
+The following four options are available:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">info</code> (the default)</li>
+  <li><code class="language-plaintext highlighter-rouge">debug</code></li>
+  <li><code class="language-plaintext highlighter-rouge">warning</code></li>
+  <li><code class="language-plaintext highlighter-rouge">error</code></li>
+</ul>
+
+<h2 id="enabling-and-disabling-debug-logging">Enabling and Disabling Debug Logging</h2>
+
+<p>Checkout <a href="/riak/kv/2.2.2/using/cluster-operations/logging">Cluster Operations: Enabling and Disabling Debug Logging</a></p>

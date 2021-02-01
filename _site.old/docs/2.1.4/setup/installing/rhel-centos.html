@@ -1,0 +1,114 @@
+
+<p>Riak KV can be installed on CentOS- or Red-Hat-based systems using a binary
+package or by <a href="/riak/kv/2.1.4/setup/installing/source">compiling Riak from source code</a>. The following steps have been tested to work with Riak on
+CentOS/RHEL 5.10, 6.5, and 7.0.1406.</p>
+
+<blockquote>
+  <p><strong>Note on SELinux</strong></p>
+
+  <p>CentOS enables SELinux by default, so you may need to disable SELinux if
+you encounter errors.</p>
+</blockquote>
+
+<p>For versions of Riak prior to 2.0, Basho used a self-hosted
+<a href="http://www.rpm.org/">rpm</a> repository for CentOS and RHEL packages. For
+versions 2.0 and later, Basho has moved those packages to the
+<a href="https://packagecloud.io/">packagecloud.io</a> hosting service.
+Instructions for installing via shell scripts, manual installation,
+Chef, and Puppet can be found in packagecloud’s <a href="https://packagecloud.io/basho/riak/install">installation docs</a>.</p>
+
+<p>Platform-specific pages are linked below:</p>
+
+<ul>
+  <li><a href="https://packagecloud.io/basho/riak/packages/el/5/riak-2.1.4-1.x86_64.rpm">el5</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/el/6/riak-2.1.4-1.el6.x86_64.rpm">el6</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/el/7/riak-2.1.4-1.el7.centos.x86_64.rpm">el7</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/fedora/19/riak-2.1.4-1.fc19.x86_64.rpm">Fedora 19</a></li>
+</ul>
+
+<h2 id="installing-with-yum-and-packagecloud">Installing with Yum and Packagecloud</h2>
+
+<p>For the simplest installation process on Long-Term Support (LTS)
+releases, use yum and packagecloud:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-s</span> https://packagecloud.io/install/repositories/basho/riak/script.rpm.sh | <span class="nb">sudo </span>bash
+</code></pre></div></div>
+
+<h4 id="for-centos-5--rhel-5">For CentOS 5 / RHEL 5:</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>riak-2.1.4-1.el5.x86_64
+</code></pre></div></div>
+
+<h4 id="for-centos-6--rhel-6">For CentOS 6 / RHEL 6:</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>riak-2.1.4-1.el6.x86_64
+</code></pre></div></div>
+
+<h2 id="installing-with-yum-and-packages">Installing with Yum and Packages</h2>
+
+<p>If you wish to install the RHEL/CentOS packages by hand, follow these
+instructions.</p>
+
+<h4 id="for-centos-5--rhel-5-1">For Centos 5 / RHEL 5</h4>
+
+<p>Download the package and install:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.4/rhel/5/riak-2.1.4-1.el5.x86_64.rpm
+<span class="nb">sudo </span>yum <span class="nb">install </span>riak-2.1.4-1.el5.x86_64
+</code></pre></div></div>
+
+<h4 id="for-centos-6--rhel-6-1">For Centos 6 / RHEL 6</h4>
+
+<p>Download the package and install:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.4/rhel/6/riak-2.1.4-1.el6.x86_64.rpm
+<span class="nb">sudo </span>yum <span class="nb">install </span>riak-2.1.4-1.el6.x86_64
+</code></pre></div></div>
+
+<h2 id="installing-with-rpm">Installing with rpm</h2>
+
+<h4 id="for-centos-5--rhel-5-2">For Centos 5 / RHEL 5</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.4/rhel/5/riak-2.1.4-1.el5.x86_64.rpm
+<span class="nb">sudo </span>rpm <span class="nt">-Uvh</span> riak-2.1.4-1.el5.x86_64.rpm
+</code></pre></div></div>
+
+<h4 id="for-centos-6--rhel-6-2">For Centos 6 / RHEL 6</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.4/rhel/6/riak-2.1.4-1.el6.x86_64.rpm
+<span class="nb">sudo </span>rpm <span class="nt">-Uvh</span> riak-2.1.4-1.el6.x86_64.rpm
+</code></pre></div></div>
+
+<h2 id="installing-from-source">Installing From Source</h2>
+
+<p>Riak requires an <a href="http://www.erlang.org/">Erlang</a> installation.
+Instructions can be found in <a href="/riak/kv/2.1.4/setup/installing/source/erlang">Installing Erlang</a>.</p>
+
+<p>Building from source will require the following packages:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">gcc</code></li>
+  <li><code class="language-plaintext highlighter-rouge">gcc-c++</code></li>
+  <li><code class="language-plaintext highlighter-rouge">glibc-devel</code></li>
+  <li><code class="language-plaintext highlighter-rouge">make</code></li>
+  <li><code class="language-plaintext highlighter-rouge">pam-devel</code></li>
+</ul>
+
+<p>You can install these with yum:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>gcc gcc-c++ glibc-devel make git pam-devel
+</code></pre></div></div>
+
+<p>Now we can download and install Riak:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.1/2.1.4/riak-2.1.4.tar.gz
+<span class="nb">tar </span>zxvf riak-2.1.4.tar.gz
+<span class="nb">cd </span>riak-2.1.4
+make rel
+</code></pre></div></div>
+
+<p>You will now have a fresh build of Riak in the <code class="language-plaintext highlighter-rouge">rel/riak</code> directory.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Now that Riak is installed, check out <a href="/riak/kv/2.1.4/setup/installing/verify">Verifying a Riak Installation</a>.</p>

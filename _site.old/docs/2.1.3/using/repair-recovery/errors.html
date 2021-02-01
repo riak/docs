@@ -1,0 +1,1068 @@
+
+<p>This is not a comprehensive listing of every error that Riak may
+encounter – screws fall out all of the time, the world is an imperfect
+place. This is an attempt at capturing the most common recent errors
+that users do encounter, as well as give some description to non
+critical error atoms which you may find in the logs.</p>
+
+<p>Discovering the source of an error can take some detective work, since
+one error can cause a cascade of errors.</p>
+
+<p>The tables in this document do not specify which logs these error
+messages may appear in. Depending upon your log configuration some may
+appear more often (i.e., if you set the log to debug), while others may
+output to your console (eg. if you tee’d your output or started as <code class="language-plaintext highlighter-rouge">riak
+console</code>).</p>
+
+<p>You can optionally customize your log message format via the
+<code class="language-plaintext highlighter-rouge">lager_default_formatter</code> field under <code class="language-plaintext highlighter-rouge">lager</code> in <code class="language-plaintext highlighter-rouge">app.config</code>. If you
+do, your messages will look different from those shown in this document.</p>
+
+<p>Finally, this document is organized to be able to lookup portions of a
+log message, since printing every variation would be a bit unwieldy. For
+example, this message:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>12:34:27.999 [error] gen_server riak_core_capability terminated with reason:\
+no function clause matching orddict:fetch('riak@192.168.2.81', []) line 72
+</code></pre></div></div>
+
+<p>Starts with a date (<code class="language-plaintext highlighter-rouge">12:34:27.999</code>), followed by the log severity
+(<code class="language-plaintext highlighter-rouge">[error]</code>), with a message formatted by lager (found in the Lager table
+below as <em>gen_server <code class="language-plaintext highlighter-rouge">Mod</code> terminated with reason: <code class="language-plaintext highlighter-rouge">Reason</code></em>)</p>
+
+<h3 id="lager-formats">Lager Formats</h3>
+
+<p>Riak’s main logging mechanism is the project Lager, so it’s good to note
+some of the more common message formats. In almost every case the
+reasons for the error are described as variables, such as <code class="language-plaintext highlighter-rouge">Reason</code> of
+<code class="language-plaintext highlighter-rouge">Mod</code> (meaning the Erlang module which is generally the source of the
+error).</p>
+
+<p>Riak does not format all error messages that it receives into
+human-readable sentences. However, It does output errors as objects.</p>
+
+<p>The above example error message corresponds with the first message in
+this table, where the Erlang <code class="language-plaintext highlighter-rouge">Mod</code> value is <code class="language-plaintext highlighter-rouge">riak_core_capability</code> and
+the reason was an Erlang error: <code class="language-plaintext highlighter-rouge">no function clause matching
+orddict:fetch('riak@192.168.2.81', []) line 72</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Error</th>
+      <th>Message</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">gen_server &lt;Mod&gt; terminated with reason: &lt;Reason&gt;</code></td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">gen_fsm &lt;Mod&gt; in state &lt;State&gt; terminated with reason: &lt;Reason&gt;</code></td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">gen_event &lt;ID&gt; installed in &lt;Mod&gt; terminated with reason: &lt;Reason&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">badarg</code></td>
+      <td><code class="language-plaintext highlighter-rouge">bad argument in call to &lt;Mod1&gt; in &lt;Mod2&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">badarith</code></td>
+      <td><code class="language-plaintext highlighter-rouge">bad arithmetic expression in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">badarity</code></td>
+      <td><code class="language-plaintext highlighter-rouge">fun called with wrong arity of &lt;Ar1&gt; instead of &lt;Ar2&gt; in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">badmatch</code></td>
+      <td><code class="language-plaintext highlighter-rouge">no match of right hand value &lt;Val&gt; in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bad_return</code></td>
+      <td><code class="language-plaintext highlighter-rouge">bad return value &lt;Value&gt; from &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bad_return_value</code></td>
+      <td><code class="language-plaintext highlighter-rouge">bad return value: &lt;Val&gt; in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">badrecord</code></td>
+      <td><code class="language-plaintext highlighter-rouge">bad record &lt;Record&gt; in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">case_clause</code></td>
+      <td><code class="language-plaintext highlighter-rouge">no case clause matching &lt;Val&gt; in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">emfile</code></td>
+      <td><code class="language-plaintext highlighter-rouge">maximum number of file descriptors exhausted, check ulimit -n</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">function_clause</code></td>
+      <td><code class="language-plaintext highlighter-rouge">no function clause matching &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">function not exported</code></td>
+      <td><code class="language-plaintext highlighter-rouge">call to undefined function &lt;Func&gt; from &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">if_clause</code></td>
+      <td><code class="language-plaintext highlighter-rouge">no true branch found while evaluating if expression in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">noproc</code></td>
+      <td><code class="language-plaintext highlighter-rouge">no such process or port in call to &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{system_limit, {erlang, open_port}}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">maximum number of ports exceeded</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{system_limit, {erlang, spawn}}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">maximum number of processes exceeded</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{system_limit, {erlang, spawn_opt}}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">maximum number of processes exceeded</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{system_limit, {erlang, list_to_atom}}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">tried to create an atom larger than 255, or maximum atom count exceeded</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{system_limit, {ets, new}}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">maximum number of Erlang Term Storage (ETS) tables exceeded</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">try_clause</code></td>
+      <td><code class="language-plaintext highlighter-rouge">no try clause matching &lt;Val&gt; in &lt;Mod&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">undef</code></td>
+      <td><code class="language-plaintext highlighter-rouge">call to undefined function &lt;Mod&gt;</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="error-atoms">Error Atoms</h3>
+
+<p>Since Erlang programming support is a “happy path/fail fast” style, one
+of the more common error log strings you might encounter contain
+<code class="language-plaintext highlighter-rouge">{error,{badmatch,{...</code>.  This is Erlang’s way of telling you that an
+unexpected value was assigned, so these errors can prefix the more
+descriptive parts. In this case, <code class="language-plaintext highlighter-rouge">{error,{badmatch,{...</code> prefixes the
+more interesting <code class="language-plaintext highlighter-rouge">insufficient_vnodes_available</code> error, which can be
+found in the <code class="language-plaintext highlighter-rouge">riak_kv</code> table later on in this document.</p>
+
+<pre><code class="language-log">2012-01-13 02:30:37.015 [error] &lt;0.116.0&gt; webmachine error: path="/riak/contexts"\
+{error,{error,{badmatch,{error,insufficient_vnodes_available}},\
+[{riak_kv_wm_keylist,produce_bucket_body,2},{webmachine_resource,resource_call,3},\
+{webmachine_resour,resource_call,1},{webmachine_decision_core,decision,1},\
+{webmachine_decision_core,handle_request,2},\
+{webmachine_mochiweb,loop,1},{mochiweb_http,headers,5}]}}
+</code></pre>
+
+<h2 id="erlang-errors">Erlang Errors</h2>
+
+<p>Although relatively rare once a Riak cluster is running in production,
+users new to Riak or Erlang occasionally encounter errors on initial
+installation. These spring from a setup Erlang does not expect,
+generally due to network, permission, or configuration problems.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Error</th>
+      <th style="text-align: left">Description</th>
+      <th style="text-align: left">Resolution</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{error,duplicate_name}</code></td>
+      <td style="text-align: left">You are trying to start a new Erlang node, but another node with the same name is already running</td>
+      <td style="text-align: left">You might be attempting to start multiple nodes on the same machine with the same <code class="language-plaintext highlighter-rouge">vm.args</code> <code class="language-plaintext highlighter-rouge">-name</code> value; or if Riak is already running, check for <code class="language-plaintext highlighter-rouge">beam.smp</code>; or epmd thinks Riak is running, check/kill epmd</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{error,econnrefused}</code></td>
+      <td style="text-align: left">Remote Erlang node connection refused</td>
+      <td style="text-align: left">Ensure your cluster is up and nodes are able to communicate with each other. See <a href="ops/running/recovery/errors/#f1">1</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{error,ehostunreach}</code></td>
+      <td style="text-align: left">Remote node cannot be connected to</td>
+      <td style="text-align: left">Ensure that nodes are able to communicate with each other. See <a href="ops/running/recovery/errors/#f1">1</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{error,eacces}</code></td>
+      <td style="text-align: left">Cannot write a given file</td>
+      <td style="text-align: left">Ensure the Riak beam process has permission to write to all <code class="language-plaintext highlighter-rouge">*_dir</code> values in <code class="language-plaintext highlighter-rouge">app.config</code>, for example, <code class="language-plaintext highlighter-rouge">ring_state_dir</code>, <code class="language-plaintext highlighter-rouge">platform_data_dir</code>, and others</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{error,enoent}</code></td>
+      <td style="text-align: left">Missing an expected file or directory</td>
+      <td style="text-align: left">Ensure all <code class="language-plaintext highlighter-rouge">*_dir</code> values in <code class="language-plaintext highlighter-rouge">app.config</code> exist, for example, <code class="language-plaintext highlighter-rouge">ring_state_dir</code>, <code class="language-plaintext highlighter-rouge">platform_data_dir</code>, and others</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{error,erofs}</code></td>
+      <td style="text-align: left">A file/directory is attempted to be written to a read-only filesystem</td>
+      <td style="text-align: left">Only set Riak directories to read/write filesystems</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">system_memory_high_watermark</code></td>
+      <td style="text-align: left">Often a sign than an <a href="http://www.erlang.org/doc/man/ets.html">ETS table</a> has grown too large</td>
+      <td style="text-align: left">Check that you are using a backend appropriate for your needs (LevelDB for very large key counts) and that your vnode count is reasonable (measured in dozens per node rather than hundreds)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">temp_alloc</code></td>
+      <td style="text-align: left">Erlang attempting to allocate memory</td>
+      <td style="text-align: left">Often associated with <code class="language-plaintext highlighter-rouge">Cannot allocate X bytes of memory</code>, which means that you’re either creating too large of an object or that you simply don’t have enough RAM. Base minimum suggested RAM per node is 4GB.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="riak-errors-and-messages">Riak Errors and Messages</h2>
+
+<p>Many KV errors have prescriptive messages. For such cases we leave it to
+Riak to explain the correct course of action. For example, the
+<code class="language-plaintext highlighter-rouge">map/reduce</code> <code class="language-plaintext highlighter-rouge">parse_input</code> phase will respond like this when it
+encounters an invalid input:</p>
+
+<p>Inputs must be a binary bucket, a tuple of bucket and key-filters, a list of
+target tuples, a search index, or modfun tuple: <code class="language-plaintext highlighter-rouge">INPUT</code>.</p>
+
+<p>For the remaining common error codes, they are often marked by Erlang
+atoms (and quite often wrapped within an <code class="language-plaintext highlighter-rouge">{error,{badmatch,{...</code> tuple,
+as described in the <a href="#erlang-errors">Error</a> section
+above). This table lays out those terse error codes and related log
+messages, if they exist.</p>
+
+<h3 id="riak-core">Riak Core</h3>
+
+<p>Riak Core is the underlying implementation for KV. These are errors
+originating from that framework, and can appear whether you use KV,
+Search, or any Core implementation.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Error</th>
+      <th style="text-align: left">Message</th>
+      <th style="text-align: left">Description</th>
+      <th style="text-align: left">Resolution</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">behavior</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Attempting to execute an unknown behavior</td>
+      <td style="text-align: left">Ensure that your configuration file choices (e.g. backends) support the behaviors you’re attempting to use, such as configuring LevelDB to use secondary indexes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">already_leaving</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Node is already in the process of leaving the cluster</code></td>
+      <td style="text-align: left">An error marking a node to leave when it is already leaving</td>
+      <td style="text-align: left">No need to duplicate the <code class="language-plaintext highlighter-rouge">leave</code> command</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">already_replacement</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">This node is already in the replacements request list</td>
+      <td style="text-align: left">You cannot replace the same node twice</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{different_owners, N1, N2}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Two nodes list different partition owners, meaning the ring is not ready</td>
+      <td style="text-align: left">When the ring is ready, the status should be ok</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">different_ring_sizes</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The joining ring is a different size from the existing cluster ring</td>
+      <td style="text-align: left">Don’t join a node already joined to a cluster</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">insufficient_vnodes_available</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">When creating a query coverage plan, not enough vnodes are available</td>
+      <td style="text-align: left">Check the <code class="language-plaintext highlighter-rouge">riak-admin ring-status</code> and ensure all of your nodes are healthy and connected</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">invalid_replacement</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">A new node is currently joining from a previous operation, so a replacement request is invalid until it is no longer joining</td>
+      <td style="text-align: left">Wait until the node is finished joining</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">invalid_ring_state_dir</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Ring state directory &lt;RingDir&gt; does not exist, and could not be created: &lt;Reason&gt;</code></td>
+      <td style="text-align: left">The ring directory does not exist and no new dir can be created in expected location</td>
+      <td style="text-align: left">Ensure that the Erlang proc can write to <code class="language-plaintext highlighter-rouge">ring_state_dir</code>or has permission to create that dir</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">is_claimant</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">A node cannot be the claimant of its own remove request</td>
+      <td style="text-align: left">Remove/replace nodes from another node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">is_up</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Node is expected to be down but is up</td>
+      <td style="text-align: left">When a node is downed, it should be down</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">legacy</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Attempting to stage a plan against a legacy ring</td>
+      <td style="text-align: left">Staging is a feature only of Riak versions 1.2.0+</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">max_concurrency</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Handoff receiver for partition &lt;Partition&gt; exited abnormally after processing &lt;Count&gt; objects: &lt;Reason&gt;</code></td>
+      <td style="text-align: left">Disallow more handoff processes than the <code class="language-plaintext highlighter-rouge">riak_core</code> <code class="language-plaintext highlighter-rouge">handoff_concurrency</code> setting (defaults to 2)</td>
+      <td style="text-align: left">If this routinely kills vnodes, this issue has been linked to LevelDB compactions which can build up and block writing, which will also be accompanied by LevelDB logs saying <code class="language-plaintext highlighter-rouge">Waiting...</code> or <code class="language-plaintext highlighter-rouge">Compacting</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{nodes_down, Down}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">All nodes must be up to check</td>
+      <td style="text-align: left"> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">not_member</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">This node is not a member of the ring</td>
+      <td style="text-align: left">Cannot leave/remove/down when this is not a ring member</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">not_reachable</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Cannot join unreachable node</td>
+      <td style="text-align: left">Check your network connections, ensure Erlang cookie setting <code class="language-plaintext highlighter-rouge">vm.args</code> <code class="language-plaintext highlighter-rouge">-setcookie</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{not_registered, App}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Attempting to use an unregistered process</td>
+      <td style="text-align: left">Ensure that your <code class="language-plaintext highlighter-rouge">app.config</code> choices contain the app you’re attempting to use <code class="language-plaintext highlighter-rouge">{riak_kv_stat, true}</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">not_single_node</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">There are no other members to join</td>
+      <td style="text-align: left">Join with at least one other node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">nothing_planned</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Cannot commit a plan without changes</td>
+      <td style="text-align: left">Ensure at least one ring change is planned before running commit</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">only_member</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">This is the only member of the ring</td>
+      <td style="text-align: left">Cannot leave/remove/down when this is the only member of the ring</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ring_not_ready</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Ring not ready to perform command</td>
+      <td style="text-align: left">Attempting to plan a ring change before the ring is ready to do so</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">self_join</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Cannot join node with itself</td>
+      <td style="text-align: left">Join another node to form a valid cluster</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">timeout</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;Type&gt; transfer of &lt;Module&gt; from &lt;SrcNode&gt; &lt;SrcPartition&gt; to &lt;TargetNode&gt; &lt;TargetPartition&gt; failed because of TCP recv timeout</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Ensure that ports chosen in your configuration files do not overlap with ports being used by your system, or with each other</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">unable_to_get_join_ring</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Cannot access cluster ring to join</td>
+      <td style="text-align: left">Possible corrupted ring</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{unknown_capability, Capability}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Attempting to use a capability unsupported by this implementation</td>
+      <td style="text-align: left">Ensure that your configuration choices support the capability you’re attempting to use, such as Pipe MapReduce (setting a <code class="language-plaintext highlighter-rouge">mapred_2i_pipe</code> value in <code class="language-plaintext highlighter-rouge">app.config</code>)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">vnode_exiting</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;Mod&gt; failed to store handoff obj: &lt;Err&gt;</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">A vnode fails to hand off data because the handoff state is deleted</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">vnode_shutdown</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The vnode worker pool is shutting down</td>
+      <td style="text-align: left">Various reasons can cause a shutdown, check other log messages</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Bucket validation failed &lt;Detail&gt;</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Only set value bucket properties</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">set_recv_data called for non-existing receiver</code></td>
+      <td style="text-align: left">Cannot connect to receiver during handoff</td>
+      <td style="text-align: left">Ensure receiver node is still up and running, and that the standard</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">An &lt;Dir&gt; handoff of partition &lt;M&gt; was terminated because the vnode died</code></td>
+      <td style="text-align: left">Handoff stopped because of vnode was <code class="language-plaintext highlighter-rouge">DOWN</code> and sender must be killed</td>
+      <td style="text-align: left">An expected message if a vnode dies during handoff. Check the logs for other causes.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">status_update for non-existing handoff &lt;Target&gt;</code></td>
+      <td style="text-align: left">Cannot get the status of a handoff <code class="language-plaintext highlighter-rouge">Target</code> module that doesn’t exist</td>
+      <td style="text-align: left">An expected message. Check the logs for other causes.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">SSL handoff config error: property &lt;FailProp&gt;: &lt;BadMat&gt;.</code></td>
+      <td style="text-align: left">The receiver may reject the senders attempt to start a handoff</td>
+      <td style="text-align: left">Ensure your SSL settings and certificates are proper</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Failure processing SSL handoff config &lt;Props&gt;:&lt;X&gt;:&lt;Y&gt;</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Ensure your SSL settings and certificates are proper</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;Type&gt; transfer of &lt;Module&gt; from &lt;SrcNode&gt; &lt;SrcPartition&gt; to &lt;TargetNode&gt; &lt;TargetPartition&gt; failed because of &lt;Reason&gt;</code></td>
+      <td style="text-align: left">Nodes cannot hand off data</td>
+      <td style="text-align: left">Ensure that your cluster is up and nodes are able to communicate with each other. See <a href="ops/running/recovery/errors/#f1">1</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Failed to start application: &lt;App&gt;</code></td>
+      <td style="text-align: left">Expected application cannot load</td>
+      <td style="text-align: left">This relates to an Erlang application, and not necessarily the Riak application in general. The app may fail to load for many reasons, such as a missing native library. Read other log messages for clues</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Failed to read ring file: &lt;Reason&gt;</code></td>
+      <td style="text-align: left">Gives a reason why the ring file cannot be read on startup</td>
+      <td style="text-align: left">The reason given explains the problem, such as <code class="language-plaintext highlighter-rouge">eacces</code> meaning the Erlang process does not have permission to read</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Failed to load ring file: &lt;Reason&gt;</code></td>
+      <td style="text-align: left">Gives a reason why the ring file cannot be loaded on startup</td>
+      <td style="text-align: left">The reason given explains the problem, such as <code class="language-plaintext highlighter-rouge">enoent</code> meaning the expected file cannot be found</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ring_trans: invalid return value: &lt;Other&gt;</code></td>
+      <td style="text-align: left">Transferring ring data between nodes received an invalid value</td>
+      <td style="text-align: left">Often associated with ring corruption, or an unexpected exit from the transferring node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Error while running bucket fixup module &lt;Fixup&gt; from application &lt;App&gt; on bucket &lt;BucketName&gt;: &lt;Reason&gt;</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Various sources for a fixup error, read associated errors</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Crash while running bucket fixup module &lt;Fixup&gt; from application &lt;App&gt; on bucket &lt;BucketName&gt; : &lt;What&gt;:&lt;Why&gt;</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Various source for a fixup error, read associated errors</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;Index&gt; &lt;Mod&gt; worker pool crashed &lt;Reason&gt;</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Various reasons can be the source of a worker pool crash, read associated errors</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Received xfer_complete for non-existing repair: &lt;ModPartition&gt;</code></td>
+      <td style="text-align: left">Unexpected repair message</td>
+      <td style="text-align: left">Not much to do here, but a node did not expect to receive a <code class="language-plaintext highlighter-rouge">xfer_complete</code> status</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="riak-kv">Riak KV</h3>
+
+<p>Riak KV is the key/value implementation, generally just considered to be
+Riak proper. This is the source of most of the code, and consequently,
+most of the error messages.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Error</th>
+      <th style="text-align: left">Message</th>
+      <th style="text-align: left">Description</th>
+      <th style="text-align: left">Resolution</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">all_nodes_down</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">No nodes are available</td>
+      <td style="text-align: left">Check <code class="language-plaintext highlighter-rouge">riak-admin member-status</code> and ensure that all expected nodes in the cluster are of <code class="language-plaintext highlighter-rouge">valid</code> Status</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{bad_qterm, QueryTerm}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Bad query when performing MapReduce</td>
+      <td style="text-align: left">Fix your MapReduce query</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{coord_handoff_failed, Reason}</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Unable to forward put for &lt;Key&gt; to &lt;CoordNode&gt; - &lt;Reason&gt;</code></td>
+      <td style="text-align: left">Vnodes unable to communicate</td>
+      <td style="text-align: left">Check that coordinating vnode is not down. Ensure your cluster is up and nodes are able to communicate with each other. See <a href="ops/running/recovery/errors/#f1">1</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{could_not_reach_node, Node}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Erlang process was not reachable</td>
+      <td style="text-align: left">Check network settings; ensure remote nodes are running and reachable; ensure all nodes have the same Erlang cookie setting <code class="language-plaintext highlighter-rouge">vm.args</code> <code class="language-plaintext highlighter-rouge">-setcookie</code>. See <a href="ops/running/recovery/errors/#f1">1</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{deleted, Vclock}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The value was already deleted, includes the current vector clock</td>
+      <td style="text-align: left">Riak will eventually clean up this tombstone</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{dw_val_violation, DW}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Same as <code class="language-plaintext highlighter-rouge">w_val_violation</code> but concerning durable writes</td>
+      <td style="text-align: left">Set a valid DW value</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{field_parsing_failed, {Field, Value}}</code></td>
+      <td style="text-align: left">`Could not parse field</td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><Field>, value <Value>.` | Could not parse an index field | Most commonly an `_int` field which cannot be parsed. For example a query like this is invalid: `/buckets/X/index/Y_int/BADVAL`, since BADVAL should instead be an integer</Value></Field></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{hook_crashed, {Mod, Fun, Class, Exception}}</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Problem invoking pre-commit hook</code></td>
+      <td style="text-align: left">Precommit process exited due to some failure</td>
+      <td style="text-align: left">Fix the precommit function code, follow the message’s exception and stacktrace to help debug</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{indexes_not_supported, Mod}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The chosen backend does not support indexes (only LevelDB currently supports secondary indexes)</td>
+      <td style="text-align: left">Set your configuration to use the LevelDB backend</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{insufficient_vnodes, NumVnodes, need, R}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">R was set greater than the total vnodes</td>
+      <td style="text-align: left">Set a proper R value; or too many nodes are down; or too many nodes are unavailable due to crash or network partition. Ensure all nodes are available by running riak-admin ring-status.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{invalid_hook_def, HookDef}</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Invalid post-commit hook definition &lt;Def&gt;</code></td>
+      <td style="text-align: left">No Erlang module and function or JavaScript function name</td>
+      <td style="text-align: left">Define the hook with the correct settings</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{invalid_inputdef, InputDef}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Bad inputs definitions when running MapReduce</td>
+      <td style="text-align: left">Fix inputs settings; set <code class="language-plaintext highlighter-rouge">mapred_system</code> from <code class="language-plaintext highlighter-rouge">legacy</code> to <code class="language-plaintext highlighter-rouge">pipe</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">invalid_message</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Unknown event sent to module</td>
+      <td style="text-align: left">Ensure you’re running similar versions of Riak across (and specifically poolboy) across all nodes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{invalid_range, Args}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Index range query hasStart &gt; End</td>
+      <td style="text-align: left">Fix your query</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{invalid_return, {Mod, Fun, Result}}</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Problem invoking pre-commit hook &lt;Mod&gt;:&lt;Fun&gt;, invalid return &lt;Result&gt;</code></td>
+      <td style="text-align: left">The given precommit function gave an invalid return for the given <code class="language-plaintext highlighter-rouge">Result</code></td>
+      <td style="text-align: left">Ensure your pre-commit functions return a valid result</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">invalid_storage_backend</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">storage_backend &lt;Backend&gt; is non-loadable.</code></td>
+      <td style="text-align: left">Invalid backend choice when starting up Riak</td>
+      <td style="text-align: left">Set a valid backend in your configuration files</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">key_too_large</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The key was larger than 65536 bytes</td>
+      <td style="text-align: left">Use a smaller key</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">local_put_failed</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">A local vnode PUT operation failed</td>
+      <td style="text-align: left">This has been linked to a LevelDB issue related to restricted memory usage and inability to flush a write to disk.  If this happens repetitively, stop/start the riak node, forcing a memory realloc</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{n_val_violation, N}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">(W &gt; N) or (DW &gt; N) or (PW &gt; N) or (R &gt; N) or (PR &gt; N)</td>
+      <td style="text-align: left">No W or R values may be greater than N</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{nodes_not_synchronized, Members}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Rings of all members are not synchronized</td>
+      <td style="text-align: left">Backups will fail if nodes are not synchronized</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{not_supported, mapred_index, FlowPid}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Index lookups for MapReduce are only supported with Pipe</td>
+      <td style="text-align: left">Set mapred_system from legacy to pipe</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">notfound</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">No value found</td>
+      <td style="text-align: left">Value was deleted, or was not yet stored or replicated</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{pr_val_unsatisfied, PR, Primaries}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Same as <code class="language-plaintext highlighter-rouge">r_val_unsatisfied</code> but only counts <code class="language-plaintext highlighter-rouge">Primary</code> node replies</td>
+      <td style="text-align: left">Too many primary nodes are down or the <code class="language-plaintext highlighter-rouge">PR</code> value was set too high</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{pr_val_violation, R}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Same as <code class="language-plaintext highlighter-rouge">r_val_violation</code> but concerning <code class="language-plaintext highlighter-rouge">Primary</code> reads</td>
+      <td style="text-align: left">Set a valid <code class="language-plaintext highlighter-rouge">PR</code> value</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">precommit_fail</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Pre-commit hook &lt;Mod&gt;:&lt;Fun&gt; failed with reason &lt;Reason&gt;</code></td>
+      <td style="text-align: left">The given precommit function failed for the given <code class="language-plaintext highlighter-rouge">Reason</code></td>
+      <td style="text-align: left">Fix the precommit function code</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{pw_val_unsatisfied, PR, Primaries}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Same as <code class="language-plaintext highlighter-rouge">w_val_unsatisfied</code> but only counts <code class="language-plaintext highlighter-rouge">Primary</code> node replies</td>
+      <td style="text-align: left">Too many primary nodes are down or the <code class="language-plaintext highlighter-rouge">PW</code> value was set too high</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{pw_val_violation, PW}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Same as <code class="language-plaintext highlighter-rouge">w_val_violation</code> but concerning primary writes</td>
+      <td style="text-align: left">Set a valid <code class="language-plaintext highlighter-rouge">PW</code> value</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{r_val_unsatisfied, R, Replies}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Not enough nodes replied to satisfy the <code class="language-plaintext highlighter-rouge">R</code> value, contains the given <code class="language-plaintext highlighter-rouge">R</code> value and the actual number of <code class="language-plaintext highlighter-rouge">Replies</code></td>
+      <td style="text-align: left">Too many nodes are down or the R value was set too high</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{r_val_violation, R}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The given R value was non-numeric and not a valid setting (<code class="language-plaintext highlighter-rouge">on</code>, <code class="language-plaintext highlighter-rouge">all</code>, <code class="language-plaintext highlighter-rouge">quorum</code>)</td>
+      <td style="text-align: left">Set a valid R value</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">receiver_down</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Remote process failed to acknowledge request</td>
+      <td style="text-align: left">Can occur when listkeys is called</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{rw_val_violation, RW}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The given <code class="language-plaintext highlighter-rouge">RW</code> property was non-numeric and not a valid setting (<code class="language-plaintext highlighter-rouge">one</code>, <code class="language-plaintext highlighter-rouge">all</code>, <code class="language-plaintext highlighter-rouge">quorum</code>)</td>
+      <td style="text-align: left">Set a valid <code class="language-plaintext highlighter-rouge">RW</code> value</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{siblings_not_allowed, Object}</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Siblings not allowed: &lt;Object&gt;</code></td>
+      <td style="text-align: left">The hook to index cannot abide siblings</td>
+      <td style="text-align: left">Set the buckets <code class="language-plaintext highlighter-rouge">allow_mult</code> property to <code class="language-plaintext highlighter-rouge">false</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">timeout</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The given action took too long to reply</td>
+      <td style="text-align: left">Ensure your cluster is up and nodes are able to communicate with each other. See <a href="ops/running/recovery/errors/#f1">1</a>. Or check you have a reasonable <code class="language-plaintext highlighter-rouge">ulimit</code> size. Note that listkeys commands can easily timeout and shouldn’t be used in production.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{too_few_arguments, Args}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Index query requires at least one argument</td>
+      <td style="text-align: left">Fix your query format</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{too_many_arguments, Args}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Index query is malformed with more than 1 (exact) or 2 (range) values</td>
+      <td style="text-align: left">Fix your query format</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">too_many_fails</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Too many write failures to satisfy W or DW</td>
+      <td style="text-align: left">Try writing again. Or ensure your nodes/network is healthy. Or set a lower W or DW value</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">too_many_results</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Too many results are attempted to be returned</td>
+      <td style="text-align: left">This is a protective error. Either change your query to return fewer results, or change your <code class="language-plaintext highlighter-rouge">max_search_results</code> setting in <code class="language-plaintext highlighter-rouge">app.config</code> (it defaults to 100,000)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{unknown_field_type, Field}</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Unknown field type for field: &lt;Field&gt;.</code></td>
+      <td style="text-align: left">Unknown index field extension (begins with underscore)</td>
+      <td style="text-align: left">The only value field types are <code class="language-plaintext highlighter-rouge">_int</code> and <code class="language-plaintext highlighter-rouge">_bin</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{w_val_unsatisfied, RepliesW, RepliesDW, W, DW}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Not enough nodes replied to satisfy the W value, contains the given W value and the actual number of <code class="language-plaintext highlighter-rouge">Replies*</code> for either <code class="language-plaintext highlighter-rouge">W</code> or <code class="language-plaintext highlighter-rouge">DW</code></td>
+      <td style="text-align: left">Too many nodes are down or the <code class="language-plaintext highlighter-rouge">W</code> or <code class="language-plaintext highlighter-rouge">DW</code> value was set too high</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{w_val_violation, W}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">The given W property was non-numeric and not a valid setting (on, all, quorum)</td>
+      <td style="text-align: left">Set a valid W value</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Invalid equality query &lt;SKey&gt;</code></td>
+      <td style="text-align: left">Equality query is required and must be binary for an index call</td>
+      <td style="text-align: left">Pass in an equality value when performing a 2i equality query</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Invalid range query: &lt;Min&gt; -&gt; &lt;Max&gt;</code></td>
+      <td style="text-align: left">Both range query values are required and must be binary an index call</td>
+      <td style="text-align: left">Pass in both range values when performing a 2i equality query</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Failed to start &lt;Mod&gt; &lt;Reason&gt;:&lt;Reason&gt;</code></td>
+      <td style="text-align: left">Riak KV failed to start for given <code class="language-plaintext highlighter-rouge">Reason</code></td>
+      <td style="text-align: left">Several possible reasons for failure, read the attached reason for insight into resolution</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="backend-errors">Backend Errors</h3>
+
+<p>These errors tend to stem from server-based problems. Backends are
+sensitive to low or corrupt disk or memory resources, native code, and
+configuration differences between nodes. Conversely, a network issue is
+unlikely to affect a backend.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Error</th>
+      <th style="text-align: left">Message</th>
+      <th style="text-align: left">Description</th>
+      <th style="text-align: left">Resolution</th>
+      <th> </th>
+      <th> </th>
+      <th> </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">data_root_not_set</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Same as <code class="language-plaintext highlighter-rouge">data_root_unset</code></td>
+      <td style="text-align: left">Set the <code class="language-plaintext highlighter-rouge">data_root</code> directory in config</td>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">data_root_unset</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Failed to create bitcask dir: data_root is not set</code></td>
+      <td style="text-align: left">The <code class="language-plaintext highlighter-rouge">data_root</code> config setting is required</td>
+      <td style="text-align: left">Set <code class="language-plaintext highlighter-rouge">data_root</code> as the base directory where to store bitcask data, under the <code class="language-plaintext highlighter-rouge">bitcask</code> section</td>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{invalid_config_setting, multi_backend, list_expected}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Multi backend configuration requires a list</td>
+      <td style="text-align: left">Wrap <code class="language-plaintext highlighter-rouge">multi_backend</code> config value in a list</td>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{invalid_config_setting, multi_backend, list_is_empty</code>}</td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Multi backend configuration requires a value</td>
+      <td style="text-align: left">Configure at least one backend under <code class="language-plaintext highlighter-rouge">multi_backend</code> in <code class="language-plaintext highlighter-rouge">app.config</code></td>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">{invalid_config_setting, multi_backend_default, backend_not_found}</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Must choose a valid backend type to configure</td>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">multi_backend_config_unset</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">No configuration for Multi backend</td>
+      <td style="text-align: left">Configure at least one backend under <code class="language-plaintext highlighter-rouge">multi_backend</code> in <code class="language-plaintext highlighter-rouge">app.config</code></td>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">not_loaded</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Native driver not loading</td>
+      <td style="text-align: left">Ensure your native drivers exist (.dll or .so files {riak_kv_multi_backend, undefined_backend, BackendName}</td>
+      <td> </td>
+      <td>Backend defined for a bucket is invalid</td>
+      <td>Define a valid backed before using this bucket under lib/<code class="language-plaintext highlighter-rouge">project</code>/priv, where <code class="language-plaintext highlighter-rouge">project</code> is most likely eleveldb).</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">reset_disabled</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Attempted to reset a Memory backend in production</td>
+      <td style="text-align: left">Don’t use this in production</td>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="javascript">JavaScript</h3>
+
+<p>These are some errors related to JavaScript pre-commit functions,
+MapReduce functions, or simply the management of the pool of JavaScript
+VMs. If you do not use JavaScript, these should not be encountered. If
+they are, check your configuration for high <code class="language-plaintext highlighter-rouge">*js_vm*</code> values or as an
+epiphenomenon to a real issue, such as low resources.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Error</th>
+      <th>Message</th>
+      <th>Description</th>
+      <th>Resolution</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">no_vms</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JS call failed: All VMs are busy.</code></td>
+      <td>All JavaScript VMs are in use</td>
+      <td>Wait and run again; increase JavaScript VMs in <code class="language-plaintext highlighter-rouge">app.config</code> (<code class="language-plaintext highlighter-rouge">map_js_vm_count</code>, <code class="language-plaintext highlighter-rouge">reduce_js_vm_count</code>, or <code class="language-plaintext highlighter-rouge">hook_js_vm_count</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bad_utf8_character_code</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Error JSON encoding arguments: &lt;Args&gt;</code></td>
+      <td>A UTF-8 character give was a bad format</td>
+      <td>Only use correct UTF-8 characters for JavaScript code and arguments</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bad_json</code></td>
+      <td> </td>
+      <td>Bad JSON formatting</td>
+      <td>Only use correctly formatted JSON for JavaScript command arguments</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">Invalid bucket properties: &lt;Details&gt;</code></td>
+      <td>Listing bucket properties will fail if invalid</td>
+      <td>Fix bucket properties</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{load_error, "Failed to load spidermonkey_drv.so"}</code></td>
+      <td> </td>
+      <td>The JavaScript driver is corrupted or missing</td>
+      <td>In OS X you may have compiled with <code class="language-plaintext highlighter-rouge">llvm-gcc</code> rather than <code class="language-plaintext highlighter-rouge">gcc</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="mapreduce">MapReduce</h3>
+
+<p>These are possible errors logged by Riak’s MapReduce implementation,
+both legacy as well as Pipe. If you never use or call MapReduce, you
+should not run across these.</p>
+
+<p>Error | Message | Description | Resolution
+:—–|:——–|:————|:———-
+<code class="language-plaintext highlighter-rouge">bad_mapper_props_no_keys</code> | | At least one property should be found by default. <em>Unused in Riak 1.3+</em> | Set mapper properties, or don’t use it
+<code class="language-plaintext highlighter-rouge">bad_mapred_inputs</code> | | A bad value sent to MapReduce. <em>Unused in Riak 1.3+</em> | When using the Erlang client interface, ensure all MapReduce and search queries are correctly binary
+<code class="language-plaintext highlighter-rouge">bad_fetch</code> | | An expected local query was not retrievable.  <em>Unused in Riak 1.3+</em> | Placing javascript MapReduce query code as a riak value must first be stored before execution
+<code class="language-plaintext highlighter-rouge">{bad_filter, &lt;Filter&gt;}</code> | | An invalid keyfilter was used | Ensure your MapReduce keyfilter is correct
+<code class="language-plaintext highlighter-rouge">{dead_mapper, &lt;Stacktrace&gt;, &lt;MapperData&gt;}</code> | | Getting a reply from a mapper for a job that has already exited.  <em>Unused in Riak 1.3+</em> | Check for a stuck Erlang process, or if using legacy MR ensure <code class="language-plaintext highlighter-rouge">map_cache_size</code> is set (Both issues may require a node restart)
+<code class="language-plaintext highlighter-rouge">{inputs, Reason}</code> | <code class="language-plaintext highlighter-rouge">An error occurred parsing the "inputs" field.</code> | MapReduce request has invalid input field | Fix MapReduce fields
+<code class="language-plaintext highlighter-rouge">{invalid_json, Message}</code> | <code class="language-plaintext highlighter-rouge">The POST body was not valid JSON. The error from the parser was: &lt;Message&gt;</code> | Posting a MapReduce command requires correct JSON | Format MapReduce requests correctly
+<code class="language-plaintext highlighter-rouge">javascript_reduce_timeout</code> | | JavaScript reduce function taking too long | For large numbers of objects, your JavaScript functions may become bottlenecks. Decrease the quantity of values being passed to and returned from the reduce functions, or rewrite as Erlang functions
+<code class="language-plaintext highlighter-rouge">missing_field</code> | <code class="language-plaintext highlighter-rouge">The post body was missing the "inputs" or "query" field.</code> | Either an inputs or query field is required | Post MapReduce request with at least one
+<code class="language-plaintext highlighter-rouge">{error,notfound}</code> | | Used in place of a RiakObject in the mapping phase | Your custom Erlang map function should deal with this type of value
+<code class="language-plaintext highlighter-rouge">not_json</code> | <code class="language-plaintext highlighter-rouge">The POST body was not a JSON object.</code> | Posting a MapReduce command requires correct JSON | Format MapReduce requests correctly
+<code class="language-plaintext highlighter-rouge">{no_candidate_nodes, exhausted_prefist, &lt;Stacktrace&gt;, &lt;MapperData&gt;}</code> | | Some map phase workers died | Possibly a long running job hitting MapReduce timeout, upgrade to Pipe
+<code class="language-plaintext highlighter-rouge">{&lt;query&gt;, Reason}</code> | <code class="language-plaintext highlighter-rouge">An error occurred parsing the "query" field.</code> | MapReduce request has invalid query field | Fix MapReduce query
+<code class="language-plaintext highlighter-rouge">{unhandled_entry, Other}</code> | <code class="language-plaintext highlighter-rouge">Unhandled entry: &lt;Other&gt;</code> | The <code class="language-plaintext highlighter-rouge">reduce_identity</code> function is unused | If you don’t need <code class="language-plaintext highlighter-rouge">reduce_identity</code>, just don’t set reduce phase at all
+<code class="language-plaintext highlighter-rouge">{unknown_content_type, ContentType}</code> | | Bad content type for MapReduce query | Only <code class="language-plaintext highlighter-rouge">application/json</code> and <code class="language-plaintext highlighter-rouge">application/x-erlang-binary</code> are accepted
+ | <code class="language-plaintext highlighter-rouge">Phase &lt;Fitting&gt;: &lt;Reason&gt;</code> | A general error when something happens using the Pipe MapReduce implementation with a bad argument or configuration | Can happen with a bad map or reduce implementation, most recent known gotcha is when a JavaScript function improperly deals with tombstoned objects
+ | <code class="language-plaintext highlighter-rouge">riak_kv_w_reduce requires a function as argument, not a &lt;Type&gt;</code> | Reduce requires a function object, not any other type | This shouldn’t happen
+ </p>
+<h2 id="specific-messages">Specific messages</h2>
+
+<p>Although you can put together many error causes with the tables above,
+here are some common yet esoteric messages with known causes and
+solutions.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Message</th>
+      <th style="text-align: left">Resolution</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">gen_server riak_core_capability terminated with reason: no function clause matching orddict:fetch(‘<code class="language-plaintext highlighter-rouge">Node</code>’, [])</td>
+      <td style="text-align: left">The Node has been changed, either through change of IP or <code class="language-plaintext highlighter-rouge">vm.args</code> <code class="language-plaintext highlighter-rouge">-name</code> without notifying the ring. Either use the <code class="language-plaintext highlighter-rouge">riak-admin cluster replace</code> command, or remove the corrupted ring files <code class="language-plaintext highlighter-rouge">rm -rf /var/lib/riak/ring/*</code> and rejoin to the cluster</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">gen_server &lt;<code class="language-plaintext highlighter-rouge">PID</code>&gt; terminated with reason: no function clause matching riak_core_pb:encode(<code class="language-plaintext highlighter-rouge">Args</code>) line 40</td>
+      <td style="text-align: left">Ensure you do not have different settings on different nodes (for example, a ttl mem setting on one node’s mem backend, and another without)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">monitor <code class="language-plaintext highlighter-rouge">busy_dist_port</code> <code class="language-plaintext highlighter-rouge">Pid</code> […{almost_current_function,…]</td>
+      <td style="text-align: left">This message means distributed Erlang buffers are filling up. Try setting zdbbl higher in <code class="language-plaintext highlighter-rouge">vm.args</code>, such as <code class="language-plaintext highlighter-rouge">+zdbbl 16384</code>. Or check that your network is not slow. Or ensure you are not slinging large values. If a high bandwidth network is congested, try setting RTO_min down to 0 msec (or 1msec).</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">&lt;<code class="language-plaintext highlighter-rouge">PID</code>&gt;@riak_core_sysmon___handler:handle_event:89 Monitor got {suppressed,port_events,1}</td>
+      <td style="text-align: left">Logged as info, you can add <code class="language-plaintext highlighter-rouge">+swt very_low</code> to your <code class="language-plaintext highlighter-rouge">vm.args</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">(in LevelDB LOG files) Compaction error</td>
+      <td style="text-align: left">Turn off the node and run repair on the LevelDB partition. See <a href="ops/running/recovery/errors/#f2">2</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">enif_send: env==NULL on non-SMP VM/usr/lib/riak/lib/os_mon-2.2.9/priv/bin/memsup: Erlang has closed.</td>
+      <td style="text-align: left">Riak’s Erlang VM is built with SMP support and if Riak is started on a non-SMP system, an error like this one is logged. This is commonly seen in virtualized environments configured for only one CPU core.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">exit with reason bad return value: {error,eaddrinuse} in context start_error</td>
+      <td style="text-align: left">An error like this example can occur when another process is already bound to the same address as the process being started is attempting to bind to. Use operating system tools like <code class="language-plaintext highlighter-rouge">netstat</code>, <code class="language-plaintext highlighter-rouge">ps</code>, and <code class="language-plaintext highlighter-rouge">lsof</code> to determine the root cause for resolving this kind of errors; check for existence of stale  <code class="language-plaintext highlighter-rouge">beam.smp</code> processes.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">exited with reason: eaddrnotavail in gen_server:init_it/6 line 320</td>
+      <td style="text-align: left">An error like this example can result when Riak cannot bind to the addresses specified in the configuration. In this case, you should verify HTTP and Protocol Buffers addresses in <code class="language-plaintext highlighter-rouge">app.config</code> and ensure that the ports being used are not in the privileged (1-1024) range as the <code class="language-plaintext highlighter-rouge">riak</code> user will not have access to such ports.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">gen_server riak_core_capability terminated with reason: no function clause matching orddict:fetch(‘riak@192.168.2.2’, []) line 72</td>
+      <td style="text-align: left">Error output like this example can indicate that a previously running Riak node with an original <code class="language-plaintext highlighter-rouge">-name</code> value in <code class="language-plaintext highlighter-rouge">vm.args</code> has been modified by simply changing the value in <code class="language-plaintext highlighter-rouge">vm.args</code> and not properly through <code class="language-plaintext highlighter-rouge">riak-admin cluster replace</code>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">** Configuration error: [FRAMEWORK-MIB]: missing context.conf file =&gt; generating a default file</td>
+      <td style="text-align: left">This error is commonly encountered when starting Riak Enterprise without prior <a href="/riak/kv/2.1.3/using/reference/snmp">SNMP</a> configuration.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">RPC to ‘node@example.com’ failed: {‘EXIT’, {badarg, [{ets,lookup, [schema_table,«“search-example”»], []} {riak_search_config,get_schema,1, [{file,”src/riak_search_config.erl”}, {line,69}]} …</td>
+      <td style="text-align: left">This error can be caused when attempting to use Riak Search without first enabling it in each node’s <code class="language-plaintext highlighter-rouge">app.config</code>. See the <a href="/riak/kv/2.1.3/configuring/reference">configuration files</a> documentation for more information on enabling Riak Search.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="more">More</h3>
+
+<ol>
+  <li><a name="f1"></a>Ensure node inter-communication
+    <ul>
+      <li>Check <code class="language-plaintext highlighter-rouge">riak-admin member-status</code> and ensure the cluster is valid.</li>
+      <li>Check <code class="language-plaintext highlighter-rouge">riak-admin ring-status</code> and ensure the ring and vnodes are communicating as expected.</li>
+      <li>Ensure your machine does not have a firewall or other issue that prevents traffic to the remote node.</li>
+      <li>Your remote <code class="language-plaintext highlighter-rouge">vm.args</code> <code class="language-plaintext highlighter-rouge">-setcookie</code> must be the same value for every node in the cluster.</li>
+      <li>The <code class="language-plaintext highlighter-rouge">vm.args</code> <code class="language-plaintext highlighter-rouge">-name</code> value must not change after joining the node (unless you use <code class="language-plaintext highlighter-rouge">riak-admin cluster replace</code>).</li>
+    </ul>
+  </li>
+  <li><a name="f2"></a>Run LevelDB compaction</li>
+  <li><code class="language-plaintext highlighter-rouge">find . -name "LOG" -exec grep -l 'Compaction error' {} \;</code> <em>(Finding one compaction error is interesting, more than one might be a strong indication of a hardware or OS bug)</em></li>
+  <li>Stop Riak on the node: <code class="language-plaintext highlighter-rouge">riak stop</code></li>
+  <li>Start an Erlang session (do not start riak, we just want Erlang)</li>
+  <li>
+    <p>From the Erlang console perform the following command to open the LevelDB database</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>   <span class="p">[</span><span class="nn">application</span><span class="p">:</span><span class="nf">set_env</span><span class="p">(</span><span class="n">eleveldb</span><span class="p">,</span> <span class="nv">Var</span><span class="p">,</span> <span class="nv">Val</span><span class="p">)</span> <span class="p">||</span> <span class="p">{</span><span class="nv">Var</span><span class="p">,</span> <span class="nv">Val</span><span class="p">}</span> <span class="o">&lt;-</span>
+   <span class="p">[{</span><span class="n">max_open_files</span><span class="p">,</span> <span class="mi">2000</span><span class="p">},</span>
+   <span class="p">{</span><span class="n">block_size</span><span class="p">,</span> <span class="mi">1048576</span><span class="p">},</span>
+   <span class="p">{</span><span class="n">cache_size</span><span class="p">,</span> <span class="mi">20</span><span class="o">*</span><span class="mi">1024</span><span class="o">*</span><span class="mi">1024</span><span class="o">*</span><span class="mi">1024</span><span class="p">},</span>
+   <span class="p">{</span><span class="n">sync</span><span class="p">,</span> <span class="n">false</span><span class="p">},</span>
+   <span class="p">{</span><span class="n">data_root</span><span class="p">,</span> <span class="s">"/var/db/riak/leveldb"</span><span class="p">}]].</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <table>
+      <tbody>
+        <tr>
+          <td>For each of the corrupted LevelDB databases (found by <code class="language-plaintext highlighter-rouge">find . -name "LOG" -exec</code></td>
+          <td><code class="language-plaintext highlighter-rouge">grep -l 'Compaction error' {} \; </code>) run this command substituting in the proper vnode number.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>   <span class="nn">eleveldb</span><span class="p">:</span><span class="nf">repair</span><span class="p">(</span><span class="s">"/var/db/riak/leveldb/442446784738847563128068650529343492278651453440"</span><span class="p">,</span> <span class="p">[]).</span>
+</code></pre></div>    </div>
+  </li>
+  <li>When all have finished successfully you may restart the node: <code class="language-plaintext highlighter-rouge">riak start</code></li>
+  <li>Check for proper operation by looking at log files in /var/log/riak and in the LOG files in the effected LevelDB vnodes.</li>
+</ol>

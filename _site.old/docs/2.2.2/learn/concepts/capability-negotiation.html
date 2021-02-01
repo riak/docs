@@ -1,0 +1,7 @@
+
+<p>In early versions of Riak KV, <a href="/riak/kv/2.2.2/setup/upgrading/cluster">rolling upgrades</a> from an older version to a newer involved (a) disabling all new features associated with the newer version, and then (b) re-enabling those features once all nodes in the cluster were upgraded.</p>
+
+<p>Rolling upgrades no longer require you to disable and then re-enable features due to the <em>capability negotiation</em> subsystem that automatically manages the addition of new features. Using this subsystem, nodes negotiate with each other to automatically determine which versions are supported on which nodes, which allows clusters to maintain normal operations even when divergent versions of Riak KV are present in the cluster.</p>
+
+<p>The capability negotiation subsystem is used to manage mixed versions of Riak KV within a cluster ONLY during rolling upgrades. We strongly recommend not running mixed versions during normal operations.</p>
+

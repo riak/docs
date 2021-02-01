@@ -1,0 +1,15 @@
+<p>Delete a search index.</p>
+
+<h2 id="request">Request</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">name</code> parameter is the name of the index to delete, as a binary.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaIndexDeleteReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">name</span>  <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="response">Response</h2>
+
+<p>Returns a <a href="/riak/kv/2.2.3/developing/api/protocol-buffers/#message-codes">RpbDelResp</a> code with no data on success.</p>
+

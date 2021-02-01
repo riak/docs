@@ -1,0 +1,553 @@
+<h2 id="go-version-setup">Go Version Setup</h2>
+
+<p>For the Go version, please download the source from GitHub by either <a href="https://github.com/basho/taste-of-riak">cloning</a> the source code repository or downloading the <a href="https://github.com/basho/taste-of-riak/archive/master.zip">current zip of the master branch</a>. Ensure that the source is located in your <code class="language-plaintext highlighter-rouge">GOPATH</code>. The code for this chapter is in <code class="language-plaintext highlighter-rouge">go/ch02/ch02.go</code>. You may import this code into your favorite editor, or just run it from the command line using the <code class="language-plaintext highlighter-rouge">Makefile</code> if you are running on a <em>nix</em> OS.</p>
+
+<blockquote>
+  <p>A Quick Note on Querying and Schemas:</p>
+
+  <p>Even with a key/value store, you will still have a logical database schema of how all the data relates to one another. This can be as simple as using the same key across multiple buckets for different types of data, to having fields in your data that are related by name. These querying methods will introduce you to some ways of laying out your data in Riak, along with how to query it back.</p>
+</blockquote>
+
+<h3 id="denormalization">Denormalization</h3>
+
+<p>If you’re coming from a relational database, the easiest way to get your application started with NoSQL is to denormalize your data into related chunks. For example with a customer database, you might have separate tables for Customers, Addresses, Preferences, etc. In Riak KV, you can denormalize all that associated data into a single object and store it into a <code class="language-plaintext highlighter-rouge">Customer</code> bucket.  You can keep pulling in associated data until you hit one of the big denormalization walls:</p>
+
+<ul>
+  <li>Size Limits (objects greater than 1MB)</li>
+  <li>Shared/Referential Data (data that the object doesn’t “own”)</li>
+  <li>Differences in Access Patterns (objects that get read/written once vs. often)</li>
+</ul>
+
+<p>At one of these points we will have to split the model.</p>
+
+<h3 id="same-keys---different-buckets">Same Keys - Different Buckets</h3>
+
+<p>The simplest way to split up data would be to use the same identity key across different buckets. A good example of this would be a <code class="language-plaintext highlighter-rouge">Customer</code> object, an <code class="language-plaintext highlighter-rouge">Order</code> object, and an <code class="language-plaintext highlighter-rouge">OrderSummaries</code> object that keeps rolled up info about orders such as Total, etc. Let’s put some data into Riak KV so we can play with it.</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+  <span class="s">"encoding/json"</span>
+  <span class="s">"errors"</span>
+  <span class="s">"fmt"</span>
+  <span class="s">"reflect"</span>
+  <span class="s">"sync"</span>
+  <span class="s">"time"</span>
+
+  <span class="n">riak</span> <span class="s">"github.com/basho/riak-go-client"</span>
+  <span class="n">util</span> <span class="s">"github.com/basho/taste-of-riak/go/util"</span>
+<span class="p">)</span>
+
+<span class="k">const</span> <span class="p">(</span>
+  <span class="n">timeFmt</span>              <span class="o">=</span> <span class="s">"2006-01-02 15:04:05"</span>
+  <span class="n">customersBucket</span>      <span class="o">=</span> <span class="s">"Customers"</span>
+  <span class="n">ordersBucket</span>         <span class="o">=</span> <span class="s">"Orders"</span>
+  <span class="n">orderSummariesBucket</span> <span class="o">=</span> <span class="s">"OrderSummaries"</span>
+<span class="p">)</span>
+
+<span class="k">type</span> <span class="n">Customer</span> <span class="k">struct</span> <span class="p">{</span>
+  <span class="n">Name</span>        <span class="kt">string</span>
+  <span class="n">Address</span>     <span class="kt">string</span>
+  <span class="n">City</span>        <span class="kt">string</span>
+  <span class="n">State</span>       <span class="kt">string</span>
+  <span class="n">Zip</span>         <span class="kt">string</span>
+  <span class="n">Phone</span>       <span class="kt">string</span>
+  <span class="n">CreatedDate</span> <span class="n">time</span><span class="o">.</span><span class="n">Time</span>
+<span class="p">}</span>
+
+<span class="k">type</span> <span class="n">Order</span> <span class="k">struct</span> <span class="p">{</span>
+  <span class="n">Id</span>            <span class="kt">string</span>
+  <span class="n">CustomerId</span>    <span class="kt">string</span>
+  <span class="n">SalespersonId</span> <span class="kt">string</span>
+  <span class="n">Items</span>         <span class="p">[]</span><span class="o">*</span><span class="n">OrderItem</span>
+  <span class="n">Total</span>         <span class="kt">float32</span>
+  <span class="n">Date</span>          <span class="n">time</span><span class="o">.</span><span class="n">Time</span>
+<span class="p">}</span>
+
+<span class="k">type</span> <span class="n">OrderItem</span> <span class="k">struct</span> <span class="p">{</span>
+  <span class="n">Id</span>    <span class="kt">string</span>
+  <span class="n">Title</span> <span class="kt">string</span>
+  <span class="n">Price</span> <span class="kt">float32</span>
+<span class="p">}</span>
+
+<span class="k">type</span> <span class="n">OrderSummary</span> <span class="k">struct</span> <span class="p">{</span>
+  <span class="n">CustomerId</span> <span class="kt">string</span>
+  <span class="n">Summaries</span>  <span class="p">[]</span><span class="o">*</span><span class="n">OrderSummaryItem</span>
+<span class="p">}</span>
+
+<span class="k">type</span> <span class="n">OrderSummaryItem</span> <span class="k">struct</span> <span class="p">{</span>
+  <span class="n">Id</span>    <span class="kt">string</span>
+  <span class="n">Total</span> <span class="kt">float32</span>
+  <span class="n">Date</span>  <span class="n">time</span><span class="o">.</span><span class="n">Time</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">var</span> <span class="n">err</span> <span class="kt">error</span>
+  <span class="k">var</span> <span class="n">customerId</span> <span class="kt">string</span>
+
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Creating Data"</span><span class="p">)</span>
+
+  <span class="k">var</span> <span class="n">cd</span> <span class="n">time</span><span class="o">.</span><span class="n">Time</span>
+  <span class="n">cd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">timeFmt</span><span class="p">,</span> <span class="s">"2013-10-01 14:30:26"</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="n">customer</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">Customer</span><span class="p">{</span>
+    <span class="n">Name</span><span class="o">:</span>        <span class="s">"John Smith"</span><span class="p">,</span>
+    <span class="n">Address</span><span class="o">:</span>     <span class="s">"123 Main Street"</span><span class="p">,</span>
+    <span class="n">City</span><span class="o">:</span>        <span class="s">"Columbus"</span><span class="p">,</span>
+    <span class="n">State</span><span class="o">:</span>       <span class="s">"Ohio"</span><span class="p">,</span>
+    <span class="n">Zip</span><span class="o">:</span>         <span class="s">"43210"</span><span class="p">,</span>
+    <span class="n">Phone</span><span class="o">:</span>       <span class="s">"+1-614-555-5555"</span><span class="p">,</span>
+    <span class="n">CreatedDate</span><span class="o">:</span> <span class="n">cd</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"customer: %v"</span><span class="p">,</span> <span class="n">customer</span><span class="p">)</span>
+
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Starting Client"</span><span class="p">)</span>
+
+  <span class="c">// un-comment-out to enable debug logging</span>
+  <span class="c">// riak.EnableDebugLogging = true</span>
+
+  <span class="n">o</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">NewClientOptions</span><span class="p">{</span>
+    <span class="n">RemoteAddresses</span><span class="o">:</span> <span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="n">util</span><span class="o">.</span><span class="n">GetRiakAddress</span><span class="p">()},</span>
+  <span class="p">}</span>
+
+  <span class="k">var</span> <span class="n">c</span> <span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">Client</span>
+  <span class="n">c</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewClient</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="k">defer</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Stop</span><span class="p">();</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="p">}()</span>
+
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Storing Customer"</span><span class="p">)</span>
+
+  <span class="k">var</span> <span class="n">cmd</span> <span class="n">riak</span><span class="o">.</span><span class="n">Command</span>
+  <span class="k">var</span> <span class="n">customerJson</span> <span class="p">[]</span><span class="kt">byte</span>
+
+  <span class="n">customerJson</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">Marshal</span><span class="p">(</span><span class="n">customer</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="n">obj</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="n">Bucket</span><span class="o">:</span>      <span class="n">customersBucket</span><span class="p">,</span>
+    <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/json"</span><span class="p">,</span>
+    <span class="n">Value</span><span class="o">:</span>       <span class="n">customerJson</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithReturnBody</span><span class="p">(</span><span class="no">true</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="n">eerr</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">eerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">eerr</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="n">svc</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">StoreValueCommand</span><span class="p">)</span>
+  <span class="n">customerId</span> <span class="o">=</span> <span class="n">svc</span><span class="o">.</span><span class="n">Response</span><span class="o">.</span><span class="n">GeneratedKey</span>
+  <span class="k">if</span> <span class="n">customerId</span> <span class="o">==</span> <span class="s">""</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"expected generated customer Id"</span><span class="p">))</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Customer ID:"</span><span class="p">,</span> <span class="n">customerId</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Storing Data"</span><span class="p">)</span>
+
+  <span class="k">var</span> <span class="n">orders</span> <span class="p">[]</span><span class="o">*</span><span class="n">Order</span>
+  <span class="n">orders</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">createOrders</span><span class="p">(</span><span class="n">customerId</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="k">var</span> <span class="n">orderSummary</span> <span class="o">*</span><span class="n">OrderSummary</span>
+  <span class="k">var</span> <span class="n">orderSummaryJson</span> <span class="p">[]</span><span class="kt">byte</span>
+  <span class="n">orderSummary</span> <span class="o">=</span> <span class="n">createOrderSummary</span><span class="p">(</span><span class="n">customerId</span><span class="p">,</span> <span class="n">orders</span><span class="p">)</span>
+
+  <span class="n">ccmds</span> <span class="o">:=</span> <span class="m">1</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">orders</span><span class="p">)</span>
+  <span class="n">cmds</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="n">riak</span><span class="o">.</span><span class="n">Command</span><span class="p">,</span> <span class="n">ccmds</span><span class="p">)</span>
+
+  <span class="c">// command to store OrderSummary</span>
+  <span class="n">orderSummaryJson</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">Marshal</span><span class="p">(</span><span class="n">orderSummary</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+  <span class="n">obj</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="n">Bucket</span><span class="o">:</span>      <span class="n">orderSummariesBucket</span><span class="p">,</span>
+    <span class="n">Key</span><span class="o">:</span>         <span class="n">customerId</span><span class="p">,</span>
+    <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/json"</span><span class="p">,</span>
+    <span class="n">Value</span><span class="o">:</span>       <span class="n">orderSummaryJson</span><span class="p">,</span>
+  <span class="p">}</span>
+  <span class="n">cmds</span><span class="p">[</span><span class="m">0</span><span class="p">],</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">order</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">orders</span> <span class="p">{</span>
+    <span class="c">// command to store Order</span>
+    <span class="k">var</span> <span class="n">orderJson</span> <span class="p">[]</span><span class="kt">byte</span>
+    <span class="n">orderJson</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">Marshal</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="n">obj</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+      <span class="n">Bucket</span><span class="o">:</span>      <span class="n">ordersBucket</span><span class="p">,</span>
+      <span class="n">Key</span><span class="o">:</span>         <span class="n">order</span><span class="o">.</span><span class="n">Id</span><span class="p">,</span>
+      <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/json"</span><span class="p">,</span>
+      <span class="n">Value</span><span class="o">:</span>       <span class="n">orderJson</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">cmds</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="m">1</span><span class="p">],</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+      <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+      <span class="n">Build</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="n">errored</span> <span class="o">:=</span> <span class="no">false</span>
+  <span class="n">wg</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">sync</span><span class="o">.</span><span class="n">WaitGroup</span><span class="p">{}</span>
+  <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">cmd</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">cmds</span> <span class="p">{</span>
+    <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+      <span class="n">Command</span><span class="o">:</span> <span class="n">cmd</span><span class="p">,</span>
+      <span class="n">Wait</span><span class="o">:</span>    <span class="n">wg</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="n">eerr</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">eerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">errored</span> <span class="o">=</span> <span class="no">true</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">eerr</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+  <span class="n">wg</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">errored</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"error, exiting!"</span><span class="p">))</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">createOrders</span><span class="p">(</span><span class="n">customerId</span> <span class="kt">string</span><span class="p">)</span> <span class="p">([]</span><span class="o">*</span><span class="n">Order</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+  <span class="n">o</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="o">*</span><span class="n">Order</span><span class="p">,</span> <span class="m">3</span><span class="p">)</span>
+
+  <span class="n">d</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">time</span><span class="o">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">timeFmt</span><span class="p">,</span> <span class="s">"2013-10-01 14:42:26"</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">err</span>
+  <span class="p">}</span>
+  <span class="n">o</span><span class="p">[</span><span class="m">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">Order</span><span class="p">{</span>
+    <span class="n">Id</span><span class="o">:</span>            <span class="s">"1"</span><span class="p">,</span>
+    <span class="n">CustomerId</span><span class="o">:</span>    <span class="n">customerId</span><span class="p">,</span>
+    <span class="n">SalespersonId</span><span class="o">:</span> <span class="s">"9000"</span><span class="p">,</span>
+    <span class="n">Items</span><span class="o">:</span> <span class="p">[]</span><span class="o">*</span><span class="n">OrderItem</span><span class="p">{</span>
+      <span class="p">{</span>
+        <span class="n">Id</span><span class="o">:</span>    <span class="s">"TCV37GIT4NJ"</span><span class="p">,</span>
+        <span class="n">Title</span><span class="o">:</span> <span class="s">"USB 3.0 Coffee Warmer"</span><span class="p">,</span>
+        <span class="n">Price</span><span class="o">:</span> <span class="m">15.99</span><span class="p">,</span>
+      <span class="p">},</span>
+      <span class="p">{</span>
+        <span class="n">Id</span><span class="o">:</span>    <span class="s">"PEG10BBF2PP"</span><span class="p">,</span>
+        <span class="n">Title</span><span class="o">:</span> <span class="s">"eTablet Pro, 24GB; Grey"</span><span class="p">,</span>
+        <span class="n">Price</span><span class="o">:</span> <span class="m">399.99</span><span class="p">,</span>
+      <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="n">Total</span><span class="o">:</span> <span class="m">415.98</span><span class="p">,</span>
+    <span class="n">Date</span><span class="o">:</span>  <span class="n">d</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="n">d</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">timeFmt</span><span class="p">,</span> <span class="s">"2013-10-15 16:43:16"</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">err</span>
+  <span class="p">}</span>
+  <span class="n">o</span><span class="p">[</span><span class="m">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">Order</span><span class="p">{</span>
+    <span class="n">Id</span><span class="o">:</span>            <span class="s">"2"</span><span class="p">,</span>
+    <span class="n">CustomerId</span><span class="o">:</span>    <span class="n">customerId</span><span class="p">,</span>
+    <span class="n">SalespersonId</span><span class="o">:</span> <span class="s">"9001"</span><span class="p">,</span>
+    <span class="n">Items</span><span class="o">:</span> <span class="p">[]</span><span class="o">*</span><span class="n">OrderItem</span><span class="p">{</span>
+      <span class="p">{</span>
+        <span class="n">Id</span><span class="o">:</span>    <span class="s">"OAX19XWN0QP"</span><span class="p">,</span>
+        <span class="n">Title</span><span class="o">:</span> <span class="s">"GoSlo Digital Camera"</span><span class="p">,</span>
+        <span class="n">Price</span><span class="o">:</span> <span class="m">359.99</span><span class="p">,</span>
+      <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="n">Total</span><span class="o">:</span> <span class="m">359.99</span><span class="p">,</span>
+    <span class="n">Date</span><span class="o">:</span>  <span class="n">d</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="n">d</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">timeFmt</span><span class="p">,</span> <span class="s">"2013-11-03 17:45:28"</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="no">nil</span><span class="p">,</span> <span class="n">err</span>
+  <span class="p">}</span>
+  <span class="n">o</span><span class="p">[</span><span class="m">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">Order</span><span class="p">{</span>
+    <span class="n">Id</span><span class="o">:</span>            <span class="s">"3"</span><span class="p">,</span>
+    <span class="n">CustomerId</span><span class="o">:</span>    <span class="n">customerId</span><span class="p">,</span>
+    <span class="n">SalespersonId</span><span class="o">:</span> <span class="s">"9000"</span><span class="p">,</span>
+    <span class="n">Items</span><span class="o">:</span> <span class="p">[]</span><span class="o">*</span><span class="n">OrderItem</span><span class="p">{</span>
+      <span class="p">{</span>
+        <span class="n">Id</span><span class="o">:</span>    <span class="s">"WYK12EPU5EZ"</span><span class="p">,</span>
+        <span class="n">Title</span><span class="o">:</span> <span class="s">"Call of Battle : Goats - Gamesphere 4"</span><span class="p">,</span>
+        <span class="n">Price</span><span class="o">:</span> <span class="m">69.99</span><span class="p">,</span>
+      <span class="p">},</span>
+      <span class="p">{</span>
+        <span class="n">Id</span><span class="o">:</span>    <span class="s">"TJB84HAA8OA"</span><span class="p">,</span>
+        <span class="n">Title</span><span class="o">:</span> <span class="s">"Bricko Building Blocks"</span><span class="p">,</span>
+        <span class="n">Price</span><span class="o">:</span> <span class="m">4.99</span><span class="p">,</span>
+      <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="n">Total</span><span class="o">:</span> <span class="m">74.98</span><span class="p">,</span>
+    <span class="n">Date</span><span class="o">:</span>  <span class="n">d</span><span class="p">,</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="n">o</span><span class="p">,</span> <span class="no">nil</span>
+<span class="p">}</span>
+
+<span class="k">func</span> <span class="n">createOrderSummary</span><span class="p">(</span><span class="n">customerId</span> <span class="kt">string</span><span class="p">,</span> <span class="n">orders</span> <span class="p">[]</span><span class="o">*</span><span class="n">Order</span><span class="p">)</span> <span class="o">*</span><span class="n">OrderSummary</span> <span class="p">{</span>
+
+  <span class="n">s</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">OrderSummary</span><span class="p">{</span>
+    <span class="n">CustomerId</span><span class="o">:</span> <span class="n">customerId</span><span class="p">,</span>
+    <span class="n">Summaries</span><span class="o">:</span>  <span class="nb">make</span><span class="p">([]</span><span class="o">*</span><span class="n">OrderSummaryItem</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">orders</span><span class="p">)),</span>
+  <span class="p">}</span>
+
+  <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">o</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">orders</span> <span class="p">{</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">Summaries</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">OrderSummaryItem</span><span class="p">{</span>
+      <span class="n">Id</span><span class="o">:</span>    <span class="n">o</span><span class="o">.</span><span class="n">Id</span><span class="p">,</span>
+      <span class="n">Total</span><span class="o">:</span> <span class="n">o</span><span class="o">.</span><span class="n">Total</span><span class="p">,</span>
+      <span class="n">Date</span><span class="o">:</span>  <span class="n">o</span><span class="o">.</span><span class="n">Date</span><span class="p">,</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="n">s</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>While individual <code class="language-plaintext highlighter-rouge">Customer</code> and <code class="language-plaintext highlighter-rouge">Order</code> objects don’t change much (or shouldn’t change), the <code class="language-plaintext highlighter-rouge">Order Summaries</code> object will likely change often. It will do double duty by acting as an index for all a customer’s orders and also holding some relevant data, such as the order total, etc. If we showed this information in our application often, it’s only one extra request to get all the info.</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Fetching related data by shared key"</span><span class="p">)</span>
+
+<span class="n">cmds</span> <span class="o">=</span> <span class="n">cmds</span><span class="p">[</span><span class="o">:</span><span class="m">0</span><span class="p">]</span>
+
+<span class="c">// fetch customer</span>
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewFetchValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="n">customersBucket</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithKey</span><span class="p">(</span><span class="n">customerId</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="n">cmds</span> <span class="o">=</span> <span class="nb">append</span><span class="p">(</span><span class="n">cmds</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
+
+<span class="c">// fetch OrderSummary</span>
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewFetchValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="n">orderSummariesBucket</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithKey</span><span class="p">(</span><span class="n">customerId</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="n">cmds</span> <span class="o">=</span> <span class="nb">append</span><span class="p">(</span><span class="n">cmds</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
+
+<span class="n">doneChan</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="n">riak</span><span class="o">.</span><span class="n">Command</span><span class="p">)</span>
+<span class="n">errored</span> <span class="o">=</span> <span class="no">false</span>
+<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">cmd</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">cmds</span> <span class="p">{</span>
+  <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+    <span class="n">Command</span><span class="o">:</span> <span class="n">cmd</span><span class="p">,</span>
+    <span class="n">Done</span><span class="o">:</span>    <span class="n">doneChan</span><span class="p">,</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="n">eerr</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">eerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">errored</span> <span class="o">=</span> <span class="no">true</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">eerr</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+<span class="k">if</span> <span class="n">errored</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"error, exiting!"</span><span class="p">))</span>
+<span class="p">}</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">cmds</span><span class="p">);</span> <span class="n">i</span><span class="o">++</span> <span class="p">{</span>
+  <span class="k">select</span> <span class="p">{</span>
+  <span class="k">case</span> <span class="n">d</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="n">doneChan</span><span class="o">:</span>
+    <span class="k">if</span> <span class="n">fv</span><span class="p">,</span> <span class="n">ok</span> <span class="o">:=</span> <span class="n">d</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchValueCommand</span><span class="p">);</span> <span class="n">ok</span> <span class="p">{</span>
+      <span class="n">obj</span> <span class="o">:=</span> <span class="n">fv</span><span class="o">.</span><span class="n">Response</span><span class="o">.</span><span class="n">Values</span><span class="p">[</span><span class="m">0</span><span class="p">]</span>
+      <span class="k">switch</span> <span class="n">obj</span><span class="o">.</span><span class="n">Bucket</span> <span class="p">{</span>
+      <span class="k">case</span> <span class="n">customersBucket</span><span class="o">:</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"Customer     1: %v"</span><span class="p">,</span> <span class="kt">string</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">Value</span><span class="p">))</span>
+      <span class="k">case</span> <span class="n">orderSummariesBucket</span><span class="o">:</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"OrderSummary 1: %v"</span><span class="p">,</span> <span class="kt">string</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">Value</span><span class="p">))</span>
+      <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"unknown response command type: %v"</span><span class="p">,</span> <span class="n">reflect</span><span class="o">.</span><span class="n">TypeOf</span><span class="p">(</span><span class="n">d</span><span class="p">)))</span>
+    <span class="p">}</span>
+  <span class="k">case</span> <span class="o">&lt;-</span><span class="n">time</span><span class="o">.</span><span class="n">After</span><span class="p">(</span><span class="m">5</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Second</span><span class="p">)</span><span class="o">:</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"fetch operations took too long"</span><span class="p">))</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Which returns our amalgamated objects:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>2015/12/29 09:44:10 OrderSummary 1: <span class="o">{</span><span class="s2">"CustomerId"</span>:<span class="s2">"I4R9AdTpJ7RL13qj14ED9Qjzbyy"</span>,<span class="s2">"Summaries"</span>:[<span class="o">{</span><span class="s2">"Id"</span>:<span class="s2">"1"</span>,<span class="s2">"Total"</span>:415.98,<span class="s2">"Date"</span>:<span class="s2">"2013-10-01T14:42:26Z"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"Id"</span>:<span class="s2">"2"</span>,<span class="s2">"Total"</span>:359.99,<span class="s2">"Date"</span>:<span class="s2">"2013-10-15T16:43:16Z"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"Id"</span>:<span class="s2">"3"</span>,<span class="s2">"Total"</span>:74.98,<span class="s2">"Date"</span>:<span class="s2">"2013-11-03T17:45:28Z"</span><span class="o">}]}</span>
+2015/12/29 09:44:10 Customer     1: <span class="o">{</span><span class="s2">"Name"</span>:<span class="s2">"John Smith"</span>,<span class="s2">"Address"</span>:<span class="s2">"123 Main Street"</span>,<span class="s2">"City"</span>:<span class="s2">"Columbus"</span>,<span class="s2">"State"</span>:<span class="s2">"Ohio"</span>,<span class="s2">"Zip"</span>:<span class="s2">"43210"</span>,<span class="s2">"Phone"</span>:<span class="s2">"+1-614-555-5555"</span>,<span class="s2">"CreatedDate"</span>:<span class="s2">"2013-10-01T14:30:26Z"</span>
+</code></pre></div></div>
+
+<p>While this pattern is very easy and extremely fast with respect to queries and complexity, it’s up to the application to know about these intrinsic relationships.</p>
+
+<h3 id="secondary-indexes">Secondary Indexes</h3>
+
+<p>Secondary indexes in Riak KV require a sorted backend: <a href="/riak/kv/2.1.1/setup/planning/backend/memory">Memory</a> or <a href="/riak/kv/2.1.1/setup/planning/backend/leveldb">LevelDB</a>. <a href="/riak/kv/2.1.1/setup/planning/backend/bitcask">Bitcask</a> does not support secondary indexes.</p>
+
+<p>See <a href="/riak/kv/2.1.1/developing/usage/secondary-indexes">Using Secondary Indexes (2i)</a> for more information on developing with secondary indexes.</p>
+
+<p>If you’re coming from a SQL world, Secondary Indexes (2i) are a lot like SQL indexes. They are a way to quickly look up objects based on a secondary key, without scanning through the whole dataset. This makes it very easy to find groups of related data by values or ranges of values. To properly show this off, we will add some more data to our application, and add some secondary index entries at the same time:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Adding Index Data"</span><span class="p">)</span>
+
+<span class="c">// fetch orders to add index data</span>
+<span class="n">cmds</span> <span class="o">=</span> <span class="n">cmds</span><span class="p">[</span><span class="o">:</span><span class="m">0</span><span class="p">]</span>
+
+<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">order</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">orders</span> <span class="p">{</span>
+  <span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewFetchValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="n">ordersBucket</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">Id</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+  <span class="n">cmds</span> <span class="o">=</span> <span class="nb">append</span><span class="p">(</span><span class="n">cmds</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">errored</span> <span class="o">=</span> <span class="no">false</span>
+<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">cmd</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">cmds</span> <span class="p">{</span>
+  <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+    <span class="n">Command</span><span class="o">:</span> <span class="n">cmd</span><span class="p">,</span>
+    <span class="n">Done</span><span class="o">:</span>    <span class="n">doneChan</span><span class="p">,</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="n">eerr</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">eerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">errored</span> <span class="o">=</span> <span class="no">true</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">eerr</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+<span class="k">if</span> <span class="n">errored</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"error, exiting!"</span><span class="p">))</span>
+<span class="p">}</span>
+
+<span class="n">errored</span> <span class="o">=</span> <span class="no">false</span>
+<span class="k">for</span> <span class="n">i</span> <span class="o">:=</span> <span class="m">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">cmds</span><span class="p">);</span> <span class="n">i</span><span class="o">++</span> <span class="p">{</span>
+  <span class="k">select</span> <span class="p">{</span>
+  <span class="k">case</span> <span class="n">d</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="n">doneChan</span><span class="o">:</span>
+    <span class="k">if</span> <span class="n">fv</span><span class="p">,</span> <span class="n">ok</span> <span class="o">:=</span> <span class="n">d</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchValueCommand</span><span class="p">);</span> <span class="n">ok</span> <span class="p">{</span>
+      <span class="n">obj</span> <span class="o">:=</span> <span class="n">fv</span><span class="o">.</span><span class="n">Response</span><span class="o">.</span><span class="n">Values</span><span class="p">[</span><span class="m">0</span><span class="p">]</span>
+      <span class="k">switch</span> <span class="n">obj</span><span class="o">.</span><span class="n">Key</span> <span class="p">{</span>
+      <span class="k">case</span> <span class="s">"1"</span><span class="o">:</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">AddToIntIndex</span><span class="p">(</span><span class="s">"SalespersonId_int"</span><span class="p">,</span> <span class="m">9000</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">AddToIndex</span><span class="p">(</span><span class="s">"OrderDate_bin"</span><span class="p">,</span> <span class="s">"2013-10-01"</span><span class="p">)</span>
+      <span class="k">case</span> <span class="s">"2"</span><span class="o">:</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">AddToIntIndex</span><span class="p">(</span><span class="s">"SalespersonId_int"</span><span class="p">,</span> <span class="m">9001</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">AddToIndex</span><span class="p">(</span><span class="s">"OrderDate_bin"</span><span class="p">,</span> <span class="s">"2013-10-15"</span><span class="p">)</span>
+      <span class="k">case</span> <span class="s">"3"</span><span class="o">:</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">AddToIntIndex</span><span class="p">(</span><span class="s">"SalespersonId_int"</span><span class="p">,</span> <span class="m">9000</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">AddToIndex</span><span class="p">(</span><span class="s">"OrderDate_bin"</span><span class="p">,</span> <span class="s">"2013-11-03"</span><span class="p">)</span>
+      <span class="p">}</span>
+      <span class="n">scmd</span><span class="p">,</span> <span class="n">serr</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+        <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+        <span class="n">Build</span><span class="p">()</span>
+      <span class="k">if</span> <span class="n">serr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">serr</span><span class="p">)</span>
+      <span class="p">}</span>
+      <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+        <span class="n">Command</span><span class="o">:</span> <span class="n">scmd</span><span class="p">,</span>
+        <span class="n">Wait</span><span class="o">:</span>    <span class="n">wg</span><span class="p">,</span>
+      <span class="p">}</span>
+      <span class="k">if</span> <span class="n">eerr</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">eerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+        <span class="n">errored</span> <span class="o">=</span> <span class="no">true</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">eerr</span><span class="p">)</span>
+      <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">fmt</span><span class="o">.</span><span class="n">Errorf</span><span class="p">(</span><span class="s">"unknown response command type: %v"</span><span class="p">,</span> <span class="n">reflect</span><span class="o">.</span><span class="n">TypeOf</span><span class="p">(</span><span class="n">d</span><span class="p">)))</span>
+    <span class="p">}</span>
+  <span class="k">case</span> <span class="o">&lt;-</span><span class="n">time</span><span class="o">.</span><span class="n">After</span><span class="p">(</span><span class="m">5</span> <span class="o">*</span> <span class="n">time</span><span class="o">.</span><span class="n">Second</span><span class="p">)</span><span class="o">:</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"fetch operations took too long"</span><span class="p">))</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">errored</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"error, exiting!"</span><span class="p">))</span>
+<span class="p">}</span>
+
+<span class="n">wg</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+<span class="nb">close</span><span class="p">(</span><span class="n">doneChan</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>As you may have noticed, ordinary key/value data is opaque to 2i, so we have to add entries to the indexes at the application level.</p>
+
+<p>Now let’s find all of Jane Appleseed’s processed orders. We’ll lookup the orders by searching the <code class="language-plaintext highlighter-rouge">saleperson_id_int</code> index for Jane’s id of <code class="language-plaintext highlighter-rouge">9000</code>:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Index Queries"</span><span class="p">)</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewSecondaryIndexQueryCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="n">ordersBucket</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithIndexName</span><span class="p">(</span><span class="s">"SalespersonId_int"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithIndexKey</span><span class="p">(</span><span class="s">"9000"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">eerr</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">eerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">eerr</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">qcmd</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">SecondaryIndexQueryCommand</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">rslt</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">qcmd</span><span class="o">.</span><span class="n">Response</span><span class="o">.</span><span class="n">Results</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Jane's Orders, key: "</span><span class="p">,</span> <span class="kt">string</span><span class="p">(</span><span class="n">rslt</span><span class="o">.</span><span class="n">ObjectKey</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>2015/12/29 09:44:10 Jane<span class="s1">'s Orders, key:  3
+2015/12/29 09:44:10 Jane'</span>s Orders, key:  1
+</code></pre></div></div>
+
+<p>Jane processed orders 1 and 3.  We used an <em>integer</em> index to reference Jane’s id, next let’s use a <em>binary</em> index.</p>
+
+<p>Let’s say that the VP of Sales wants to know how many orders came in during October 2013. In this case, we can exploit 2i’s range queries. Let’s search the <code class="language-plaintext highlighter-rouge">order_date_bin</code> index for entries between <code class="language-plaintext highlighter-rouge">20131001</code> and <code class="language-plaintext highlighter-rouge">20131031</code>:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewSecondaryIndexQueryCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="n">ordersBucket</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithIndexName</span><span class="p">(</span><span class="s">"OrderDate_bin"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithRange</span><span class="p">(</span><span class="s">"2013-10-01"</span><span class="p">,</span> <span class="s">"2013-10-31"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">eerr</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">eerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">eerr</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">qcmd</span> <span class="o">=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">SecondaryIndexQueryCommand</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">rslt</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">qcmd</span><span class="o">.</span><span class="n">Response</span><span class="o">.</span><span class="n">Results</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"October's Orders, key: "</span><span class="p">,</span> <span class="kt">string</span><span class="p">(</span><span class="n">rslt</span><span class="o">.</span><span class="n">ObjectKey</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>2015/12/29 09:44:10 October<span class="s1">'s Orders, key:  1
+2015/12/29 09:44:10 October'</span>s Orders, key:  2
+</code></pre></div></div>
+
+<p>Easy!  We used 2i’s range feature to search for a range of values, and demonstrated binary indexes.</p>
+
+<p>So to recap:</p>
+
+<ul>
+  <li>You can use Secondary Indexes to quickly lookup an object based on a secondary id other than the object’s key.</li>
+  <li>Indexes can have either Integer or Binary(String) keys.</li>
+  <li>You can search for specific values or a range of values.</li>
+  <li>Riak will return a list of keys that match the index query.</li>
+</ul>

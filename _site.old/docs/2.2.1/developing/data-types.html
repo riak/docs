@@ -1,0 +1,252 @@
+
+<p>Riak KV has Riak-specific data types based on <a href="https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#Others">convergent replicated data types (CRDTs)</a>. While Riak KV was built as a data-agnostic key/value store, Riak data types enable you to use Riak KV as a data-aware system and perform transactions on 5 CRDT-inspired data types:</p>
+
+<ul>
+  <li><a href="./maps#flags">Flags</a></li>
+  <li><a href="./maps#registers">Registers</a></li>
+  <li><a href="./counters">Counters</a></li>
+  <li><a href="./sets">Sets</a></li>
+  <li><a href="./maps">Maps</a></li>
+</ul>
+
+<p>Riak KV also has 1 context-free data type, that has similar usage but does not require contexts.</p>
+
+<ul>
+  <li><a href="./hyperloglogs">HyperLogLogs</a> (abbreviated <code class="language-plaintext highlighter-rouge">hll</code> in many places)</li>
+</ul>
+
+<p>Counters, sets, maps, and hyperloglogs can be used as bucket-level data types or types that you interact with directly. Flags and registers must be <a href="./maps">embedded in maps</a>.</p>
+
+<p>For more information on how CRDTs work in Riak KV see <a href="../../learn/concepts/crdts">Concepts: Data Types</a>.</p>
+
+<h2 id="getting-started-with-riak-data-types">Getting Started with Riak Data Types</h2>
+
+<p>The following section explains how to set up a bucket that uses Riak data types. To get started using Riak data types:</p>
+
+<ol>
+  <li><a href="#creating-a-bucket-with-a-data-type">Create a bucket with the <code class="language-plaintext highlighter-rouge">datatype</code> parameter set</a>.</li>
+  <li><a href="#confirm-bucket-configuration">Confirm the bucket was properly configured</a>.</li>
+  <li><a href="#activate-the-bucket-type">Activate the bucket type</a>.</li>
+</ol>
+
+<h3 id="creating-a-bucket-with-a-riak-data-type">Creating a Bucket with a Riak Data Type</h3>
+
+<p>First create a <a href="../../using/cluster-operations/bucket-types">bucket type</a> that sets the <code class="language-plaintext highlighter-rouge">datatype</code> bucket parameter to either <code class="language-plaintext highlighter-rouge">counter</code>, <code class="language-plaintext highlighter-rouge">map</code>, <code class="language-plaintext highlighter-rouge">set</code>, or <code class="language-plaintext highlighter-rouge">hll</code>.</p>
+
+<p>The following would create a separate bucket type for each of the four
+bucket-level data types:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create maps <span class="s1">'{"props":{"datatype":"map"}}'</span>
+riak-admin bucket-type create sets <span class="s1">'{"props":{"datatype":"set"}}'</span>
+riak-admin bucket-type create counters <span class="s1">'{"props":{"datatype":"counter"}}'</span>
+riak-admin bucket-type create hlls  <span class="s1">'{"props":{"datatype":"hll"}}'</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note</strong></p>
+
+  <p>The names <code class="language-plaintext highlighter-rouge">maps</code>, <code class="language-plaintext highlighter-rouge">sets</code>, <code class="language-plaintext highlighter-rouge">counters</code>, and <code class="language-plaintext highlighter-rouge">hlls</code> are not reserved
+terms. You are free to name bucket types whatever you like, with
+the exception of <code class="language-plaintext highlighter-rouge">default</code>.</p>
+</blockquote>
+
+<h3 id="confirm-bucket-configuration">Confirm Bucket configuration</h3>
+
+<p>Once you’ve created a bucket with a Riak data type, you can check
+to make sure that the bucket property configuration associated with that
+type is correct. This can be done through the <code class="language-plaintext highlighter-rouge">riak-admin</code> interface:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status maps
+</code></pre></div></div>
+
+<p>This will return a list of bucket properties and their associated values
+in the form of <code class="language-plaintext highlighter-rouge">property: value</code>. If our <code class="language-plaintext highlighter-rouge">maps</code> bucket type has been set
+properly, we should see the following pair in our console output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>datatype: map
+</code></pre></div></div>
+
+<h3 id="activate-bucket-type">Activate Bucket type</h3>
+
+<p>If a bucket type has been properly constructed, it needs to be activated
+to be usable in Riak. This can also be done using the <code class="language-plaintext highlighter-rouge">bucket-type</code>
+command interface:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type activate maps
+</code></pre></div></div>
+
+<p>To check whether activation has been successful, simply use the same
+<code class="language-plaintext highlighter-rouge">bucket-type status</code> command shown above.</p>
+
+<p>See the <a href="#usage-examples">Usage Examples</a> section for further information on using Riak data types in the context of an application.</p>
+
+<h2 id="required-bucket-properties">Required Bucket Properties</h2>
+
+<p>In order for Riak data types to work the bucket should have the following bucket properties:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">allow_mult = true</code></li>
+  <li><code class="language-plaintext highlighter-rouge">last_write_wins = false</code></li>
+</ul>
+
+<p>These settings are set by default and should not be changed.</p>
+
+<h2 id="data-types-and-context">Data Types and Context</h2>
+
+<p>Data type context is similar to <a href="../../learn/concepts/causal-context">causal context</a>: it tells Riak KV which version of the data type a client is attempting to modify. Context is required by Riak KV when making decisions about convergence.</p>
+
+<p>If no context is given when attempting a remove or remove-like operation, the operation may fail (removing a field that is not present) or succeed and remove more than intended (removing updates unseen by the client).</p>
+
+<blockquote>
+  <p><strong>Note</strong></p>
+
+  <p>The counter data type does not use context; Riak KV will return an empty value when the context is requested from a counter.</p>
+</blockquote>
+
+<p>In the example below we’ll fetch the context <a href="./maps#create-a-map">from a user data map created for Ahmed</a>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the "ahmedMap" Location from above:</span>
+
+<span class="nc">FetchMap</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchMap</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">ahmedMap</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchMap</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">Context</span> <span class="n">ctx</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getContext</span><span class="o">();</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">prinntln</span><span class="o">(</span><span class="n">ctx</span><span class="o">.</span><span class="na">getValue</span><span class="o">().</span><span class="na">toString</span><span class="o">())</span>
+
+<span class="c1">// An indecipherable string of Unicode characters should then appear</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'users'</span><span class="p">)</span>
+<span class="n">ahmed_map</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Map</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'ahmed_info'</span><span class="p">,</span> <span class="s1">'maps'</span><span class="p">)</span>
+<span class="n">ahmed_map</span><span class="p">.</span><span class="nf">instance_variable_get</span><span class="p">(</span><span class="ss">:@context</span><span class="p">)</span>
+
+<span class="c1"># =&gt; "\x83l\x00\x00\x00\x01h\x02m\x00\x00\x00\b#\t\xFE\xF9S\x95\xBD3a\x01j"</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$map</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">getMap</span><span class="p">();</span>
+
+<span class="k">echo</span> <span class="nv">$map</span><span class="o">-&gt;</span><span class="nf">getContext</span><span class="p">();</span> <span class="c1">// g2wAAAACaAJtAAAACLQFHUkv4m2IYQdoAm0AAAAIxVKxCy5pjMdhCWo=</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'maps'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'users'</span><span class="p">)</span>
+<span class="n">ahmed_map</span> <span class="o">=</span> <span class="n">Map</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'ahmed_info'</span><span class="p">)</span>
+<span class="n">ahmed_map</span><span class="p">.</span><span class="n">context</span>
+
+<span class="c1"># g2wAAAABaAJtAAAACCMJ/vlTlb0zYQFq
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="c1">// Note: using a previous UpdateMap or FetchMap result</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="n">format</span><span class="p">:</span> <span class="s">"Context: {0}"</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">Convert</span><span class="p">.</span><span class="nf">ToBase64String</span><span class="p">(</span><span class="n">result</span><span class="p">.</span><span class="n">Context</span><span class="p">));</span>
+
+<span class="c1">// Output:</span>
+<span class="c1">// Context: g2wAAAACaAJtAAAACLQFHUkv4m2IYQdoAm0AAAAIxVKxCy5pjMdhCWo=</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">maps</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">ahmed_info</span><span class="dl">'</span>
+<span class="p">};</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchMap</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">context: '%s'</span><span class="dl">"</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">context</span><span class="p">.</span><span class="nx">toString</span><span class="p">(</span><span class="dl">'</span><span class="s1">base64</span><span class="dl">'</span><span class="p">));</span>
+<span class="p">});</span>
+
+<span class="c1">// Output:</span>
+<span class="c1">// context: 'g2wAAAACaAJtAAAACLQFHUmjDf4EYTBoAm0AAAAIxVKxC6F1L2dhSWo='</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% You cannot fetch a data type's context directly using the Erlang
+%% client. This is actually quite all right, as the client automatically
+%% manages contexts when making updates.
+</span></code></pre></div></div>
+
+<blockquote>
+  <p><strong>Context with the Ruby, Python, and Erlang clients</strong></p>
+
+  <p>In the Ruby, Python, and Erlang clients, you will not need to manually
+handle context when making data type updates. The clients will do it all
+for you. The one exception amongst the official clients is the Java
+client. We’ll explain how to use data type contexts with the Java client
+directly below.</p>
+</blockquote>
+
+<h3 id="context-with-the-java-and-php-clients">Context with the Java and PHP Clients</h3>
+
+<p>With the Java and PHP clients, you’ll need to manually fetch and return data type contexts for the following operations:</p>
+
+<ul>
+  <li>Disabling a flag within a map</li>
+  <li>Removing an item from a set (whether the set is on its own or within a
+map)</li>
+  <li>Removing a field from a map</li>
+</ul>
+
+<p>Without context, these operations simply will not succeed due to the
+convergence logic driving Riak data types. The example below shows you
+how to fetch a data type’s context and then pass it back to Riak. More
+specifically, we’ll remove the <code class="language-plaintext highlighter-rouge">paid_account</code> flag from the map:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// This example uses our "ahmedMap" location from above:</span>
+
+<span class="nc">FetchMap</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchMap</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">ahmedMap</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchMap</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">Context</span> <span class="n">ctx</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getContext</span><span class="o">();</span>
+<span class="nc">MapUpdate</span> <span class="n">removePaidAccountField</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MapUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">removeFlag</span><span class="o">(</span><span class="s">"paid_account"</span><span class="o">);</span>
+<span class="nc">UpdateMap</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateMap</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">ahmedMap</span><span class="o">,</span> <span class="n">removePaidAccountField</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withContext</span><span class="o">(</span><span class="n">ctx</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$map</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">getMap</span><span class="p">();</span>
+
+<span class="nv">$updateSet</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">remove</span><span class="p">(</span><span class="s1">'opera'</span><span class="p">);</span>
+
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">updateSet</span><span class="p">(</span><span class="s1">'interests'</span><span class="p">,</span> <span class="nv">$updateSet</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">withContext</span><span class="p">(</span><span class="nv">$map</span><span class="o">-&gt;</span><span class="nf">getContext</span><span class="p">())</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<h2 id="usage-examples">Usage Examples</h2>
+
+<ul>
+  <li><a href="./maps#flags">Flags</a></li>
+  <li><a href="./maps#registers">Registers</a></li>
+  <li><a href="./counters">Counters</a></li>
+  <li><a href="./sets">Sets</a></li>
+  <li><a href="./maps">Maps</a></li>
+  <li><a href="./hyperloglogs">Hyperloglogs</a></li>
+</ul>
+
+<p>The pages listed above detail using Riak data types at the application level using Basho’s <a href="../client-libraries">officially supported Riak KV clients</a>. For more on getting started with client libraries check out the <a href="../getting-started">Developing with Riak KV: Getting Started</a> section.</p>
+
+<p>All the examples use the bucket type names from above (<code class="language-plaintext highlighter-rouge">counters</code>, <code class="language-plaintext highlighter-rouge">sets</code>, and <code class="language-plaintext highlighter-rouge">maps</code>). You’re free to substitute your own bucket type names if you wish.</p>
+
+<h2 id="data-types-and-search">Data Types and Search</h2>
+
+<p>Riak data types can be searched like any other object, but with the
+added benefit that your data type is indexed as a different type by Solr,
+the search platform behind Riak Search.</p>
+
+<p>In our Search documentation we offer a <a href="../usage/searching-data-types">full tutorial</a> as well as a variety of <a href="../usage/search/#data-types-and-search-examples">examples</a>, including code
+samples from each of our official client libraries.</p>

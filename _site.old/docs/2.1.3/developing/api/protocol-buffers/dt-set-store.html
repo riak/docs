@@ -1,0 +1,14 @@
+<p>An operation to update a set, either on its own (at the bucket/key
+level) or <a href="/riak/kv/2.1.3/developing/api/protocol-buffers/dt-map-store">inside of a map</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">SetOp</span> <span class="p">{</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span> <span class="na">adds</span>    <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span> <span class="na">removes</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Set members are binary values that can only be added (<code class="language-plaintext highlighter-rouge">adds</code>) or removed
+(<code class="language-plaintext highlighter-rouge">removes</code>) from a set. You can add and/or remove as many members of a
+set in a single message as you would like.</p>

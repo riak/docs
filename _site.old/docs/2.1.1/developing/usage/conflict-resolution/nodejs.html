@@ -1,0 +1,40 @@
+<p>For reasons explained in the <a href="/riak/kv/2.1.1/developing/usage/conflict-resolution">Introduction to conflict resolution</a>, we strongly recommend adopting a conflict resolution strategy that
+requires applications to resolve siblings according to use-case-specific
+criteria. Here, we’ll provide a brief guide to conflict resolution using the
+official <a href="https://github.com/basho/riak-nodejs-client">Riak Node.js client</a>.</p>
+
+<h2 id="how-the-nodejs-client-handles-conflict-resolution">How the Node.js Client Handles Conflict Resolution</h2>
+
+<p>In the Riak Node.js client, the result of a fetch can possibly return an array
+of sibling objects.  If there are no siblings, that property will return an
+array with one value in it.</p>
+
+<p><a href="https://github.com/basho/riak-nodejs-client-examples/blob/master/dev/using/conflict-resolution.js#L21-L68"><em>Example:</em> creating object with siblings</a></p>
+
+<p>So what happens if the length of <code class="language-plaintext highlighter-rouge">rslt.values</code> is greater than 1, as in the case
+above?</p>
+
+<p>In order to resolve siblings, you need to either fetch, update and store a
+canonical value, or choose a sibling from the <code class="language-plaintext highlighter-rouge">values</code> array and store that as
+the canonical value.</p>
+
+<h2 id="basic-conflict-resolution-example">Basic Conflict Resolution Example</h2>
+
+<p>In this example, you will ignore the contents of the <code class="language-plaintext highlighter-rouge">values</code> array and will
+fetch, update and store the definitive value.</p>
+
+<p><a href="https://github.com/basho/riak-nodejs-client-examples/blob/master/dev/using/conflict-resolution.js#L91-L111"><em>Example:</em> resolving siblings via store</a></p>
+
+<h3 id="choosing-a-value-from-rsltvalues">Choosing a value from <code class="language-plaintext highlighter-rouge">rslt.values</code></h3>
+
+<p>This example shows a basic sibling resolution strategy in which the first
+sibling is chosen as the canonical value.</p>
+
+<p><a href="https://github.com/basho/riak-nodejs-client-examples/blob/master/dev/using/conflict-resolution.js#L113-L133"><em>Example:</em> resolving siblings via first</a></p>
+
+<h3 id="using-conflictresolver">Using <code class="language-plaintext highlighter-rouge">conflictResolver</code></h3>
+
+<p>This example shows a basic sibling resolution strategy in which the first
+sibling is chosen as the canonical value via a conflict resolution function.</p>
+
+<p><a href="https://github.com/basho/riak-nodejs-client-examples/blob/master/dev/using/conflict-resolution.js#L135-L170"><em>Example:</em> resolving siblings via `conflictResolver</a></p>

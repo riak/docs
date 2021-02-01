@@ -1,0 +1,175 @@
+<p>Request a set of keys that match a secondary index query.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbIndexReq</span> <span class="p">{</span>
+    <span class="kd">enum</span> <span class="n">IndexQueryType</span> <span class="p">{</span>
+        <span class="na">eq</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="na">range</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">bucket</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">index</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">required</span> <span class="n">IndexQueryType</span> <span class="na">qtype</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">key</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">range_min</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">range_max</span> <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">return_terms</span> <span class="o">=</span> <span class="mi">7</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">stream</span> <span class="o">=</span> <span class="mi">8</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">max_results</span> <span class="o">=</span> <span class="mi">9</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">continuation</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">timeout</span> <span class="o">=</span> <span class="mi">11</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">12</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">term_regex</span> <span class="o">=</span> <span class="mi">13</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">pagination_sort</span> <span class="o">=</span> <span class="mi">14</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="required-parameters">Required Parameters</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">bucket</code></td>
+      <td style="text-align: left">The name of the bucket in which the Data Type is stored</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">index</code></td>
+      <td style="text-align: left">The name of the index to be queried</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">qtype</code></td>
+      <td style="text-align: left">The type of index query to be performed. This can take either of the two possible values of the <code class="language-plaintext highlighter-rouge">IndexQueryType</code> enum: <code class="language-plaintext highlighter-rouge">eq</code> for an exact index match for the given <code class="language-plaintext highlighter-rouge">key</code> or <code class="language-plaintext highlighter-rouge">range</code> for a range query</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="optional-parameters">Optional Parameters</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">key</code></td>
+      <td style="text-align: left">The name of the index to be queried if <code class="language-plaintext highlighter-rouge">qtype</code> is set to <code class="language-plaintext highlighter-rouge">eq</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">range_min</code> and <code class="language-plaintext highlighter-rouge">range_max</code></td>
+      <td style="text-align: left">The minimum and maximum values for a range query if <code class="language-plaintext highlighter-rouge">qtype</code> is set to <code class="language-plaintext highlighter-rouge">range</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">return_terms</code></td>
+      <td style="text-align: left">If set to <code class="language-plaintext highlighter-rouge">true</code>, the response will include matched indexed values (for range queries only)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">stream</code></td>
+      <td style="text-align: left">If set to <code class="language-plaintext highlighter-rouge">true</code>, keys matching the index query will be streamed to the client instead of waiting for <code class="language-plaintext highlighter-rouge">max_results</code> or the full result to be tabulated</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">max_results</code></td>
+      <td style="text-align: left">If pagination is turned on, the number of results to be returned to the client</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">continuation</code></td>
+      <td style="text-align: left">If set to <code class="language-plaintext highlighter-rouge">true</code>, values are returned in a paginated response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">timeout</code></td>
+      <td style="text-align: left">The timeout duration, in milliseconds, after which Riak will return an error message</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">type</code></td>
+      <td style="text-align: left">The bucket type of the bucket that is being queried. If not set, the bucket type <code class="language-plaintext highlighter-rouge">default</code> will be used. Learn more about <a href="/riak/kv/2.2.0/developing/usage/bucket-types">using bucket types</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">term_regex</code></td>
+      <td style="text-align: left">If set to a regular expression (as a binary), a term filter will be applied to the index query</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pagination_sort</code></td>
+      <td style="text-align: left">If set to <code class="language-plaintext highlighter-rouge">true</code>, paginated results will be sorted, first by index value, then by key</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="response">Response</h2>
+
+<p>The results of a Secondary Index query are returned as a repeating list
+of 0 or more keys that match the given request parameters.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbIndexResp</span> <span class="p">{</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span> <span class="na">keys</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">RpbPair</span> <span class="na">results</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">continuation</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">done</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="values">Values</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">keys</code></td>
+      <td style="text-align: left">A list of keys that match the index request</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">results</code></td>
+      <td style="text-align: left">If <code class="language-plaintext highlighter-rouge">return_terms</code> is specified with range queries, used to return matched index values as key/value pairs in <code class="language-plaintext highlighter-rouge">RpbPair</code> messages. More on <code class="language-plaintext highlighter-rouge">RpbPair</code> messages can be found in <a href="/riak/kv/2.2.0/developing/api/protocol-buffers/fetch-object">PBC Fetch Object</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">continuation</code></td>
+      <td style="text-align: left">Used for paginated responses</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">done</code></td>
+      <td style="text-align: left">Used for streaming. The value will be <code class="language-plaintext highlighter-rouge">true</code> when the current stream is done (either <code class="language-plaintext highlighter-rouge">max_results</code> has been reached or there are no more results).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="example">Example</h2>
+
+<h4 id="request-1">Request</h4>
+
+<p>Here we look for any exact matches of <code class="language-plaintext highlighter-rouge">chicken</code> on an <code class="language-plaintext highlighter-rouge">animal_bin</code> index
+for a bucket named <code class="language-plaintext highlighter-rouge">farm</code>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>RpbIndexReq protoc decode:
+bucket: <span class="s2">"farm"</span>
+index: <span class="s2">"animal_bin"</span>
+qtype: 0
+key: <span class="s2">"chicken"</span>
+
+Hex     00 00 00 1E 19 0A 04 66 61 72 6D 12 0A 61 6E 69
+        6D 61 6C 5F 62 69 6E 18 00 22 07 63 68 69 63 6B 65 6E
+Erlang  <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,30,25,10,10,4,102,97,114,109,18,10,97,110,105,
+          109,97,108,95,98,105,110,24,0,34,7,99,104,105,99,107,
+          101,110&gt;&gt;
+</span></code></pre></div></div>
+
+<h4 id="response-1">Response</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex     00 00 00 0F 1A 0A 03 68 65 6E 0A 07 72 6F 6F 73 74 65 72
+Erlang  <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,15,26,10,3,104,101,110,10,7,114,111,111,115,116,101,114&gt;&gt;
+
+RpbIndexResp protoc decode:
+keys: "hen"
+keys: "rooster"
+</span></code></pre></div></div>

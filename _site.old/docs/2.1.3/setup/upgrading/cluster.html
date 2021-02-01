@@ -1,0 +1,247 @@
+
+<p>Riak KV upgrades are tested and supported for two feature release versions.
+For example, upgrades from 1.1.x to 1.3.x are tested and supported,
+while upgrades from 1.1.x to 1.4.x are not. When upgrading to a new
+version of Riak KV that is more than two feature releases ahead, we
+recommend first upgrading to an intermediate version. For example, in an
+upgrade from 1.1.x to 1.4.x, we recommend upgrading from 1.1.x to 1.3.x
+before upgrading to 1.4.x.</p>
+
+<p>If you run <a href="/riak/kv/2.1.3/using/admin/riak-control">Riak Control</a>, you should disable it during the rolling upgrade process.</p>
+
+<p>Riak KV nodes negotiate with each other to determine supported
+operating modes. This allows clusters containing mixed-versions of Riak KV
+to properly interoperate without special configuration, and simplifies
+rolling upgrades.</p>
+
+<p>Before starting the rolling upgrade process on your cluster, check out the <a href="/riak/kv/2.1.3/setup/upgrading/checklist">Upgrading Riak KV: Production Checklist</a> page, which covers details and questions to consider while upgrading.</p>
+
+<h2 id="debianubuntu">Debian/Ubuntu</h2>
+
+<p>The following example demonstrates upgrading a Riak KV node that has been
+installed with the Debian/Ubuntu packages provided by Basho.</p>
+
+<p>1. Stop Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<p>2. Back up the Riak KV node’s <code class="language-plaintext highlighter-rouge">/etc</code> and <code class="language-plaintext highlighter-rouge">/data</code> directories:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo tar</span> <span class="nt">-czf</span> riak_backup.tar.gz /var/lib/riak /etc/riak
+</code></pre></div></div>
+
+<p>3. Upgrade Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>dpkg <span class="nt">-i</span> &lt;riak_package_name&gt;.deb
+</code></pre></div></div>
+
+<p>4. Restart Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>5. Verify Riak KV is running the new version:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak version
+</code></pre></div></div>
+
+<p>6. Wait for the <code class="language-plaintext highlighter-rouge">riak_kv</code> service to start:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin wait-for-service riak_kv »target_node«
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">»target_node«</code> is the node which you have just upgraded (e.g.
+<code class="language-plaintext highlighter-rouge">riak@192.168.1.11</code>)</li>
+</ul>
+
+<p>7. Wait for any hinted handoff transfers to complete:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>
+
+<ul>
+  <li>While the node was offline, other nodes may have accepted writes on its
+behalf. This data is transferred to the node when it becomes available.</li>
+</ul>
+
+<p>8. Repeat the process for the remaining nodes in the cluster.</p>
+
+<h2 id="rhelcentos">RHEL/CentOS</h2>
+
+<p>The following example demonstrates upgrading a Riak KV node that has been
+installed with the RHEL/CentOS packages provided by Basho.</p>
+
+<p>1. Stop Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<p>2. Back up Riak KV’s <code class="language-plaintext highlighter-rouge">/etc</code> and <code class="language-plaintext highlighter-rouge">/data</code> directories:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo tar</span> <span class="nt">-czf</span> riak_backup.tar.gz /var/lib/riak /etc/riak
+</code></pre></div></div>
+
+<p>3. Upgrade Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>rpm <span class="nt">-Uvh</span> &lt;riak_package_name&gt;.rpm
+</code></pre></div></div>
+
+<p>4. Restart Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>5. Verify that Riak KV is running the new version:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak version
+</code></pre></div></div>
+
+<p>6. Wait for the <code class="language-plaintext highlighter-rouge">riak_kv</code> service to start:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin wait-for-service riak_kv »target_node«
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">»target_node«</code> is the node which you have just upgraded (e.g.
+riak@192.168.1.11)</li>
+</ul>
+
+<p>7. Wait for any hinted handoff transfers to complete:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>
+
+<ul>
+  <li>While the node was offline, other nodes may have accepted writes on its
+behalf. This data is transferred to the node when it becomes available.</li>
+</ul>
+
+<p>8. Repeat the process for the remaining nodes in the cluster.</p>
+
+<h2 id="solarisopensolaris">Solaris/OpenSolaris</h2>
+
+<p>The following example demonstrates upgrading a Riak KV node that has been
+installed with the Solaris/OpenSolaris packages provided by Basho.</p>
+
+<p>1. Stop Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<p>If you are using the service management facility (SMF) to manage Riak KV,
+you will have to stop Riak KV via <code class="language-plaintext highlighter-rouge">svcadm</code> instead of using <code class="language-plaintext highlighter-rouge">riak stop</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>svcadm disable riak
+</code></pre></div></div>
+
+<p>2. Back up Riak KV’s <code class="language-plaintext highlighter-rouge">/etc</code> and <code class="language-plaintext highlighter-rouge">/data</code> directories:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>gtar <span class="nt">-czf</span> riak_backup.tar.gz /opt/riak/data /opt/riak/etc
+</code></pre></div></div>
+
+<p>3. Uninstall Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>pkgrm BASHOriak
+</code></pre></div></div>
+
+<p>4. Install the new version of Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>pkgadd <span class="nt">-d</span> &lt;riak_package_name&gt;.pkg
+</code></pre></div></div>
+
+<p>4. Restart Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>If you are using the service management facility (SMF) to manage Riak KV,
+you will have to start Riak KV via <code class="language-plaintext highlighter-rouge">svcadm</code> instead of using <code class="language-plaintext highlighter-rouge">riak start</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>svcadm <span class="nb">enable </span>riak
+</code></pre></div></div>
+
+<p>5. Verify that Riak KV is running the new version:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak version
+</code></pre></div></div>
+
+<p>6. Wait for the <code class="language-plaintext highlighter-rouge">riak_kv</code> service to start:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin wait-for-service riak_kv »target_node«
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">»target_node«</code> is the node which you have just upgraded (e.g.
+<code class="language-plaintext highlighter-rouge">riak@192.168.1.11</code>)</p>
+
+<p>7. Wait for any hinted handoff transfers to complete:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>
+
+<p>While the node was offline, other nodes may have accepted writes on its
+behalf. This data is transferred to the node when it becomes available.</p>
+
+<p>8. Repeat the process for the remaining nodes in the cluster.</p>
+
+<h2 id="rolling-upgrade-to-enterprise">Rolling Upgrade to Enterprise</h2>
+
+<p>If you would like to upgrade an existing Riak KV cluster to a commercially
+supported <a href="http://basho.com/products/riak-kv/">Riak KV Enterprise</a> cluster with <a href="/riak/kv/2.1.3/using/cluster-operations/v3-multi-datacenter">multi-datacenter replication</a>, undertake the following steps:</p>
+
+<ol>
+  <li>Shut down the node you are going to upgrade.</li>
+  <li>Back up your <code class="language-plaintext highlighter-rouge">etc</code> (app.config and vm.args) and <code class="language-plaintext highlighter-rouge">data</code>
+directories.</li>
+  <li>Uninstall your Riak KV package.</li>
+  <li>Install the <code class="language-plaintext highlighter-rouge">riak_ee</code> package.</li>
+  <li>A standard package uninstall should not have removed your data
+directories. If it did, move your backup to where the data directory
+should be.</li>
+  <li>Copy any customizations from your backed-up vm.args to the
+<code class="language-plaintext highlighter-rouge">riak_ee</code> installed vm.args file, these files may be identical.</li>
+  <li>The app.config file from <code class="language-plaintext highlighter-rouge">riak_ee</code> will be significantly different from your backed-up file. While it will contain all of the same sections as your original, it will have many new ones. Copy the customizations from your original app.config file into the appropriate sections in the new one. Ensure that the following sections are present in app.config:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">riak_core</code> — the <code class="language-plaintext highlighter-rouge">cluster_mgr</code> setting must be present. See <a href="/riak/kv/2.1.3/configuring/v3-multi-datacenter">MDC v3 Configuration</a> for more information.</li>
+      <li><code class="language-plaintext highlighter-rouge">riak_repl</code> — See <a href="/riak/kv/2.1.3/configuring/v3-multi-datacenter">MDC v3 Configuration</a> for more information.</li>
+      <li><code class="language-plaintext highlighter-rouge">riak_jmx</code> — See <a href="/riak/kv/2.1.3/using/reference/jmx">JMX Monitoring</a> for more information.</li>
+      <li><code class="language-plaintext highlighter-rouge">snmp</code> — See <a href="/riak/kv/2.1.3/using/reference/snmp">SNMP</a> for more information.</li>
+    </ul>
+  </li>
+  <li>Start Riak KV on the upgraded node.</li>
+</ol>
+
+<h2 id="basho-patches">Basho Patches</h2>
+
+<p>After upgrading, you should ensure that any custom patches contained in
+the <code class="language-plaintext highlighter-rouge">basho-patches</code> directory are examined to determine their
+application to the upgraded version. If you find that patches no longer
+apply to the upgraded version, you should remove them from the
+<code class="language-plaintext highlighter-rouge">basho-patches</code> directory prior to operating the node in production.</p>
+
+<p>The following lists locations of the <code class="language-plaintext highlighter-rouge">basho-patches</code> directory for
+each supported operating system:</p>
+
+<ul>
+  <li>CentOS &amp; RHEL Linux: <code class="language-plaintext highlighter-rouge">/usr/lib64/riak/lib/basho-patches</code></li>
+  <li>Debian &amp; Ubuntu Linux: <code class="language-plaintext highlighter-rouge">/usr/lib/riak/lib/basho-patches</code></li>
+  <li>FreeBSD: <code class="language-plaintext highlighter-rouge">/usr/local/lib/riak/lib/basho-patches</code></li>
+  <li>SmartOS: <code class="language-plaintext highlighter-rouge">/opt/local/lib/riak/lib/basho-patches</code></li>
+  <li>Solaris 10: <code class="language-plaintext highlighter-rouge">/opt/riak/lib/basho-patches</code></li>
+</ul>
+
+<h2 id="riaknostic">Riaknostic</h2>
+
+<p>It is a good idea to also verify some basic configuration and general
+health of the Riak KV node after upgrading by using Riak KV’s built-in
+diagnostic utility Riaknostic.</p>
+
+<p>Ensure that Riak KV is running on the node, and issue the following
+command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin diag
+</code></pre></div></div>
+
+<p>Make the recommended changes from the command output to ensure optimal
+node operation.</p>

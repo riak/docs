@@ -1,0 +1,243 @@
+
+<p>This page covers how to use Riak Search (with
+<a href="http://lucene.apache.org/solr/">Solr</a> integration).</p>
+
+<p>For a simple reference of the available configs and their defaults, see the <a href="/riak/kv/2.2.2/configuring/reference/#search">configuration reference</a>.</p>
+
+<p>If you are looking to develop on or with Riak Search, take a look at:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.2/developing/usage/search">Using Search</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/search-schemas">Search Schema</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/custom-extractors">Custom Search Extractors</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/searching-data-types">Riak KV Data Types and Search</a></li>
+</ul>
+
+<h2 id="overview">Overview</h2>
+
+<p>We’ll be walking through:</p>
+
+<ol>
+  <li><a href="#prerequisites">Prequisites</a></li>
+  <li><a href="#enabling-riak-search">Enable Riak Search</a></li>
+  <li><a href="#search-config-settings">Search Configuration Settings</a></li>
+  <li><a href="#more-on-solr">Additional Solr Information</a></li>
+</ol>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>Because Solr is a Java application, you will need to install <strong>Java 7
+or later</strong> on every node. Installation packages can be found on the <a href="http://www.oracle.com/technetwork/java/javase/downloads">Java SE Downloads
+page</a> and instructions in the <a href="http://www.oracle.com/technetwork/java/javase/documentation">Java SE documentation site</a>.</p>
+
+<h2 id="enabling-riak-search">Enabling Riak Search</h2>
+
+<p>Riak Search is not enabled by default, so you must enable it in every
+node’s <a href="/riak/kv/2.2.2/configuring/reference">configuration file</a> as follows:</p>
+
+<pre><code class="language-riak.conf">search = on
+</code></pre>
+
+<h2 id="search-config-settings">Search Config Settings</h2>
+
+<p>You will find all the Riak Search configuration settings in riak.conf. Setting <code class="language-plaintext highlighter-rouge">search</code> to <code class="language-plaintext highlighter-rouge">on</code> is required, but other search settings are optional. A handy reference list of these parameters can be found in our <a href="/riak/kv/2.2.2/configuring/reference/#search">configuration files</a> documentation.</p>
+
+<h3 id="search"><code class="language-plaintext highlighter-rouge">search</code></h3>
+
+<p>Enable or disable search; defaults to <code class="language-plaintext highlighter-rouge">off</code>.</p>
+
+<p>Valid values:  <code class="language-plaintext highlighter-rouge">on</code> or <code class="language-plaintext highlighter-rouge">off</code></p>
+
+<h3 id="searchanti_entropydata_dir"><code class="language-plaintext highlighter-rouge">search.anti_entropy.data_dir</code></h3>
+
+<p>The directory in which Riak Search stores files related to <a href="/riak/kv/2.2.2/learn/glossary/#active-anti-entropy-aae">active anti-entropy</a>; defaults to <code class="language-plaintext highlighter-rouge">./data/yz_anti_entropy</code>.</p>
+
+<p>Valid values: a directory</p>
+
+<h3 id="searchanti_entropythrottle"><code class="language-plaintext highlighter-rouge">search.anti_entropy.throttle</code></h3>
+
+<p>Whether the throttle for Yokozuna active anti-entropy is enabled; defaults to <code class="language-plaintext highlighter-rouge">on</code>.</p>
+
+<p>Valid values: <code class="language-plaintext highlighter-rouge">on</code> or <code class="language-plaintext highlighter-rouge">off</code></p>
+
+<p>You can read more about throttling <a href="/riak/kv/2.2.2/using/cluster-operations/active-anti-entropy/#throttling">here</a>.</p>
+
+<h3 id="searchanti_entropythrottletierdelay"><code class="language-plaintext highlighter-rouge">search.anti_entropy.throttle.$tier.delay</code></h3>
+
+<p>Set the throttling tiers delay for <a href="/riak/kv/2.2.2/learn/glossary/#active-anti-entropy-aae">active anti-entropy</a>; no default.</p>
+
+<p>Each tier is a <a href="#search-anti-entropy-throttle-tier-solrq-queue-length">minimum Solrq queue size</a> and a time-delay that the throttle should observe at that size and above.</p>
+
+<p>For example:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>search.anti_entropy.throttle.tier1.solrq_queue_length = 0
+search.anti_entropy.throttle.tier1.delay = 0ms
+search.anti_entropy.throttle.tier2.solrq_queue_length = 40
+search.anti_entropy.throttle.tier2.delay = 5ms
+</code></pre></div></div>
+<p>will introduce a 5 millisecond sleep for any queues of length 40 or higher. If configured, there must be a tier which includes a mailbox size of 0. Both <a href="#search-anti-entropy-throttle-tier-solrq-queue-length"><code class="language-plaintext highlighter-rouge">.solrq_queue_length</code></a> and <code class="language-plaintext highlighter-rouge">.delay</code> must be set for each tier. There is no limit to the number of tiers that may be specified. See <a href="#search-anti-entropy-throttle"><code class="language-plaintext highlighter-rouge">search.anti_entropy.throttle</code></a>.</p>
+
+<p>Valid values: Non-negative integer</p>
+
+<h3 id="searchanti_entropythrottletiersolrq_queue_length"><code class="language-plaintext highlighter-rouge">search.anti_entropy.throttle.$tier.solrq_queue_length</code></h3>
+
+<p>Set the throttling tiers for <a href="/riak/kv/2.2.2/learn/glossary/#active-anti-entropy-aae">active anti-entropy</a>; no default.</p>
+
+<p>Each tier is a minimum Solrq queue size and a <a href="#search-anti-entropy-throttle-tier-delay">time-delay</a> that the throttle
+should observe at that size and above.</p>
+
+<p>For example:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>search.anti_entropy.throttle.tier1.solrq_queue_length = 0
+search.anti_entropy.throttle.tier1.delay = 0ms
+search.anti_entropy.throttle.tier2.solrq_queue_length = 40
+search.anti_entropy.throttle.tier2.delay = 5ms
+</code></pre></div></div>
+<p>will introduce a 5 millisecond sleep for any queues of length 40 or higher. If configured, there must be a tier which includes a mailbox size of 0. Both <code class="language-plaintext highlighter-rouge">.solrq_queue_length</code> and <a href="#search-anti-entropy-throttle-tier-delay"><code class="language-plaintext highlighter-rouge">.delay</code></a> must be set for each tier. There is no limit to the number of tiers that may be specified. See <a href="#search-anti-entropy-throttle"><code class="language-plaintext highlighter-rouge">search.anti_entropy.throttle</code></a>.</p>
+
+<p>Valid values: Non-negative integer</p>
+
+<h3 id="searchdist_query"><code class="language-plaintext highlighter-rouge">search.dist_query</code></h3>
+
+<p>Enable this node in distributed query plans; defaults to <code class="language-plaintext highlighter-rouge">on</code>.</p>
+
+<p>If enabled, this node will participate in distributed Solr queries.  If disabled, the node will be excluded from Riak search cover plans, and will therefore never be consulted in a distributed query.  Note that this node may still be used to execute a query.  Use this flag if you have a long running administrative operation (e.g. reindexing) which requires that the node be removed from query plans, and which would otherwise result in inconsistent search results.</p>
+
+<p>This setting can also be changed via <code class="language-plaintext highlighter-rouge">riak-admin</code> by issuing one of the following commands:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin set search.dist_query=off
+</code></pre></div></div>
+<p>or</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin set search.dist_query=on
+</code></pre></div></div>
+
+<p>Setting this value in riak.conf is useful when you are restarting a node which was removed from search queries with the <code class="language-plaintext highlighter-rouge">riak-admin</code> feature. Setting <code class="language-plaintext highlighter-rouge">search.dis_query</code> in riak.conf will prevent the node from being included in search queries until it is fully spun up.</p>
+
+<p>Valid values: <code class="language-plaintext highlighter-rouge">on</code> or <code class="language-plaintext highlighter-rouge">off</code></p>
+
+<h3 id="searchindexerror_thresholdfailure_count"><code class="language-plaintext highlighter-rouge">search.index.error_threshold.failure_count</code></h3>
+
+<p>The number of failures encountered while updating a search index within <a href="#search-queue-error-threshold-failure-interval"><code class="language-plaintext highlighter-rouge">search.queue.error_threshold.failure_interval</code></a> before Riak KV will skip updates to that index; defaults to <code class="language-plaintext highlighter-rouge">3</code>.</p>
+
+<p>Valid values: Integer</p>
+
+<h3 id="searchindexerror_thresholdfailure_interval"><code class="language-plaintext highlighter-rouge">search.index.error_threshold.failure_interval</code></h3>
+
+<p>The window of time during which <code class="language-plaintext highlighter-rouge">search.queue.error_threshold.failure_count</code> failures will cause Riak KV to skip updates to a search index; defaults to <code class="language-plaintext highlighter-rouge">5000</code>.</p>
+
+<p>If <a href="#search-queue-error-threshold-failure-count"><code class="language-plaintext highlighter-rouge">search.queue.error_threshold.failure_count</code></a> errors have occurred within this interval on a given search index, then Riak will skip updates to that index until the <a href="search-queue-error-threshold-reset-interval"><code class="language-plaintext highlighter-rouge">search.queue.error_threshold.reset_interval</code></a> has passed.</p>
+
+<p>Valid values: Milliseconds</p>
+
+<h3 id="searchindexerror_thresholdreset_interval"><code class="language-plaintext highlighter-rouge">search.index.error_threshold.reset_interval</code></h3>
+
+<p>The amount of time it takes for updates to a given search index to resume/refresh once Riak KV has started skipping update operations; defaults to <code class="language-plaintext highlighter-rouge">30000</code>.</p>
+
+<p>Valid values: Milliseconds</p>
+
+<h3 id="searchqueuebatchflush_interval"><code class="language-plaintext highlighter-rouge">search.queue.batch.flush_interval</code></h3>
+
+<p>The maximum delay between notification to flush batches to Solr; defaults to <code class="language-plaintext highlighter-rouge">1000</code> (milliseconds).</p>
+
+<p>This setting is used to increase or decrease the frequency of batch delivery into Solr, specifically for relatively low-volume input into Riak KV. This setting ensures that data will be delivered into Solr in accordance with the <code class="language-plaintext highlighter-rouge">search.queue.batch.minimum</code> and <code class="language-plaintext highlighter-rouge">search.queue.batch.maximum</code> settings within the specified interval. Batches that are smaller than <code class="language-plaintext highlighter-rouge">search.queue.batch.minimum</code> will be delivered to Solr within this interval. This setting will generally have no effect on heavily loaded systems. You may use any time unit; the default is in milliseconds.</p>
+
+<p>Valid values: <code class="language-plaintext highlighter-rouge">ms</code>, <code class="language-plaintext highlighter-rouge">s</code>, <code class="language-plaintext highlighter-rouge">m</code>, or <code class="language-plaintext highlighter-rouge">h</code></p>
+
+<h3 id="searchqueuebatchmaximum"><code class="language-plaintext highlighter-rouge">search.queue.batch.maximum</code></h3>
+
+<p>The maximum batch size, in number of Riak objects; defaults to <code class="language-plaintext highlighter-rouge">500</code>.</p>
+
+<p>Any batches that are larger than this amount will be split, where the first <code class="language-plaintext highlighter-rouge">search.queue.batch.maximum</code> objects will be flushed to Solr and the remaining objects enqueued for that index will be retained until the next batch is delivered. This parameter ensures that at most <code class="language-plaintext highlighter-rouge">search.queue.batch.maximum</code> objects will be delivered into Solr in any given request.</p>
+
+<p>Valid values: Integer</p>
+
+<h3 id="searchqueuebatchminimum"><code class="language-plaintext highlighter-rouge">search.queue.batch.minimum</code></h3>
+
+<p>The minimum batch size, in number of Riak objects; defaults to <code class="language-plaintext highlighter-rouge">10</code>.</p>
+
+<p>Any batches that are smaller than this amount will not be immediately flushed to Solr, but are guaranteed to be flushed within the <code class="language-plaintext highlighter-rouge">search.queue.batch.flush_interval</code>.</p>
+
+<p>Valid valus: Integer</p>
+
+<h3 id="searchqueuehigh_watermark"><code class="language-plaintext highlighter-rouge">search.queue.high_watermark</code></h3>
+
+<p>The queue high water mark; defaults to <code class="language-plaintext highlighter-rouge">1000</code>.</p>
+
+<p>If the total number of queued messages in a Solrq worker instance exceed this limit, then the calling vnode will be blocked until the total number falls below this limit. This parameter exercises flow control between Riak KV and the Riak Search batching subsystem, if writes into Solr start to fall behind.</p>
+
+<p>Valid values: Integer</p>
+
+<h3 id="searchqueuehigh_watermarkpurge_strategy"><code class="language-plaintext highlighter-rouge">search.queue.high_watermark.purge_strategy</code></h3>
+
+<p>The strategy for how purging is handled when the <code class="language-plaintext highlighter-rouge">search.queue.high_watermark</code> is hit; defaults to <code class="language-plaintext highlighter-rouge">purge_one</code>.</p>
+
+<p>Valid values:  <code class="language-plaintext highlighter-rouge">purge_one</code>, <code class="language-plaintext highlighter-rouge">purge_index</code>, or <code class="language-plaintext highlighter-rouge">off</code></p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">purge_one</code> removes the oldest item on the queue from an erroring (references to fuses blown in the code) index in order to get below the <a href="#search-queue-high-watermark"><code class="language-plaintext highlighter-rouge">search.queue.high_watermark</code></a></li>
+  <li><code class="language-plaintext highlighter-rouge">purge_index</code> removes all items associated with one random erroring (references to fuses blown in the code) index in order to get below the <a href="#search-queue-high-watermark"><code class="language-plaintext highlighter-rouge">search.queue.high_watermark</code></a></li>
+  <li><code class="language-plaintext highlighter-rouge">off</code> disables purging</li>
+</ul>
+
+<h3 id="searchroot_dir"><code class="language-plaintext highlighter-rouge">search.root_dir</code></h3>
+
+<p>The root directory in which index data and configuration is stored; defaults to <code class="language-plaintext highlighter-rouge">./data/yz</code>.</p>
+
+<p>Valid values: a directory</p>
+
+<h3 id="searchsolrjvm_options"><code class="language-plaintext highlighter-rouge">search.solr.jvm_options</code></h3>
+
+<p>The options to pass to the Solr JVM; defaults to <code class="language-plaintext highlighter-rouge">-d64 -Xms1g -Xmx1g -XX:+UseStringCache -XX:+UseCompressedOops</code>.</p>
+
+<p>Non-standard options (e.g. <code class="language-plaintext highlighter-rouge">-XX</code>) may not be portable across JVM implementations.</p>
+
+<p>Valid values: Java command-line arguments</p>
+
+<h3 id="searchsolrjmx_port"><code class="language-plaintext highlighter-rouge">search.solr.jmx_port</code></h3>
+
+<p>The port number to which Solr JMX binds (note: binds on every interface); defaults to <code class="language-plaintext highlighter-rouge">8985</code>.</p>
+
+<p>Valid values: Integer</p>
+
+<h3 id="searchsolrport"><code class="language-plaintext highlighter-rouge">search.solr.port</code></h3>
+
+<p>The port number to which Solr binds (note: binds on every interface); defaults to <code class="language-plaintext highlighter-rouge">8093</code>.</p>
+
+<p>Valid values: Integer</p>
+
+<h3 id="searchsolrstart_timeout"><code class="language-plaintext highlighter-rouge">search.solr.start_timeout</code></h3>
+
+<p>How long Riak KV will wait for Solr to start (attempts twice before shutdown); defaults to <code class="language-plaintext highlighter-rouge">30s</code>.</p>
+
+<p>Values lower than 1s will be rounded up to 1s.</p>
+
+<p>Valid values: Integer with time units (e.g. 2m)</p>
+
+<h2 id="more-on-solr">More on Solr</h2>
+<h3 id="solr-jvm-and-ports">Solr JVM and Ports</h3>
+
+<p>Riak Search runs one Solr process per node to manage its indexing and
+search functionality. While the underlying project manages
+index distribution, node coverage for queries, active anti-entropy
+(AAE), and JVM process management, you should provide plenty of RAM and diskspace for running both Riak and the JVM running Solr. We recommend a minimum of 6GB of RAM per node.</p>
+
+<p>Concerning ports, be sure to take the necessary <a href="/riak/kv/2.2.2/using/security/">security</a> precautions to prevent exposing the extra Solr and JMX ports
+to the outside world.</p>
+
+<h3 id="solr-for-operators">Solr for Operators</h3>
+
+<p>For further information on Solr monitoring, tuning, and performance, we
+recommend the following documents for getting started:</p>
+
+<ul>
+  <li><a href="https://wiki.apache.org/solr/SolrMonitoring">Solr Monitoring</a></li>
+  <li><a href="https://wiki.apache.org/solr/SolrPerformanceFactors">Solr Performance
+  Factors</a></li>
+  <li><a href="https://wiki.apache.org/solr/SolrPerformanceProblems">Solr Performance
+  Problems</a></li>
+  <li><a href="http://docs.oracle.com/javase/7/docs/technotes/guides/management/jconsole.html">JConsole</a></li>
+</ul>
+
+<p>A wide variety of other documentation is available from the Solr OSS
+community.</p>

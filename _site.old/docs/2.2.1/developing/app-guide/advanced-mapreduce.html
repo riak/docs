@@ -1,0 +1,740 @@
+
+<blockquote>
+  <p><strong>Use MapReduce sparingly</strong></p>
+
+  <p>In Riak KV, MapReduce is the primary method for non-primary-key-based
+querying. Although useful for tasks such as batch
+processing jobs, MapReduce operations can be very computationally
+expensive, to the extent that they can degrade performance in
+production clusters operating under load. Because of this potential for performance degradation, we recommend running
+MapReduce operations in a controlled, rate-limited fashion and never for
+realtime querying purposes.</p>
+</blockquote>
+
+<p>MapReduce, the data processing paradigm popularized by
+<a href="http://research.google.com/archive/mapreduce.html">Google</a>, is provided by Riak KV to aggregate
+results as background batch processes.</p>
+
+<h2 id="mapreduce">MapReduce</h2>
+
+<p>In Riak KV, MapReduce is one of the primary methods for
+non-primary-key-based querying alongside
+<a href="/riak/kv/2.2.1/developing/usage/secondary-indexes">secondary indexes</a>.  Riak KV allows you to
+run MapReduce jobs using Erlang or JavaScript.</p>
+
+<p>Javascript MapReduce is deprecated and will be removed in a future version.</p>
+
+<h3 id="why-do-we-use-mapreduce-for-querying-riak-kv">Why Do We Use MapReduce for Querying Riak KV?</h3>
+
+<p>Key/value stores like Riak KV generally do not offer the kinds of complex
+querying capabilities found in other data storage systems, such as
+relational databases. MapReduce enables you to perform powerful queries
+over the data stored in Riak KV but should be used with caution.</p>
+
+<p>The main goal of MapReduce is to spread the processing of a query across
+many systems to take advantage of parallel processing power. This is
+generally done by dividing the query into several steps, i.e. dividing
+the dataset into several chunks and then running those step/chunk pairs
+on separate physical hosts. Riak KV’s MapReduce has an additional goal:
+increasing data locality. When processing a large dataset, it’s often
+much more efficient to take the computation to the data than it is to
+bring the data to the computation.</p>
+
+<p>“Map” and “Reduce” are phases in the query process. Map functions take
+one piece of data as input and produce zero or more results as output.
+If you’re familiar with <a href="http://hackage.haskell.org/package/base-4.7.0.0/docs/Prelude.html#v:map">mapping over a list</a>
+in functional programming languages, you’re already familiar with the
+“Map” steps in a MapReduce query.</p>
+
+<h2 id="mapreduce-caveats">MapReduce caveats</h2>
+
+<p>MapReduce should generally be treated as a fallback rather than a
+standard part of an application. There are often ways to model data
+such that dynamic queries become single key retrievals, which are
+dramatically faster and more reliable in Riak KV, and tools such as Riak
+search and 2i are simpler to use and may place less strain on a
+cluster.</p>
+
+<h3 id="r1">R=1</h3>
+
+<p>One consequence of Riak KV’s processing model is that MapReduce queries
+have an effective <code class="language-plaintext highlighter-rouge">R</code> value of 1. The queries are distributed
+to a representative sample of the cluster where the data is expected to
+be found, and if one server lacks a copy of data it’s supposed to have,
+a MapReduce job will not attempt to look for it elsewhere.</p>
+
+<p>For more on the value of <code class="language-plaintext highlighter-rouge">R</code>, see our documentation on <a href="/riak/kv/2.2.1/developing/app-guide/replication-properties">replication properties</a>.</p>
+
+<h3 id="key-lists">Key lists</h3>
+
+<p>Asking Riak KV to generate a list of all keys in a production environment
+is generally a bad idea. It’s an expensive operation.</p>
+
+<p>Attempting to constrain that operation to a bucket (e.g.,
+<code class="language-plaintext highlighter-rouge">mapred_bucket</code> as used below) does not help because Riak KV must still
+pull all keys from storage to determine which ones are in the
+specified bucket.</p>
+
+<p>If at all possible, run MapReduce against a list of known keys.</p>
+
+<h3 id="code-distribution">Code distribution</h3>
+
+<p>As we’ll discuss in this document, the functions invoked from Erlang
+MapReduce must be available on all servers in the cluster unless
+using the client library from an Erlang shell.</p>
+
+<h3 id="security-restrictions">Security restrictions</h3>
+
+<p>If Riak’s security functionality is enabled, there are two
+restrictions on MapReduce that come into play:</p>
+
+<ul>
+  <li>The <code class="language-plaintext highlighter-rouge">riak_kv.mapreduce</code> permission must be granted to the user (or
+via the user’s groups)</li>
+  <li>Other than the module <code class="language-plaintext highlighter-rouge">riak_kv_mapreduce</code>, any Erlang modules
+distributed with Riak KV will <strong>not</strong> be accessible to custom MapReduce
+code unless made available via the <code class="language-plaintext highlighter-rouge">add_path</code> mechanism documented
+in <a href="/riak/kv/2.2.1/using/reference/custom-code">Installing Custom Code</a>.</li>
+</ul>
+
+<h2 id="how-riak-kvs-mapreduce-queries-are-specified">How Riak KV’s MapReduce Queries Are Specified</h2>
+
+<p>MapReduce queries in Riak KV have two components: (1) a list of inputs and
+(2) a list of “steps,” or “phases.”</p>
+
+<p>Each element of the input list is an object location, as specified by
+<a href="/riak/kv/2.2.1/developing/usage/bucket-types">bucket type</a>, bucket, and key. This location may
+also be annotated with “key-data,” which will be passed as an
+argument to a map function when evaluated on the object stored under
+that bucket-key pair.</p>
+
+<p>Each element of the phases list is a description of a map function, a
+reduce function, or a link function. The description includes where to
+find the code for the phase function (for map and reduce phases), static
+data passed to the function every time it is executed during that phase,
+and a flag indicating whether or not to include the results of that
+phase in the final output of the query.</p>
+
+<p>The phase list describes the chain of operations through which each
+input will flow. That is, the initial inputs will be fed to the first
+phase in the list and the output of that phase will be fed as input to
+the next phase in the list. This stream will continue through the final
+phase.</p>
+
+<h2 id="how-phases-work">How Phases Work</h2>
+
+<h3 id="map-phase">Map Phase</h3>
+
+<p>The input list to a map phase must be a list of (possibly annotated)
+bucket-key pairs. For each pair, Riak KV will send the request to evaluate
+the map function to the partition that is responsible for storing the
+data for that bucket-key. The <a href="/riak/kv/2.2.1/learn/glossary/#vnode">vnode</a> hosting that partition
+will look up the object stored under that bucket-key and evaluate the
+map function with the object as an argument. The other arguments to the
+function will be the annotation, if any is included, with the
+bucket-key, and the static data for the phase, as specified in the
+query.</p>
+
+<p>Be aware that most Riak KV clusters will retain deleted objects for some
+period of time (3 seconds by default), and the MapReduce framework does
+not conceal these from submitted jobs. These tombstones can be
+recognized and filtered out by looking for <code class="language-plaintext highlighter-rouge">X-Riak-Deleted</code>
+in the object metadata with a value of <code class="language-plaintext highlighter-rouge">true</code>.</p>
+
+<h3 id="reduce-phase">Reduce Phase</h3>
+
+<p>Reduce phases accept any list of data as input, and produce any list of
+data as output. They also receive a phase-static value, specified in the
+query definition.</p>
+
+<p>The most important thing to understand is that the function defining the
+reduce phase may be evaluated multiple times, and the input of later
+evaluations will include the output of earlier evaluations.</p>
+
+<p>For example, a reduce phase may implement the
+<a href="http://en.wikipedia.org/wiki/Union_(set_theory)#Definition"><code class="language-plaintext highlighter-rouge">set-union</code></a> function. In that case, the first set of inputs might be <code class="language-plaintext highlighter-rouge">[1,2,2,3]</code>,
+and the output would be <code class="language-plaintext highlighter-rouge">[1,2,3]</code>. When the phase receives more inputs,
+say <code class="language-plaintext highlighter-rouge">[3,4,5]</code>, the function will be called with the concatenation of the
+two lists: <code class="language-plaintext highlighter-rouge">[1,2,3,3,4,5]</code>.</p>
+
+<p>Other systems refer to the second application of the reduce function as
+a “re-reduce.” There are at least a few reduce-query implementation
+strategies that work with Riak KV’s model.</p>
+
+<p>One strategy is to implement the phase preceding the reduce phase such
+that its output is “the same shape” as the output of the reduce phase.
+This is how the examples in this document are written, and the way that
+we have found produces the cleanest code.</p>
+
+<p>An alternative strategy is to make the output of a reduce phase
+recognizable such that it can be extracted from the input list on
+subsequent applications. For example, if inputs from the preceding phase
+are numbers, outputs from the reduce phase could be objects or strings.
+This would allow the function to find the previous result and apply new
+inputs to it.</p>
+
+<h3 id="how-a-link-phase-works-in-riak-kv">How a Link Phase Works in Riak KV</h3>
+
+<p>Link phases find links matching patterns specified in the query
+definition. The patterns specify which buckets and tags links must have.</p>
+
+<p>“Following a link” means adding it to the output list of this phase. The
+output of this phase is often most useful as input to a map phase or to
+another reduce phase.</p>
+
+<h2 id="invoking-mapreduce">Invoking MapReduce</h2>
+
+<p>To illustrate some key ideas, we’ll define a simple module that
+implements a map function to return the key value pairs contained in a
+bucket and use it in a MapReduce query via Riak KV’s HTTP API.</p>
+
+<p>Here is our example MapReduce function:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">-</span><span class="ni">module</span><span class="p">(</span><span class="n">mr_example</span><span class="p">).</span>
+
+<span class="p">-</span><span class="ni">export</span><span class="p">([</span><span class="nb">get_keys</span><span class="o">/</span><span class="mi">3</span><span class="p">]).</span>
+
+<span class="c">% Returns bucket and key pairs from a map phase
+</span><span class="nb">get_keys</span><span class="p">(</span><span class="nv">Value</span><span class="p">,_</span><span class="nv">Keydata</span><span class="p">,_</span><span class="nv">Arg</span><span class="p">)</span> <span class="o">-&gt;</span>
+  <span class="p">[{</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">bucket</span><span class="p">(</span><span class="nv">Value</span><span class="p">),</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">Value</span><span class="p">)}].</span>
+</code></pre></div></div>
+
+<p>Save this file as <code class="language-plaintext highlighter-rouge">mr_example.erl</code> and proceed to compiling the module.</p>
+
+<p>You must use the Erlang compiler (<code class="language-plaintext highlighter-rouge">erlc</code>) associated with the
+Riak KV installation or the version of Erlang used when compiling Riak KV from
+source.</p>
+
+<p>Compiling the module is a straightforward process:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erlc mr_example.erl
+</code></pre></div></div>
+
+<p>Successful compilation will result in a new <code class="language-plaintext highlighter-rouge">.beam</code> file, <code class="language-plaintext highlighter-rouge">mr_example.beam</code>.</p>
+
+<p>Send this file to your operator, or read about <a href="/riak/kv/2.2.1/using/reference/custom-code">installing custom code</a>
+on your Riak KV nodes. Once your file has been installed, all that
+remains is to try the custom function in a MapReduce query. For
+example, let’s return keys contained within a bucket named <code class="language-plaintext highlighter-rouge">messages</code>
+(please pick a bucket which contains keys in your environment).</p>
+
+<pre><code class="language-curl">curl -XPOST localhost:8098/mapred \
+  -H 'Content-Type: application/json'   \
+  -d '{"inputs":"messages","query":[{"map":{"language":"erlang","module":"mr_example","function":"get_keys"}}]}'
+</code></pre>
+
+<p>The result should be a JSON map of bucket and key names expressed as key/value pairs.</p>
+
+<p>Be sure to install the MapReduce function as described above on all of
+the nodes in your cluster to ensure proper operation.</p>
+
+<h2 id="phase-functions">Phase functions</h2>
+
+<p>MapReduce phase functions have the same properties, arguments, and
+return values whether you write them in Javascript or Erlang.</p>
+
+<h3 id="map-phase-functions">Map phase functions</h3>
+
+<p>Map functions take three arguments (in Erlang, arity-3 is required).
+Those arguments are:</p>
+
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">Value</code>: the value found at a key. This will be a Riak object, which
+    in Erlang is defined and manipulated by the <code class="language-plaintext highlighter-rouge">riak_object</code> module.
+    In Javascript, a Riak object looks like this:</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>```javascript
+{
+ "bucket_type" : BucketTypeAsString,
+ "bucket" : BucketAsString,
+ "key" : KeyAsString,
+ "vclock" : VclockAsString,
+ "values" : [
+        {
+            "metadata" : {
+                "X-Riak-VTag":VtagAsString,
+                "X-Riak-Last-Modified":LastModAsString,
+                "Links":[...List of link objects],
+                // ...other metadata...
+            },
+            "data" : ObjectData
+        },
+        // ...other metadata/data values (siblings)...
+    ]
+}
+```   2. *KeyData* : key data that was submitted with the inputs to the query or phase.   3. *Arg* : a static argument for the entire phase that was submitted with the query.
+</code></pre></div></div>
+
+<p>A map phase should produce a list of results. You will see errors if
+the output of your map function is not a list. Return the empty list if
+your map function chooses not to produce output. If your map phase is
+followed by another map phase, the output of the function must be
+compatible with the input to a map phase - a list of bucket-key pairs or
+<code class="language-plaintext highlighter-rouge">bucket-key-keydata</code> triples.</p>
+
+<h4 id="map-function-examples">Map function examples</h4>
+
+<p>These map functions return the value (data) of the object being mapped:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">fun</span><span class="p">(</span><span class="nv">Value</span><span class="p">,</span> <span class="p">_</span><span class="nv">KeyData</span><span class="p">,</span> <span class="p">_</span><span class="nv">Arg</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="p">[</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">Value</span><span class="p">)]</span>
+<span class="k">end</span><span class="p">.</span>
+</code></pre></div></div>
+
+<p>These map functions filter their inputs based on the arg and return bucket-key pairs for a subsequent map phase:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">fun</span><span class="p">(</span><span class="nv">Value</span><span class="p">,</span> <span class="p">_</span><span class="nv">KeyData</span><span class="p">,</span> <span class="nv">Arg</span><span class="p">)</span> <span class="o">-&gt;</span>
+  <span class="nv">Key</span> <span class="o">=</span> <span class="nn">riak_object</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">Value</span><span class="p">),</span>
+  <span class="nv">Bucket</span> <span class="o">=</span> <span class="nn">riak_object</span><span class="p">:</span><span class="nf">bucket</span><span class="p">(</span><span class="nv">Value</span><span class="p">),</span>
+  <span class="k">case</span> <span class="nn">erlang</span><span class="p">:</span><span class="nb">byte_size</span><span class="p">(</span><span class="nv">Key</span><span class="p">)</span> <span class="k">of</span>
+    <span class="nv">L</span> <span class="k">when</span> <span class="nv">L</span> <span class="o">&gt;</span> <span class="nv">Arg</span> <span class="o">-&gt;</span>
+      <span class="p">[{</span><span class="nv">Bucket</span><span class="p">,</span><span class="nv">Key</span><span class="p">}];</span>
+    <span class="p">_</span> <span class="o">-&gt;</span> <span class="p">[]</span>
+  <span class="k">end</span>
+<span class="k">end</span><span class="p">.</span>
+</code></pre></div></div>
+
+<h3 id="reduce-phase-functions">Reduce phase functions</h3>
+
+<p>Reduce functions take two arguments. Those arguments are:</p>
+
+<ol>
+  <li><em>ValueList</em>: the list of values produced by the preceding phase in the MapReduce query.</li>
+  <li><em>Arg</em> : a static argument for the entire phase that was submitted with the query.</li>
+</ol>
+
+<p>A reduce function should produce a list of values, but it must also be
+true that the function is commutative, associative, and idempotent. That
+is, if the input list <code class="language-plaintext highlighter-rouge">[a,b,c,d]</code> is valid for a given F, then all of
+the following must produce the same result:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nv">F</span><span class="p">([</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">d</span><span class="p">])</span>
+  <span class="nv">F</span><span class="p">([</span><span class="n">a</span><span class="p">,</span><span class="n">d</span><span class="p">]</span> <span class="o">++</span> <span class="nv">F</span><span class="p">([</span><span class="n">c</span><span class="p">,</span><span class="n">b</span><span class="p">]))</span>
+  <span class="nv">F</span><span class="p">([</span><span class="nv">F</span><span class="p">([</span><span class="n">a</span><span class="p">]),</span><span class="nv">F</span><span class="p">([</span><span class="n">c</span><span class="p">]),</span><span class="nv">F</span><span class="p">([</span><span class="n">b</span><span class="p">]),</span><span class="nv">F</span><span class="p">([</span><span class="n">d</span><span class="p">])])</span>
+</code></pre></div></div>
+
+<h4 id="reduce-function-examples">Reduce function examples</h4>
+
+<p>These reduce functions assume the values in the input are numbers and
+sum them:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">fun</span><span class="p">(</span><span class="nv">Values</span><span class="p">,</span> <span class="p">_</span><span class="nv">Arg</span><span class="p">)</span> <span class="o">-&gt;</span>
+  <span class="p">[</span><span class="nn">lists</span><span class="p">:</span><span class="nf">foldl</span><span class="p">(</span><span class="k">fun</span> <span class="nn">erlang</span><span class="p">:</span><span class="n">'+'</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nv">Values</span><span class="p">)]</span>
+<span class="k">end</span><span class="p">.</span>
+</code></pre></div></div>
+
+<p>These reduce functions sort their inputs:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">fun</span><span class="p">(</span><span class="nv">Values</span><span class="p">,</span> <span class="p">_</span><span class="nv">Arg</span><span class="p">)</span> <span class="o">-&gt;</span>
+  <span class="nn">lists</span><span class="p">:</span><span class="nf">sort</span><span class="p">(</span><span class="nv">Values</span><span class="p">)</span>
+<span class="k">end</span><span class="p">.</span>
+</code></pre></div></div>
+
+<h2 id="mapreduce-examples">MapReduce Examples</h2>
+
+<p>Riak KV supports describing MapReduce queries in Erlang syntax through the
+Protocol Buffers API. This section demonstrates how to do so using the
+Erlang client.</p>
+
+<p>Any modules and functions you use in your Erlang MapReduce calls must be
+available on all nodes in the cluster. Please read about
+<a href="/riak/kv/2.2.1/using/reference/custom-code">installing custom code</a>.</p>
+
+<h3 id="erlang-example">Erlang Example</h3>
+
+<p>Before running some MapReduce queries, let’s create some objects to
+run them on.  Unlike the first example when we compiled
+<code class="language-plaintext highlighter-rouge">mr_example.erl</code> and distributed it across the cluster, this time
+we’ll use the <a href="https://github.com/basho/riak-erlang-client">Erlang client library</a> and shell.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="mi">1</span><span class="o">&gt;</span> <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Client</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">start</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">8087</span><span class="p">).</span>
+<span class="mi">2</span><span class="o">&gt;</span> <span class="nv">Mine</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"groceries"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"mine"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                        <span class="nb">term_to_binary</span><span class="p">([</span><span class="s">"eggs"</span><span class="p">,</span> <span class="s">"bacon"</span><span class="p">])).</span>
+<span class="mi">3</span><span class="o">&gt;</span> <span class="nv">Yours</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"groceries"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"yours"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                         <span class="nb">term_to_binary</span><span class="p">([</span><span class="s">"bread"</span><span class="p">,</span> <span class="s">"bacon"</span><span class="p">])).</span>
+<span class="mi">4</span><span class="o">&gt;</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Client</span><span class="p">,</span> <span class="nv">Yours</span><span class="p">,</span> <span class="p">[{</span><span class="n">w</span><span class="p">,</span> <span class="mi">1</span><span class="p">}]).</span>
+<span class="mi">5</span><span class="o">&gt;</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Client</span><span class="p">,</span> <span class="nv">Mine</span><span class="p">,</span> <span class="p">[{</span><span class="n">w</span><span class="p">,</span> <span class="mi">1</span><span class="p">}]).</span>
+</code></pre></div></div>
+
+<p>Now that we have a client and some data, let’s run a query and count how
+many occurrences of groceries.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="mi">6</span><span class="o">&gt;</span> <span class="nv">Count</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">G</span><span class="p">,</span> <span class="n">undefined</span><span class="p">,</span> <span class="n">none</span><span class="p">)</span> <span class="o">-&gt;</span>
+             <span class="p">[</span><span class="nn">dict</span><span class="p">:</span><span class="nf">from_list</span><span class="p">([{</span><span class="nv">I</span><span class="p">,</span> <span class="mi">1</span><span class="p">}</span>
+              <span class="p">||</span> <span class="nv">I</span> <span class="o">&lt;-</span> <span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">G</span><span class="p">))])]</span>
+           <span class="k">end</span><span class="p">.</span>
+<span class="mi">7</span><span class="o">&gt;</span> <span class="nv">Merge</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">Gcounts</span><span class="p">,</span> <span class="n">none</span><span class="p">)</span> <span class="o">-&gt;</span>
+             <span class="p">[</span><span class="nn">lists</span><span class="p">:</span><span class="nf">foldl</span><span class="p">(</span><span class="k">fun</span><span class="p">(</span><span class="nv">G</span><span class="p">,</span> <span class="nv">Acc</span><span class="p">)</span> <span class="o">-&gt;</span>
+                            <span class="nn">dict</span><span class="p">:</span><span class="nf">merge</span><span class="p">(</span><span class="k">fun</span><span class="p">(_,</span> <span class="nv">X</span><span class="p">,</span> <span class="nv">Y</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nv">X</span><span class="o">+</span><span class="nv">Y</span> <span class="k">end</span><span class="p">,</span>
+                                       <span class="nv">G</span><span class="p">,</span> <span class="nv">Acc</span><span class="p">)</span>
+                          <span class="k">end</span><span class="p">,</span>
+                          <span class="nn">dict</span><span class="p">:</span><span class="nf">new</span><span class="p">(),</span>
+                          <span class="nv">Gcounts</span><span class="p">)]</span>
+           <span class="k">end</span><span class="p">.</span>
+<span class="mi">8</span><span class="o">&gt;</span> <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="p">[{</span><span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="nv">R</span><span class="p">]}]}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred</span><span class="p">(</span>
+                         <span class="nv">Client</span><span class="p">,</span>
+                         <span class="p">[{</span><span class="o">&lt;&lt;</span><span class="s">"groceries"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"mine"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                          <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"groceries"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"yours"</span><span class="o">&gt;&gt;</span><span class="p">}],</span>
+                         <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">Count</span><span class="p">},</span> <span class="n">none</span><span class="p">,</span> <span class="n">false</span><span class="p">},</span>
+                          <span class="p">{</span><span class="n">reduce</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">Merge</span><span class="p">},</span> <span class="n">none</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+<span class="mi">9</span><span class="o">&gt;</span> <span class="nv">L</span> <span class="o">=</span> <span class="nn">dict</span><span class="p">:</span><span class="nf">to_list</span><span class="p">(</span><span class="nv">R</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>Note how the <code class="language-plaintext highlighter-rouge">riak_object</code> module is used in the MapReduce
+function but the <code class="language-plaintext highlighter-rouge">riakc_obj</code> module is used on the client.
+Riak objects are represented differently internally to the cluster than
+they are externally.</p>
+
+<p>Given the lists of groceries we created, the sequence of commands above
+would result in L being bound to <code class="language-plaintext highlighter-rouge">[{"bread",1},{"eggs",1},{"bacon",2}]</code>.</p>
+
+<h3 id="erlang-query-syntax">Erlang Query Syntax</h3>
+
+<p><code class="language-plaintext highlighter-rouge">riakc_pb_socket:mapred/3</code> takes a client and two lists as arguments.
+The first list contains bucket-key pairs.  The second list contains
+the phases of the query.</p>
+
+<p><code class="language-plaintext highlighter-rouge">riakc_pb_socket:mapred_bucket/3</code> replaces the first list of
+bucket-key pairs with the name of a bucket; see the warnings above
+about using this in a production environment.</p>
+
+<h4 id="inputs">Inputs</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">mapred/3</code> input objects are given as a list of tuples in the
+format <code class="language-plaintext highlighter-rouge">{Bucket, Key}</code> or <code class="language-plaintext highlighter-rouge">\{\{Bucket, Key}, KeyData}</code>. <code class="language-plaintext highlighter-rouge">Bucket</code> and
+<code class="language-plaintext highlighter-rouge">Key</code> should be binaries, and <code class="language-plaintext highlighter-rouge">KeyData</code> can be any Erlang term.  The
+former form is equivalent to <code class="language-plaintext highlighter-rouge">\{\{Bucket,Key},undefined}</code>.</p>
+
+<h4 id="query">Query</h4>
+
+<p>The query is given as a list of map, reduce and link phases. Map and
+reduce phases are each expressed as tuples in the following form:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="nv">Type</span><span class="p">,</span> <span class="nv">FunTerm</span><span class="p">,</span> <span class="nv">Arg</span><span class="p">,</span> <span class="nv">Keep</span><span class="p">}</span>
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">Type</code> is an atom, either <code class="language-plaintext highlighter-rouge">map</code> or <code class="language-plaintext highlighter-rouge">reduce</code>. <code class="language-plaintext highlighter-rouge">Arg</code> is a static argument
+(any Erlang term) to pass to each execution of the phase. <code class="language-plaintext highlighter-rouge">Keep</code> is
+either <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> and determines whether results from the phase
+will be included in the final value of the query. Riak KV assumes that the
+final phase will return results.</p>
+
+<p><code class="language-plaintext highlighter-rouge">FunTerm</code> is a reference to the function that the phase will execute and
+takes any of the following forms:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">{modfun, Module, Function}</code> where <code class="language-plaintext highlighter-rouge">Module</code> and <code class="language-plaintext highlighter-rouge">Function</code> are atoms
+that name an Erlang function in a specific module</li>
+  <li><code class="language-plaintext highlighter-rouge">{qfun,Fun}</code> where <code class="language-plaintext highlighter-rouge">Fun</code> is a callable fun term (closure or anonymous
+function)</li>
+  <li><code class="language-plaintext highlighter-rouge">{jsfun,Name}</code> where <code class="language-plaintext highlighter-rouge">Name</code> is a binary that, when evaluated in
+Javascript, points to a built-in Javascript function</li>
+  <li><code class="language-plaintext highlighter-rouge">{jsanon, Source}</code> where <code class="language-plaintext highlighter-rouge">Source</code> is a binary that, when evaluated in
+Javascript is an anonymous function</li>
+  <li><code class="language-plaintext highlighter-rouge">{jsanon, {Bucket, Key}}</code> where the object at <code class="language-plaintext highlighter-rouge">{Bucket, Key}</code> contains
+the source for an anonymous Javascript function</li>
+</ul>
+
+<p>Using <code class="language-plaintext highlighter-rouge">qfun</code> in compiled applications can be a fragile
+operation. Please keep the following points in mind:</p>
+
+<ol>
+  <li>
+    <p>The module in which the function is defined must be present and
+exactly the same version on both the client and Riak KV nodes.</p>
+  </li>
+  <li>
+    <p>Any modules and functions used by this function (or any function in
+the resulting call stack) must also be present on the Riak KV nodes.</p>
+  </li>
+</ol>
+
+<p>Errors about failures to ensure both 1 and 2 are often surprising,
+usually seen as opaque missing-function  or function-clause
+errors. Especially in the case of differing module versions, this can be
+difficult to diagnose without expecting the issue and knowing of
+<code class="language-plaintext highlighter-rouge">Module:info/0</code>.</p>
+
+<p>When using the Erlang shell, anonymous MapReduce functions can be
+defined and sent to Riak KV instead of deploying them to all servers in
+advance, but condition #2 above still holds.</p>
+
+<p>Link phases are expressed in the following form:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="nb">link</span><span class="p">,</span> <span class="nv">Bucket</span><span class="p">,</span> <span class="nv">Tag</span><span class="p">,</span> <span class="nv">Keep</span><span class="p">}</span>
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">Bucket</code> is either a binary name of a bucket to match, or the atom <code class="language-plaintext highlighter-rouge">_</code>,
+which matches any bucket. <code class="language-plaintext highlighter-rouge">Tag</code> is either a binary tag to match, or the
+atom <code class="language-plaintext highlighter-rouge">_</code>, which matches any tag. <code class="language-plaintext highlighter-rouge">Keep</code> has the same meaning as in map
+and reduce phases.</p>
+
+<blockquote>
+  <p>There are a small group of prebuilt Erlang MapReduce functions available
+with Riak KV. Check them out <a href="https://github.com/basho/riak_kv/blob/master/src/riak_kv_mapreduce.erl">on GitHub</a>.</p>
+</blockquote>
+
+<h2 id="bigger-data-examples">Bigger Data Examples</h2>
+
+<h3 id="loading-data">Loading Data</h3>
+
+<p>This Erlang script will load historical stock-price data for Google
+(ticker symbol “GOOG”) into your existing Riak KV cluster so we can use it.
+Paste the code below into a file called <code class="language-plaintext highlighter-rouge">load_data.erl</code> inside the <code class="language-plaintext highlighter-rouge">dev</code>
+directory (or download it below).</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="err">#</span><span class="o">!/</span><span class="n">usr</span><span class="o">/</span><span class="n">bin</span><span class="o">/</span><span class="n">env</span> <span class="n">escript</span>
+<span class="c">%% -*- erlang -*-
+</span><span class="nf">main</span><span class="p">([])</span> <span class="o">-&gt;</span>
+    <span class="nn">io</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"Requires one argument: filename with the CSV data</span><span class="si">~n</span><span class="s">"</span><span class="p">);</span>
+<span class="nf">main</span><span class="p">([</span><span class="nv">Filename</span><span class="p">])</span> <span class="o">-&gt;</span>
+    <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Data</span><span class="p">}</span> <span class="o">=</span> <span class="nn">file</span><span class="p">:</span><span class="nf">read_file</span><span class="p">(</span><span class="nv">Filename</span><span class="p">),</span>
+    <span class="nv">Lines</span> <span class="o">=</span> <span class="nb">tl</span><span class="p">(</span><span class="nn">re</span><span class="p">:</span><span class="nf">split</span><span class="p">(</span><span class="nv">Data</span><span class="p">,</span> <span class="s">"</span><span class="se">\r</span><span class="s">?</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="p">[{</span><span class="n">return</span><span class="p">,</span> <span class="n">binary</span><span class="p">},</span><span class="n">trim</span><span class="p">])),</span>
+    <span class="nn">lists</span><span class="p">:</span><span class="nf">foreach</span><span class="p">(</span><span class="k">fun</span><span class="p">(</span><span class="nv">L</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nv">LS</span> <span class="o">=</span> <span class="nn">re</span><span class="p">:</span><span class="nf">split</span><span class="p">(</span><span class="nv">L</span><span class="p">,</span> <span class="s">","</span><span class="p">),</span> <span class="nf">format_and_insert</span><span class="p">(</span><span class="nv">LS</span><span class="p">)</span> <span class="k">end</span><span class="p">,</span> <span class="nv">Lines</span><span class="p">).</span>
+
+<span class="nf">format_and_insert</span><span class="p">(</span><span class="nv">Line</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">JSON</span> <span class="o">=</span> <span class="nn">io_lib</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"{</span><span class="se">\"</span><span class="s">Date</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="si">~s</span><span class="se">\"</span><span class="s">,</span><span class="se">\"</span><span class="s">Open</span><span class="se">\"</span><span class="s">:</span><span class="si">~s</span><span class="s">,</span><span class="se">\"</span><span class="s">High</span><span class="se">\"</span><span class="s">:</span><span class="si">~s</span><span class="s">,</span><span class="se">\"</span><span class="s">Low</span><span class="se">\"</span><span class="s">:</span><span class="si">~s</span><span class="s">,</span><span class="se">\"</span><span class="s">Close</span><span class="se">\"</span><span class="s">:</span><span class="si">~s</span><span class="s">,</span><span class="se">\"</span><span class="s">Volume</span><span class="se">\"</span><span class="s">:</span><span class="si">~s</span><span class="s">,</span><span class="se">\"</span><span class="s">Adj. Close</span><span class="se">\"</span><span class="s">:</span><span class="si">~s</span><span class="s">}"</span><span class="p">,</span> <span class="nv">Line</span><span class="p">),</span>
+    <span class="nv">Command</span> <span class="o">=</span> <span class="nn">io_lib</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"curl -XPUT http://127.0.0.1:8098/buckets/goog/keys/</span><span class="si">~s</span><span class="s"> -d '</span><span class="si">~s</span><span class="s">' -H 'content-type: application/json'"</span><span class="p">,</span> <span class="p">[</span><span class="nb">hd</span><span class="p">(</span><span class="nv">Line</span><span class="p">),</span><span class="nv">JSON</span><span class="p">]),</span>
+    <span class="nn">io</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"Inserting: </span><span class="si">~s~n</span><span class="s">"</span><span class="p">,</span> <span class="p">[</span><span class="nb">hd</span><span class="p">(</span><span class="nv">Line</span><span class="p">)]),</span>
+    <span class="nn">os</span><span class="p">:</span><span class="nf">cmd</span><span class="p">(</span><span class="nv">Command</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>Make the script executable:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">chmod</span> +x load_data.erl
+</code></pre></div></div>
+
+<p>Download the CSV file of stock data linked below and place it in the
+<code class="language-plaintext highlighter-rouge">dev</code> directory where we’ve been working.</p>
+
+<ul>
+  <li><a href="https://github.com/basho/basho_docs/raw/master/extras/data/goog.csv">goog.csv</a> — Google historical stock data</li>
+  <li><a href="https://github.com/basho/basho_docs/raw/master/extras/code-examples/load_stocks.rb">load_stocks.rb</a> — Alternative script in Ruby to load the data</li>
+  <li><a href="https://github.com/basho/basho_docs/raw/master/extras/code-examples/load_data.erl">load_data.erl</a> — Erlang script to load data (as shown in snippet)</li>
+</ul>
+
+<p>Now load the data into Riak KV.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./load_data.erl goog.csv
+</code></pre></div></div>
+
+<h3 id="map-only-find-the-days-on-which-the-high-was-over-60000">Map only: find the days on which the high was over $600.00</h3>
+
+<p>From the Erlang shell with the client library loaded, let’s define a
+function which will check each value in our <code class="language-plaintext highlighter-rouge">goog</code> bucket to see if
+the stock’s high for the day was above $600.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="nv">HighFun</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">O</span><span class="p">,</span> <span class="p">_,</span> <span class="nv">LowVal</span><span class="p">)</span> <span class="o">-&gt;</span>
+<span class="o">&gt;</span>   <span class="p">{</span><span class="n">struct</span><span class="p">,</span> <span class="nv">Map</span><span class="p">}</span> <span class="o">=</span> <span class="nn">mochijson2</span><span class="p">:</span><span class="nf">decode</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">O</span><span class="p">)),</span>
+<span class="o">&gt;</span>   <span class="nv">High</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"High"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Map</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">.</span><span class="mi">0</span><span class="p">),</span>
+<span class="o">&gt;</span>   <span class="k">case</span> <span class="nv">High</span> <span class="o">&gt;</span> <span class="nv">LowVal</span> <span class="k">of</span>
+<span class="o">&gt;</span>      <span class="n">true</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">O</span><span class="p">)];</span>
+<span class="o">&gt;</span>      <span class="n">false</span> <span class="o">-&gt;</span> <span class="p">[]</span>
+<span class="o">&gt;</span> <span class="k">end</span> <span class="k">end</span><span class="p">.</span>
+<span class="err">#</span><span class="nv">Fun</span><span class="o">&lt;</span><span class="n">erl_eval</span><span class="p">.</span><span class="mi">18</span><span class="p">.</span><span class="mi">80484245</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<p>Now we’ll use <code class="language-plaintext highlighter-rouge">mapred_bucket/3</code> to send that function to the cluster.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred_bucket</span><span class="p">(</span><span class="nv">Riak</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"goog"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">HighFun</span><span class="p">},</span> <span class="mi">600</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+    <span class="p">{</span><span class="n">ok</span><span class="p">,[{</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">[</span><span class="o">&lt;&lt;</span><span class="s">"2007-11-29"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2008-01-02"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2008-01-17"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2010-01-08"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-12-05"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-10-24"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2007-10-26"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-10-11"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-11-09"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2007-12-06"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-12-19"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-11-01"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2007-11-07"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-11-16"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2009-12-28"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2007-12-26"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-11-05"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2008-01-16"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2007-11-13"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-11-08"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-12-07"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2008-01-"</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007"</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">|...]}]}</span>
+</code></pre></div></div>
+
+<h4 id="map-only-find-the-days-on-which-the-close-is-lower-than-open">Map only: find the days on which the close is lower than open</h4>
+
+<p>This example is slightly more complicated: instead of comparing a
+single field against a fixed value, we’re looking for days when the
+stock declined.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="nv">CloseLowerFun</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">O</span><span class="p">,</span> <span class="p">_,</span> <span class="p">_)</span> <span class="o">-&gt;</span>
+<span class="o">&gt;</span>    <span class="p">{</span><span class="n">struct</span><span class="p">,</span> <span class="nv">Map</span><span class="p">}</span> <span class="o">=</span> <span class="nn">mochijson2</span><span class="p">:</span><span class="nf">decode</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">O</span><span class="p">)),</span>
+<span class="o">&gt;</span>    <span class="nv">Close</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Close"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Map</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">.</span><span class="mi">0</span><span class="p">),</span>
+<span class="o">&gt;</span>    <span class="nv">Open</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Open"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Map</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">.</span><span class="mi">0</span><span class="p">),</span>
+<span class="o">&gt;</span>    <span class="k">case</span> <span class="nv">Close</span> <span class="o">&lt;</span> <span class="nv">Open</span> <span class="k">of</span>
+<span class="o">&gt;</span>       <span class="n">true</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">O</span><span class="p">)];</span>
+<span class="o">&gt;</span>       <span class="n">false</span> <span class="o">-&gt;</span> <span class="p">[]</span>
+<span class="o">&gt;</span> <span class="k">end</span> <span class="k">end</span><span class="p">.</span>
+<span class="err">#</span><span class="nv">Fun</span><span class="o">&lt;</span><span class="n">erl_eval</span><span class="p">.</span><span class="mi">18</span><span class="p">.</span><span class="mi">80484245</span><span class="o">&gt;</span>
+
+<span class="o">&gt;</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred_bucket</span><span class="p">(</span><span class="nv">Riak</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"goog"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">CloseLowerFun</span><span class="p">},</span> <span class="n">none</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,[{</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">[</span><span class="o">&lt;&lt;</span><span class="s">"2008-05-13"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2008-12-19"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2009-06-10"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2006-07-06"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2006-07-07"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2009-02-25"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2009-07-17"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2005-10-05"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2006-08-18"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2008-10-30"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2009-06-18"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2006-10-26"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2008-01-17"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2010-04-16"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-06-29"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2005-12-12"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2008-08-20"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2007-03-30"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2006-07-20"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2006-10-24"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2006-05-26"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+       <span class="o">&lt;&lt;</span><span class="s">"2007-02-"</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"2008"</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">|...]}]}</span>
+</code></pre></div></div>
+
+<h4 id="map-and-reduce-find-the-maximum-daily-variance-in-price-by-month">Map and Reduce: find the maximum daily variance in price by month</h4>
+
+<p>Here things start to get tricky. We’ll use map to determine each day’s
+rise or fall, and our reduce phase will identify each month’s largest
+variance.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">DailyMap</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">O</span><span class="p">,</span> <span class="p">_,</span> <span class="p">_)</span> <span class="o">-&gt;</span>
+   <span class="p">{</span><span class="n">struct</span><span class="p">,</span> <span class="nv">Map</span><span class="p">}</span> <span class="o">=</span> <span class="nn">mochijson2</span><span class="p">:</span><span class="nf">decode</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">O</span><span class="p">)),</span>
+   <span class="nv">Date</span> <span class="o">=</span> <span class="nb">binary_to_list</span><span class="p">(</span><span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Date"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Map</span><span class="p">,</span> <span class="s">"0000-00-00"</span><span class="p">)),</span>
+   <span class="nv">High</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"High"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Map</span><span class="p">,</span> <span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">),</span>
+   <span class="nv">Low</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Low"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Map</span><span class="p">,</span> <span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">),</span>
+   <span class="nv">Month</span> <span class="o">=</span> <span class="nn">string</span><span class="p">:</span><span class="nf">substr</span><span class="p">(</span><span class="nv">Date</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span>
+   <span class="p">[{</span><span class="nv">Month</span><span class="p">,</span> <span class="nb">abs</span><span class="p">(</span><span class="nv">High</span> <span class="o">-</span> <span class="nv">Low</span><span class="p">)}]</span>
+<span class="k">end</span><span class="p">.</span>
+
+<span class="nv">MonthReduce</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">List</span><span class="p">,</span> <span class="p">_)</span> <span class="o">-&gt;</span>
+    <span class="p">{</span><span class="nv">Highs</span><span class="p">,</span> <span class="p">_}</span> <span class="o">=</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">foldl</span><span class="p">(</span>
+      <span class="k">fun</span><span class="p">({</span><span class="nv">Month</span><span class="p">,</span> <span class="p">_</span><span class="nv">Value</span><span class="p">}</span><span class="o">=</span><span class="nv">Item</span><span class="p">,</span> <span class="p">{</span><span class="nv">Accum</span><span class="p">,</span> <span class="nv">PrevMonth</span><span class="p">})</span> <span class="o">-&gt;</span>
+              <span class="k">case</span> <span class="nv">Month</span> <span class="k">of</span>
+                  <span class="nv">PrevMonth</span> <span class="o">-&gt;</span>
+                      <span class="c">%% Highest value is always first in the list, so
+</span>                      <span class="c">%% skip over this one
+</span>                      <span class="p">{</span><span class="nv">Accum</span><span class="p">,</span> <span class="nv">PrevMonth</span><span class="p">};</span>
+                  <span class="p">_</span> <span class="o">-&gt;</span>
+                      <span class="p">{[</span><span class="nv">Item</span><span class="p">]</span> <span class="o">++</span> <span class="nv">Accum</span><span class="p">,</span> <span class="nv">Month</span><span class="p">}</span>
+              <span class="k">end</span>
+      <span class="k">end</span><span class="p">,</span>
+      <span class="p">{[],</span> <span class="s">""</span><span class="p">},</span>
+      <span class="nv">List</span><span class="p">),</span>
+    <span class="nv">Highs</span>
+    <span class="k">end</span><span class="p">.</span>
+<span class="o">&gt;</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred_bucket</span><span class="p">(</span><span class="nv">Riak</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"goog"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">DailyMap</span><span class="p">},</span> <span class="n">none</span><span class="p">,</span> <span class="n">false</span><span class="p">},</span> <span class="p">{</span><span class="n">reduce</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">MonthReduce</span><span class="p">},</span> <span class="n">none</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,[{</span><span class="mi">1</span><span class="p">,</span>
+      <span class="p">[{</span><span class="s">"2010-02"</span><span class="p">,</span><span class="mi">10</span><span class="p">.</span><span class="mi">099999999999909</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2006-02"</span><span class="p">,</span><span class="mi">11</span><span class="p">.</span><span class="mi">420000000000016</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2004-08"</span><span class="p">,</span><span class="mi">8</span><span class="p">.</span><span class="mi">100000000000009</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2008-08"</span><span class="p">,</span><span class="mi">14</span><span class="p">.</span><span class="mi">490000000000009</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2006-05"</span><span class="p">,</span><span class="mi">11</span><span class="p">.</span><span class="mi">829999999999984</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2005-10"</span><span class="p">,</span><span class="mi">4</span><span class="p">.</span><span class="mi">539999999999964</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2006-06"</span><span class="p">,</span><span class="mi">7</span><span class="p">.</span><span class="mi">300000000000011</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2008-06"</span><span class="p">,</span><span class="mi">9</span><span class="p">.</span><span class="mi">690000000000055</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2006-03"</span><span class="p">,</span><span class="mi">11</span><span class="p">.</span><span class="mi">770000000000039</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2006-12"</span><span class="p">,</span><span class="mi">4</span><span class="p">.</span><span class="mi">880000000000052</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2005-09"</span><span class="p">,</span><span class="mi">9</span><span class="p">.</span><span class="mi">050000000000011</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2008-03"</span><span class="p">,</span><span class="mi">15</span><span class="p">.</span><span class="mi">829999999999984</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2008-09"</span><span class="p">,</span><span class="mi">14</span><span class="p">.</span><span class="mi">889999999999986</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2010-04"</span><span class="p">,</span><span class="mi">9</span><span class="p">.</span><span class="mi">149999999999977</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2008-06"</span><span class="p">,</span><span class="mi">14</span><span class="p">.</span><span class="mi">909999999999968</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2008-05"</span><span class="p">,</span><span class="mi">13</span><span class="p">.</span><span class="mi">960000000000036</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2005-05"</span><span class="p">,</span><span class="mi">2</span><span class="p">.</span><span class="mi">780000000000001</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2005-07"</span><span class="p">,</span><span class="mi">6</span><span class="p">.</span><span class="mi">680000000000007</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2008-10"</span><span class="p">,</span><span class="mi">21</span><span class="p">.</span><span class="mi">390000000000043</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2009-09"</span><span class="p">,</span><span class="mi">4</span><span class="p">.</span><span class="mi">180000000000007</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2006-08"</span><span class="p">,</span><span class="mi">8</span><span class="p">.</span><span class="mi">319999999999993</span><span class="p">},</span>
+       <span class="p">{</span><span class="s">"2007-08"</span><span class="p">,</span><span class="mi">5</span><span class="p">.</span><span class="mi">990000000000009</span><span class="p">},</span>
+       <span class="p">{[...],...},</span>
+       <span class="p">{...}|...]}]}</span>
+</code></pre></div></div>
+
+<h4 id="a-mapreduce-challenge">A MapReduce Challenge</h4>
+
+<p>Here is a scenario involving the data you already have loaded.</p>
+
+<p>MapReduce Challenge: Find the largest day for each month in terms of
+dollars traded, and subsequently the largest overall day.</p>
+
+<p><em>Hint</em>: You will need at least one each of map and reduce phases.</p>
+
+<h2 id="streaming-mapreduce">Streaming MapReduce</h2>
+
+<p>Because Riak KV distributes the map phases across the cluster to increase
+data locality, you can gain access to the results of those individual
+computations as they finish via streaming.  Streaming can be very
+helpful when getting access to results from a high latency MapReduce job
+that only contains map phases.  Streaming of results from reduce phases
+isn’t as useful, but if your map phases return data (keep: true), they
+will be returned to the client even if the reduce phases haven’t
+executed. This will let you use streaming with a reduce phase to collect
+the results of the map phases while the jobs are run and then get the
+result to the reduce phase at the end.</p>
+
+<h3 id="streaming-via-the-http-api">Streaming via the HTTP API</h3>
+
+<p>You can enable streaming with MapReduce jobs submitted to the <code class="language-plaintext highlighter-rouge">/mapred</code>
+resource by adding <code class="language-plaintext highlighter-rouge">?chunked=true</code> to the url. The response will be sent
+using HTTP 1.1 chunked transfer encoding with <code class="language-plaintext highlighter-rouge">Content-Type: multipart/mixed</code>.
+Be aware that if you are streaming a set of serialized objects (like
+JSON objects), the chunks are not guaranteed to be separated along the
+same boundaries that your serialized objects are. For example, a chunk
+may end in the middle of a string representing a JSON object, so you
+will need to decode and parse your responses appropriately in the
+client.</p>
+
+<h3 id="streaming-via-the-erlang-api">Streaming via the Erlang API</h3>
+
+<p>You can use streaming with Erlang via the Riak KV local client or the
+Erlang Protocol Buffers API.  In either case, you will provide the call
+to <code class="language-plaintext highlighter-rouge">mapred_stream</code> with a <code class="language-plaintext highlighter-rouge">Pid</code> that will receive the streaming results.</p>
+
+<p>For examples, see <a href="/data/MapReduceExamples/pbstream.erl">MapReduce pbstream.erl</a></p>
+
+<h2 id="troubleshooting-mapreduce-illustrated">Troubleshooting MapReduce, illustrated</h2>
+
+<p>The most important advice: when developing Erlang MapReduce against
+Riak KV, prototype against a development environment using the Erlang
+shell. The shell allows for rapid feedback and iteration; once code
+needs to be deployed to a server for production use, changing it is
+more time-consuming.</p>
+
+<h3 id="module-not-in-path">Module not in path</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>curl <span class="nt">-XPOST</span> localhost:8098/mapred <span class="se">\</span>
+<span class="o">&gt;</span>   <span class="nt">-H</span> <span class="s1">'Content-Type: application/json'</span>   <span class="se">\</span>
+<span class="o">&gt;</span>   <span class="nt">-d</span> <span class="s1">'{"inputs":"messages","query":[{"map":{"language":"erlang","module":"mr_example","function":"get_keys"}}]}'</span>
+
+<span class="o">{</span><span class="s2">"phase"</span>:0,<span class="s2">"error"</span>:<span class="s2">"invalid module named in PhaseSpec function:</span><span class="se">\n</span><span class="s2"> must be a valid module name (failed to load mr_example: nofile)"</span><span class="o">}</span>
+</code></pre></div></div>
+
+<h3 id="node-in-process-of-starting">Node in process of starting</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>curl <span class="nt">-XPOST</span> localhost:8098/mapred   <span class="nt">-H</span> <span class="s1">'Content-Type: application/json'</span>     <span class="nt">-d</span> <span class="s1">'{"inputs":"messages","query":[{"map":{"language":"erlang","module":"mr_example","function":"get_keys"}}]}'</span>
+
+&lt;html&gt;&lt;<span class="nb">head</span><span class="o">&gt;</span>&lt;title&gt;500 Internal Server Error&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Internal Server Error&lt;/h1&gt;The server encountered an error <span class="k">while </span>processing this request:&lt;br&gt;&lt;pre&gt;<span class="o">{</span>error,<span class="o">{</span>error,function_clause,
+              <span class="o">[{</span>chashbin,itr_value,
+                         <span class="o">[</span><span class="k">done</span><span class="o">]</span>,
+                         <span class="o">[{</span>file,<span class="s2">"src/chashbin.erl"</span><span class="o">}</span>,<span class="o">{</span>line,139<span class="o">}]}</span>,
+               <span class="o">{</span>chashbin,itr_next_while,2,
+                         <span class="o">[{</span>file,<span class="s2">"src/chashbin.erl"</span><span class="o">}</span>,<span class="o">{</span>line,183<span class="o">}]}</span>,
+...
+</code></pre></div></div>
+
+<h3 id="erlang-errors">Erlang errors</h3>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred_bucket</span><span class="p">(</span><span class="nv">Riak</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"goog"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">DailyFun</span><span class="p">},</span> <span class="n">none</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+<span class="p">{</span><span class="n">error</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"{</span><span class="se">\"</span><span class="s">phase</span><span class="se">\"</span><span class="s">:0,</span><span class="se">\"</span><span class="s">error</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">function_clause</span><span class="se">\"</span><span class="s">,</span><span class="se">\"</span><span class="s">input</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">{ok,{r_object,&lt;&lt;</span><span class="se">\\\"</span><span class="s">goog</span><span class="se">\\\"</span><span class="s">&gt;&gt;,&lt;&lt;</span><span class="se">\\\"</span><span class="s">2009-06-10</span><span class="se">\\\"</span><span class="s">&gt;&gt;,[{r_content,{dic"</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">}</span>
+</code></pre></div></div>
+
+<p>The Erlang shell truncates error messages; when using MapReduce, typically the information you need is buried more deeply within the stack.</p>
+
+<p>We can get a longer error message this way:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="p">{</span><span class="n">error</span><span class="p">,</span> <span class="nv">ErrorMsg</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">mapred_bucket</span><span class="p">(</span><span class="nv">Riak</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"goog"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="p">[{</span><span class="n">map</span><span class="p">,</span> <span class="p">{</span><span class="n">qfun</span><span class="p">,</span> <span class="nv">DailyFun</span><span class="p">},</span> <span class="n">none</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+<span class="p">{</span><span class="n">error</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"{</span><span class="se">\"</span><span class="s">phase</span><span class="se">\"</span><span class="s">:0,</span><span class="se">\"</span><span class="s">error</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">function_clause</span><span class="se">\"</span><span class="s">,</span><span class="se">\"</span><span class="s">input</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">{ok,{r_object,&lt;&lt;</span><span class="se">\\\"</span><span class="s">goog</span><span class="se">\\\"</span><span class="s">&gt;&gt;,&lt;&lt;</span><span class="se">\\\"</span><span class="s">2009-06-10</span><span class="se">\\\"</span><span class="s">&gt;&gt;,[{r_content,{dic"</span><span class="p">...</span><span class="o">&gt;&gt;</span><span class="p">}</span>
+
+<span class="o">&gt;</span> <span class="nn">io</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"</span><span class="si">~p~n</span><span class="s">"</span><span class="p">,</span> <span class="p">[</span><span class="nv">ErrorMsg</span><span class="p">]).</span>
+<span class="o">&lt;&lt;</span><span class="s">"{</span><span class="se">\"</span><span class="s">phase</span><span class="se">\"</span><span class="s">:0,</span><span class="se">\"</span><span class="s">error</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">function_clause</span><span class="se">\"</span><span class="s">,</span><span class="se">\"</span><span class="s">input</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">{ok,{r_object,&lt;&lt;</span><span class="se">\\\"</span><span class="s">goog</span><span class="se">\\\"</span><span class="s">&gt;&gt;,&lt;&lt;</span><span class="se">\\\"</span><span class="s">2009-06-10</span><span class="se">\\\"</span><span class="s">&gt;&gt;,[{r_content,{dict,6,16,16,8,80,48,{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},</span><span class="err">\</span><span class="s">{</span><span class="err">\</span><span class="s">{[],[],[[&lt;&lt;</span><span class="se">\\\"</span><span class="s">Links</span><span class="se">\\\"</span><span class="s">&gt;&gt;]],[],[],[],[],[],[],[],[[&lt;&lt;</span><span class="se">\\\"</span><span class="s">content-type</span><span class="se">\\\"</span><span class="s">&gt;&gt;,97,112,112,108,105,99,97,116,105,111,110,47,106,115,111,110],[&lt;&lt;</span><span class="se">\\\"</span><span class="s">X-Riak-VTag</span><span class="se">\\\"</span><span class="s">&gt;&gt;,55,87,101,79,53,120,65,121,50,67,49,77,72,104,54,100,89,65,67,74,55,70]],[[&lt;&lt;</span><span class="se">\\\"</span><span class="s">index</span><span class="se">\\\"</span><span class="s">&gt;&gt;]],[],[[&lt;&lt;</span><span class="se">\\\"</span><span class="s">X-Riak-Last-Modified</span><span class="se">\\\"</span><span class="s">&gt;&gt;|{1405,709865,48668}]],[],[[&lt;&lt;</span><span class="se">\\\"</span><span class="s">X-Riak-Meta</span><span class="se">\\\"</span><span class="s">&gt;&gt;]]}}},&lt;&lt;</span><span class="se">\\\"</span><span class="s">{</span><span class="se">\\\\\\\"</span><span class="s">Date</span><span class="se">\\\\\\\"</span><span class="s">:</span><span class="se">\\\\\\\"</span><span class="s">2009-06-10</span><span class="se">\\\\\\\"</span><span class="s">,</span><span class="se">\\\\\\\"</span><span class="s">Open</span><span class="se">\\\\\\\"</span><span class="s">:436.23,</span><span class="se">\\\\\\\"</span><span class="s">High</span><span class="se">\\\\\\\"</span><span class="s">:437.89,</span><span class="se">\\\\\\\"</span><span class="s">L...</span><span class="se">\\\"</span><span class="s">&gt;&gt;}],...},...}</span><span class="se">\"</span><span class="s">,</span><span class="se">\"</span><span class="s">type</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">error</span><span class="se">\"</span><span class="s">,</span><span class="se">\"</span><span class="s">stack</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">[{string,substr,[</span><span class="se">\\\"</span><span class="s">2009-06-10</span><span class="se">\\\"</span><span class="s">,0,7],[{file,</span><span class="se">\\\"</span><span class="s">string.erl</span><span class="se">\\\"</span><span class="s">},{line,207}]},{erl_eval,do_apply,6,[{file,</span><span class="se">\\\"</span><span class="s">erl_eval.erl</span><span class="se">\\\"</span><span class="s">},{line,573}]},{erl_eval,expr,5,[{file,</span><span class="se">\\\"</span><span class="s">erl_eval.erl</span><span class="se">\\\"</span><span class="s">},{line,364}]},{erl_eval,exprs,5,[{file,</span><span class="se">\\\"</span><span class="s">erl_eval.erl</span><span class="se">\\\"</span><span class="s">},{line,118}]},{riak_kv_mrc_map,map,3,[{file,</span><span class="se">\\\"</span><span class="s">src/riak_kv_mrc_map.erl</span><span class="se">\\\"</span><span class="s">},{line,172}]},{riak_kv_mrc_map,process,3,[{file,</span><span class="se">\\\"</span><span class="s">src/riak_kv_mrc_map.erl</span><span class="se">\\\"</span><span class="s">},{line,144}]},{riak_pipe_vnode_worker,process_input,3,[{file,</span><span class="se">\\\"</span><span class="s">src/riak_pipe_vnode_worker.erl</span><span class="se">\\\"</span><span class="s">},{line,446}]},{riak_pipe_vnode_worker,wait_for_input,...}]</span><span class="se">\"</span><span class="s">}"</span><span class="o">&gt;&gt;</span>
+</code></pre></div></div>
+
+<p>Still truncated, but this provides enough context to see the problem:
+<code class="language-plaintext highlighter-rouge">string,substr,[\\\"2009-06-10\\\",0,7]</code>. Erlang’s <code class="language-plaintext highlighter-rouge">string:substr</code>
+function starts indexing strings at 1, not 0.</p>
+
+<h3 id="exceptional-tip">Exceptional tip</h3>
+
+<p>When experimenting with MapReduce from the Erlang shell, it is helpful
+to avoid breaking the connection to Riak KV when an exception is trapped
+by the shell. Use <code class="language-plaintext highlighter-rouge">catch_exception</code>:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="nf">catch_exception</span><span class="p">(</span><span class="n">true</span><span class="p">).</span>
+<span class="n">false</span>
+</code></pre></div></div>

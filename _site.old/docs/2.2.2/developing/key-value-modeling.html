@@ -1,0 +1,495 @@
+<p>While Riak enables you to take advantage of a wide variety of features
+that can be useful in application development, such as <a href="/riak/kv/2.2.2/developing/usage/search">Search</a>, <a href="/riak/kv/2.2.2/developing/usage/secondary-indexes/">secondary indexes (2i)</a>, and <a href="/riak/kv/2.2.2/developing/data-types/">Riak Data Types</a>, Riak almost always performs best when you
+build your application around basic CRUD operations (create, read,
+update, and delete) on objects, i.e. when you use Riak as a “pure”
+key/value store.</p>
+
+<p>In this tutorial, we’ll suggest some strategies for naming and modeling
+for key/value object interactions with Riak. If you’d like to use some
+of Riak’s other features, we recommend checking out the documentation
+for each of them or consulting our guide to <a href="/riak/kv/2.2.2/developing/app-guide/">building applications with Riak</a> for a better sense of which features you might need.</p>
+
+<h2 id="advantages-of-keyvalue-operations">Advantages of Key/Value Operations</h2>
+
+<p>Riak’s key/value architecture enables it to be more performant than
+relational databases in many scenarios because Riak doesn’t need to
+perform lock, join, union, or other operations when working with
+objects. Instead, it interacts with objects on a one-by-one basis, using
+<strong>primary key lookups</strong>.</p>
+
+<p>Primary key lookups store and fetch objects in Riak on the basis of
+three basic locators:</p>
+
+<ul>
+  <li>The object’s <a href="/riak/kv/2.2.2/learn/concepts/keys-and-objects#keys">key</a>, which can be anything you
+want as long as it is <a href="http://www.unicode.org/">Unicode compliant</a></li>
+  <li>The <a href="/riak/kv/2.2.2/learn/concepts/buckets">bucket</a> which houses the object and its key (bucket
+names are also Unicode compliant)</li>
+  <li>The <a href="/riak/kv/2.2.2/developing/usage/bucket-types">bucket type</a> that determines the bucket’s
+<a href="/riak/kv/2.2.2/developing/app-guide/replication-properties">replication</a> and other properties</li>
+</ul>
+
+<p>It may be useful to think of this system as analogous to a nested
+key/value <a href="http://en.wikipedia.org/wiki/Hash_function">hash</a> as you
+would find in most programming languages. Below is an example from
+<a href="http://www.ruby-doc.org/core-2.1.2/Hash.html">Ruby</a>. The hash
+<code class="language-plaintext highlighter-rouge">simpsons</code> contains keys for all of the available seasons, while each
+key houses a hash for each episode of that season:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">simpsons</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="s1">'season 1'</span><span class="p">:</span> <span class="p">{</span>
+    <span class="p">{</span> <span class="s1">'episode 1'</span><span class="p">:</span> <span class="s1">'Simpsons Roasting on an Open Fire'</span> <span class="p">},</span>
+    <span class="p">{</span> <span class="s1">'episode 2'</span><span class="p">:</span> <span class="s1">'Bart the Genius'</span> <span class="p">},</span>
+    <span class="c1"># ...</span>
+  <span class="p">},</span>
+  <span class="s1">'season 2'</span><span class="p">:</span> <span class="p">{</span>
+    <span class="p">{</span> <span class="s1">'episode 1'</span><span class="p">:</span> <span class="s1">'Bart Gets an "F"'</span> <span class="p">},</span>
+    <span class="c1"># ...</span>
+  <span class="p">},</span>
+  <span class="c1"># ...</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>If we want to find out the title of an episode, we can retrieve it based
+on hash keys:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">simpsons</span><span class="p">[</span><span class="s1">'season 4'</span><span class="p">][</span><span class="s1">'episode 12'</span><span class="p">]</span>
+
+<span class="c1"># =&gt; "Marge vs. the Monorail"</span>
+</code></pre></div></div>
+
+<p>Storing data in Riak is a lot like this. Let’s say that we want to store
+JSON objects with a variety of information about every episode of the
+Simpsons. We could store each season in its own bucket and each episode
+in its own key within that bucket. Here’s what the URL structure would
+look like (for the <a href="/riak/kv/2.2.2/developing/api/http">HTTP API</a>):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET/PUT/DELETE /bucket/&lt;season&gt;/keys/&lt;episode number&gt;
+</code></pre></div></div>
+
+<p>The most important benefit of sorting Riak objects this way is that
+these types of lookup operations are extremely fast. Riak doesn’t need
+to search through columns or tables to find an object. If it knows the
+bucket/key “address” of the object, so to speak, it can locate that
+object just about as quickly with billions of objects in a cluster as
+when the cluster holds only a handful of objects.</p>
+
+<h2 id="overcoming-the-limitations-of-keyvalue-operations">Overcoming the Limitations of Key/Value Operations</h2>
+
+<p>Using any key/value store can be tricky at first, especially if you’re
+used to relational databases. The central difficulty is that your
+application cannot run arbitrary selection queries like <code class="language-plaintext highlighter-rouge">SELECT * FROM
+table</code>, and so it needs to know where to look for objects in advance.</p>
+
+<p>One of the best ways to enable applications to discover objects in Riak
+more easily is to provide <strong>structured bucket and key names</strong> for
+objects. This approach often involves wrapping information about the
+object <em>in the object’s location data itself</em>.</p>
+
+<p>Here are some example sources for bucket or key names:</p>
+
+<ul>
+  <li>Timestamps, e.g. <code class="language-plaintext highlighter-rouge">2013-11-05T08:15:30-05:00</code></li>
+  <li><a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">UUID</a>s,
+e.g. <code class="language-plaintext highlighter-rouge">9b1899b5-eb8c-47e4-83c9-2c62f0300596</code></li>
+  <li>Geographical coordinates, e.g. <code class="language-plaintext highlighter-rouge">40.172N-21.273E</code></li>
+</ul>
+
+<p>We could use these markers by themselves or in combination with other
+markers. For example, sensor data keys could be prefaced by <code class="language-plaintext highlighter-rouge">sensor_</code> or
+<code class="language-plaintext highlighter-rouge">temp_sensor1_</code> followed by a timestamp (e.g.
+<code class="language-plaintext highlighter-rouge">sensor1_2013-11-05T08:15:30-05:00</code>), or user data keys could be
+prefaced with <code class="language-plaintext highlighter-rouge">user_</code> followed by a UUID (e.g.
+<code class="language-plaintext highlighter-rouge">user_9b1899b5-eb8c-47e4-83c9-2c62f0300596</code>).</p>
+
+<p>Any of the above suggestions could apply to bucket names as well as key
+names. If you were building Twitter using Riak, for example, you could
+store tweets from each user in a different bucket and then construct key
+names using a combination of the prefix <code class="language-plaintext highlighter-rouge">tweet_</code> and then a timestamp.
+In that case, all the tweets from the user BashoWhisperer123 could be
+housed in a bucket named <code class="language-plaintext highlighter-rouge">BashoWhisperer123</code>, and keys for tweets would
+look like <code class="language-plaintext highlighter-rouge">tweet_&lt;timestamp&gt;</code>.</p>
+
+<p>The possibilities are essentially endless and, as always, defined by the
+use case at hand.</p>
+
+<h2 id="object-discovery-with-riak-sets">Object Discovery with Riak Sets</h2>
+
+<p>Let’s say that we’ve created a solid bucket/key naming scheme for a user
+information store that enables your application to easily fetch user
+records, which are all stored in the bucket <code class="language-plaintext highlighter-rouge">users</code> with each user’s
+username acting as the key. The problem at this point is this: how can
+Riak know which user records actually exist?</p>
+
+<p>One way to determine this is to <a href="/riak/kv/2.2.2/developing/api/protocol-buffers/list-keys">list all keys</a> in the
+bucket <code class="language-plaintext highlighter-rouge">users</code>. This approach, however, is <em>not</em> recommended, because
+listing all keys in a bucket is a very expensive operation that should
+not be used in production. And so another strategy must be employed.</p>
+
+<p>A better possibility is to use <a href="/riak/kv/2.2.2/developing/data-types/#sets">Riak sets</a> to
+store lists of keys in a bucket. Riak sets are a <a href="/riak/kv/2.2.2/developing/data-types">Riak Data Type</a> that enable you to store lists of binaries or strings in Riak.
+Unlike normal Riak objects, you can interact with Riak sets much like
+you interact with sets in most programming languages, i.e. you can add
+and remove elements at will.</p>
+
+<p>Going back to our user data example, instead of simply storing user
+records in our <code class="language-plaintext highlighter-rouge">users</code> bucket, we could set up our application to store
+each key in a set when a new record is created. We’ll store this set in
+the bucket <code class="language-plaintext highlighter-rouge">user_info_sets</code> (we’ll keep it simple) and in the key
+<code class="language-plaintext highlighter-rouge">usernames</code>. The following will also assume that we’ve <a href="/riak/kv/2.2.2/developing/data-types/#setting-up-buckets-to-use-riak-data-types">set up a bucket type</a> called
+<code class="language-plaintext highlighter-rouge">sets</code>.</p>
+
+<p>We can interact with that set on the basis of its location:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">userIdSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"sets"</span><span class="o">,</span> <span class="s">"user_info_sets"</span><span class="o">),</span> <span class="s">"usernames"</span><span class="o">);</span>
+
+<span class="c1">// With this Location, we can construct fetch operations like this:</span>
+<span class="nc">FetchSet</span> <span class="n">fetchUserIdSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">userIdSet</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">require</span> <span class="s1">'riak'</span>
+
+<span class="n">set_bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'user_info_sets'</span><span class="p">)</span>
+
+<span class="c1"># We'll make this set global because we'll use it</span>
+<span class="c1"># inside of a function later on</span>
+
+<span class="vg">$user_id_set</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Set</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">set_bucket</span><span class="p">,</span> <span class="s1">'usernames'</span><span class="p">,</span> <span class="s1">'sets'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$command</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'usernames'</span><span class="p">,</span> <span class="s1">'user_info_sets'</span><span class="p">,</span> <span class="s1">'sets'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Set</span>
+
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'sets'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'user_info_sets'</span><span class="p">)</span>
+<span class="n">user_id_set</span> <span class="o">=</span> <span class="n">Set</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'usernames'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Getting started with Riak clients</strong></p>
+
+  <p>If you are connecting to Riak using one of Basho’s official <a href="/riak/kv/2.2.2/developing/client-libraries">client libraries</a>, you can find more information about getting started with your client in <a href="/riak/kv/2.2.2/developing/getting-started">Developing with Riak KV: Getting Started</a>.</p>
+</blockquote>
+
+<p>Then, we can create a function that stores a user record’s key in that
+set every time a record is created:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// A User class for constructing user records</span>
+<span class="kd">class</span> <span class="nc">User</span> <span class="o">{</span>
+  <span class="kd">public</span> <span class="nc">String</span> <span class="n">username</span><span class="o">;</span>
+  <span class="kd">public</span> <span class="nc">String</span> <span class="n">info</span><span class="o">;</span>
+
+  <span class="kd">public</span> <span class="nf">User</span><span class="o">(</span><span class="nc">String</span> <span class="n">username</span><span class="o">,</span> <span class="nc">String</span> <span class="n">info</span><span class="o">)</span> <span class="o">{</span>
+    <span class="k">this</span><span class="o">.</span><span class="na">username</span> <span class="o">=</span> <span class="n">username</span><span class="o">;</span>
+    <span class="k">this</span><span class="o">.</span><span class="na">info</span> <span class="o">=</span> <span class="n">info</span><span class="o">;</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+
+<span class="c1">// A function for storing a user record that has been created</span>
+<span class="kd">public</span> <span class="kt">void</span> <span class="nf">storeUserRecord</span><span class="o">(</span><span class="nc">User</span> <span class="n">user</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">Exception</span> <span class="o">{</span>
+  <span class="c1">// User records themselves will be stored in the bucket "users"</span>
+  <span class="nc">Location</span> <span class="n">userObjectLocation</span> <span class="o">=</span>
+    <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"users"</span><span class="o">),</span> <span class="n">user</span><span class="o">.</span><span class="na">username</span><span class="o">);</span>
+  <span class="nc">RiakObject</span> <span class="n">userObject</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+      <span class="c1">// We'll keep it simple and store User object data as plain text</span>
+      <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+      <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="n">user</span><span class="o">.</span><span class="na">info</span><span class="o">);</span>
+  <span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">userObjectLocation</span><span class="o">,</span> <span class="n">userObject</span><span class="o">)</span>
+      <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+  <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+
+  <span class="nc">Location</span> <span class="n">userIdSet</span> <span class="o">=</span>
+    <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"sets"</span><span class="o">,</span> <span class="s">"user_info_sets"</span><span class="o">),</span> <span class="s">"usernames"</span><span class="o">);</span>
+  <span class="nc">SetUpdate</span> <span class="n">su</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SetUpdate</span><span class="o">()</span>
+      <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="n">user</span><span class="o">.</span><span class="na">username</span><span class="o">));</span>
+  <span class="nc">UpdateSet</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">su</span><span class="o">,</span> <span class="n">update</span><span class="o">)</span>
+      <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+  <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">class</span> <span class="nc">User</span>
+  <span class="nb">attr_accessor</span> <span class="ss">:username</span><span class="p">,</span> <span class="ss">:info</span>
+<span class="k">end</span>
+
+<span class="k">def</span> <span class="nf">store_record</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+  <span class="c1"># First we create an empty object and specify its bucket and key</span>
+  <span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'users'</span><span class="p">),</span> <span class="n">user</span><span class="p">.</span><span class="nf">username</span><span class="p">)</span>
+
+  <span class="c1"># We'll keep it simple by storing plain text for each user's info</span>
+  <span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+  <span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="n">user</span><span class="p">.</span><span class="nf">info</span>
+  <span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+
+  <span class="c1"># Finally, we'll add the user's username to the set</span>
+  <span class="n">user_id_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">user</span><span class="p">.</span><span class="nf">username</span><span class="p">)</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">class</span> <span class="nc">User</span>
+<span class="p">{</span>
+  <span class="k">public</span> <span class="nv">$user_name</span><span class="p">;</span>
+  <span class="k">public</span> <span class="nv">$info</span><span class="p">;</span>
+
+  <span class="k">public</span> <span class="k">function</span> <span class="n">__construct</span><span class="p">(</span><span class="nv">$user_name</span><span class="p">,</span> <span class="nv">$info</span><span class="p">)</span>
+  <span class="p">{</span>
+    <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">user_name</span> <span class="o">=</span> <span class="nv">$user_name</span><span class="p">;</span>
+    <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">info</span> <span class="o">=</span> <span class="nv">$info</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">function</span> <span class="n">store_user</span><span class="p">(</span><span class="kt">User</span> <span class="nv">$user</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nc">Basho\Riak\Command\Builder\StoreObject</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="nv">$user</span><span class="o">-&gt;</span><span class="n">user_name</span><span class="p">,</span> <span class="s1">'users'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildJsonObject</span><span class="p">(</span><span class="nv">$user</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+  <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nc">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'usernames'</span><span class="p">,</span> <span class="s1">'user_info_sets'</span><span class="p">,</span> <span class="s1">'sets'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="nv">$user</span><span class="o">-&gt;</span><span class="n">user_name</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">class</span> <span class="nc">User</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">,</span> <span class="n">info</span><span class="p">):</span>
+        <span class="n">this</span><span class="p">.</span><span class="n">username</span> <span class="o">=</span> <span class="n">username</span>
+        <span class="n">this</span><span class="p">.</span><span class="n">info</span> <span class="o">=</span> <span class="n">info</span>
+
+<span class="c1"># Using the "user_id_set" object from above
+</span><span class="k">def</span> <span class="nf">store_record</span><span class="p">(</span><span class="n">user</span><span class="p">):</span>
+  <span class="c1"># First we create an empty object and specify its bucket and key
+</span>    <span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="s">'users'</span><span class="p">,</span> <span class="n">user</span><span class="p">.</span><span class="n">username</span><span class="p">)</span>
+
+    <span class="c1"># We'll keep it simple by storing plain text for each user's info
+</span>    <span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+    <span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">user</span><span class="p">.</span><span class="n">info</span>
+    <span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+    <span class="c1"># Finally, we'll add the user's username to the set
+</span>    <span class="n">user_id_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">username</span><span class="p">)</span>
+    <span class="n">user_id_set</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>Now, let’s say that we want to be able to pull up all user records in
+the bucket at once. We could do so by iterating through the usernames
+stored in our set and then fetching the object corresponding to each
+username:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">public</span> <span class="nc">Set</span><span class="o">&lt;</span><span class="nc">User</span><span class="o">&gt;</span> <span class="nf">fetchAllUserRecords</span><span class="o">()</span> <span class="o">{</span>
+    <span class="c1">// Empty builder sets for usernames and User objects</span>
+    <span class="nc">Set</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">&gt;</span> <span class="n">userIdSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">HashSet</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">&gt;();</span>
+    <span class="nc">Set</span><span class="o">&lt;</span><span class="nc">User</span><span class="o">&gt;</span> <span class="n">userSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">HashSet</span><span class="o">&lt;</span><span class="nc">User</span><span class="o">&gt;();</span>
+
+    <span class="c1">// Turn the Riak username set into a set of Strings</span>
+    <span class="nc">Location</span> <span class="n">userIdSet</span> <span class="o">=</span>
+        <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"sets"</span><span class="o">,</span> <span class="s">"sets"</span><span class="o">),</span> <span class="s">"usernames"</span><span class="o">);</span>
+    <span class="nc">FetchSet</span> <span class="n">fetchUserIdSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">userIdSet</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+    <span class="nc">RiakSet</span> <span class="n">set</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetchUserIdSet</span><span class="o">).</span><span class="na">getDatatype</span><span class="o">();</span>
+    <span class="n">set</span><span class="o">.</span><span class="na">viewAsSet</span><span class="o">().</span><span class="na">forEach</span><span class="o">((</span><span class="nc">BinaryValue</span> <span class="n">username</span><span class="o">)</span> <span class="o">-&gt;</span> <span class="o">{</span>
+        <span class="n">userIdSet</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">username</span><span class="o">.</span><span class="na">toString</span><span class="o">());</span>
+    <span class="o">});</span>
+
+    <span class="c1">// Fetch User objects for each of the usernames stored in the set</span>
+    <span class="n">userIdSet</span><span class="o">.</span><span class="na">forEach</span><span class="o">((</span><span class="nc">String</span> <span class="n">username</span><span class="o">)</span> <span class="o">-&gt;</span> <span class="o">{</span>
+        <span class="nc">Location</span> <span class="n">userLocation</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"users"</span><span class="o">),</span> <span class="n">username</span><span class="o">);</span>
+        <span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">userLocation</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+        <span class="nc">User</span> <span class="n">user</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">).</span><span class="na">getValue</span><span class="o">(</span><span class="nc">User</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+        <span class="n">userSet</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">user</span><span class="o">);</span>
+    <span class="o">});</span>
+    <span class="k">return</span> <span class="n">userSet</span><span class="o">;</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># Using the "user_id_set" set from above</span>
+
+<span class="k">def</span> <span class="nf">fetch_all_user_records</span>
+  <span class="n">users_bucket</span> <span class="o">=</span> <span class="vg">$client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'users'</span><span class="p">)</span>
+  <span class="n">user_records</span> <span class="o">=</span> <span class="no">Array</span><span class="p">.</span><span class="nf">new</span>
+  <span class="vg">$user_id_set</span><span class="p">.</span><span class="nf">members</span><span class="p">.</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">user_id</span><span class="o">|</span>
+    <span class="n">user_record</span> <span class="o">=</span> <span class="n">users_bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">user_id</span><span class="p">).</span><span class="nf">data</span>
+    <span class="n">user_records</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="n">user_record</span><span class="p">)</span>
+  <span class="k">end</span>
+  <span class="n">user_records</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">function</span> <span class="n">fetch_users</span><span class="p">()</span>
+<span class="p">{</span>
+  <span class="nv">$users</span> <span class="o">=</span> <span class="p">[];</span>
+
+  <span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nc">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'usernames'</span><span class="p">,</span> <span class="s1">'user_info_sets'</span><span class="p">,</span> <span class="s1">'sets'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+  <span class="nv">$user_names</span> <span class="o">=</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getSet</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span>
+  <span class="k">foreach</span><span class="p">(</span><span class="nv">$user_names</span> <span class="k">as</span> <span class="nv">$user_name</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nc">Basho\Riak\Command\Builder\FetchObject</span><span class="p">)</span>
+      <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="nv">$user_name</span><span class="p">,</span> <span class="s1">'users'</span><span class="p">)</span>
+      <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+      <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+    <span class="nv">$users</span><span class="p">[</span><span class="nv">$user_name</span><span class="p">]</span> <span class="o">=</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getObject</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="nv">$users</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># We'll create a generator object that will yield a list of Riak objects
+</span><span class="k">def</span> <span class="nf">fetch_all_user_records</span><span class="p">():</span>
+  <span class="n">users_bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'users'</span><span class="p">)</span>
+    <span class="n">user_id_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">user_id_set</span><span class="p">.</span><span class="nb">reload</span><span class="p">().</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">user_id</span> <span class="ow">in</span> <span class="n">user_id_list</span><span class="p">:</span>
+      <span class="k">yield</span> <span class="n">users_bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+
+<span class="c1"># We can retrieve that list of Riak objects later on
+</span><span class="nb">list</span><span class="p">(</span><span class="n">fetch_all_user_records</span><span class="p">())</span>
+</code></pre></div></div>
+
+<h2 id="naming-and-object-verification">Naming and Object Verification</h2>
+
+<p>Another advantage of structured naming is that you can prevent queries
+for objects that don’t exist or that don’t conform to how your
+application has named them. For example, you could store all user data
+in the bucket <code class="language-plaintext highlighter-rouge">users</code> with keys beginning with the fragment <code class="language-plaintext highlighter-rouge">user_</code>
+followed by a username, e.g. <code class="language-plaintext highlighter-rouge">user_coderoshi</code> or <code class="language-plaintext highlighter-rouge">user_macintux</code>. If an
+object with an inappropriate key is stored in that bucket, it won’t even
+be seen by your application because it will only ever query keys that
+begin with <code class="language-plaintext highlighter-rouge">user_</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Assuming that we've created a class User:</span>
+
+<span class="kd">public</span> <span class="nc">User</span> <span class="nf">getUserByUsername</span><span class="o">(</span><span class="nc">String</span> <span class="n">username</span><span class="o">)</span> <span class="o">{</span>
+    <span class="nc">String</span> <span class="n">usernameKey</span> <span class="o">=</span> <span class="nc">String</span><span class="o">.</span><span class="na">format</span><span class="o">(</span><span class="s">"user_%s"</span><span class="o">,</span> <span class="n">username</span><span class="o">)</span>
+    <span class="nc">Location</span> <span class="n">loc</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="s">"users"</span><span class="o">)</span>
+            <span class="o">.</span><span class="na">setKey</span><span class="o">(</span><span class="n">usernameKey</span><span class="o">);</span>
+    <span class="nc">FetchValue</span> <span class="n">fetchUser</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">loc</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+    <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Response</span> <span class="n">res</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetchUser</span><span class="o">);</span>
+    <span class="nc">User</span> <span class="n">userObject</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="na">getValue</span><span class="o">(</span><span class="nc">User</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+    <span class="k">return</span> <span class="n">userObject</span><span class="o">;</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">get_user_by_username</span><span class="p">(</span><span class="n">username</span><span class="p">)</span>
+  <span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'users'</span><span class="p">)</span>
+  <span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'user_#{username}'</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">function</span> <span class="n">fetchUser</span><span class="p">(</span><span class="nv">$user_name</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nc">Basho\Riak\Command\Builder\FetchObject</span><span class="p">)</span>
+      <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="nv">$user_name</span><span class="p">,</span> <span class="s1">'users'</span><span class="p">)</span>
+      <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+      <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+    <span class="k">return</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getObject</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">get_user_by_username</span><span class="p">(</span><span class="n">username</span><span class="p">):</span>
+  <span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'users'</span><span class="p">)</span>
+  <span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'user_{}'</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">username</span><span class="p">))</span>
+  <span class="k">return</span> <span class="n">obj</span><span class="p">.</span><span class="n">data</span>
+</code></pre></div></div>
+
+<h2 id="bucket-types-as-additional-namespaces">Bucket Types as Additional Namespaces</h2>
+
+<p>Riak <a href="/riak/kv/2.2.2/developing/usage/bucket-types">bucket types</a> have two essential functions:
+they enable you to manage <a href="/riak/kv/2.2.2/learn/concepts/buckets">bucket configurations</a> in an
+efficient and streamlined way and, more importantly for our purposes
+here, they act as a third namespace in Riak in addition to buckets and
+keys. Thus, in Riak versions 2.0 and later you have access to a third
+layer of information for locating objects if you wish.</p>
+
+<p>While bucket types are typically used to assign different bucket
+properties to groups of buckets, you can also create named bucket types
+that simply extend Riak’s <a href="/riak/kv/2.2.2/developing/usage/bucket-types/#bucket-types-as-namespaces">defaults</a> or multiple bucket types that have
+the same configuration but have different names.</p>
+
+<p>Here’s an example of creating four bucket types that only extend Riak’s
+defaults:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create john
+riak-admin bucket-type create robert
+riak-admin bucket-type create jimmy
+riak-admin bucket-type create john-paul
+</code></pre></div></div>
+
+<p>Or you can create five different bucket types that all set <code class="language-plaintext highlighter-rouge">n_val</code> to 2
+but have different names:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create earth <span class="s1">'{"props":{"n_val":2}}'</span>
+riak-admin bucket-type create fire <span class="s1">'{"props":{"n_val":2}}'</span>
+riak-admin bucket-type create wind <span class="s1">'{"props":{"n_val":2}}'</span>
+riak-admin bucket-type create water <span class="s1">'{"props":{"n_val":2}}'</span>
+riak-admin bucket-type create heart <span class="s1">'{"props":{"n_val":2}}'</span>
+</code></pre></div></div>
+
+<h3 id="bucket-types-example">Bucket Types Example</h3>
+
+<p>To extend our Simpsons example from above, imagine that we become
+dissatisfied with our storage scheme because we want to separate the
+seasons into good seasons and bad seasons (we’ll leave it up to you to
+make that determination).</p>
+
+<p>One way to improve our scheme might be to change our bucket naming
+system and preface each bucket name with <code class="language-plaintext highlighter-rouge">good</code> or <code class="language-plaintext highlighter-rouge">bad</code>, but a more
+elegant way would be to use bucket types instead. So instead of this URL
+structure…</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET/PUT/DELETE /bucket/&lt;season&gt;/keys/&lt;episode number&gt;
+</code></pre></div></div>
+
+<p>…we can use this structure:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET/PUT/DELETE /types/&lt;good or bad&gt;/buckets/&lt;season&gt;/keys/&lt;episode number&gt;
+</code></pre></div></div>
+
+<p>That adds an additional layer of namespacing and enables us to think
+about our data in terms of a deeper hash than in the example above:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">simpsons</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="s1">'good'</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">'season X'</span><span class="p">:</span> <span class="p">{</span>
+      <span class="p">{</span> <span class="s1">'episode 1'</span><span class="p">:</span> <span class="s1">'&lt;title&gt;'</span> <span class="p">},</span>
+      <span class="c1"># ...</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="s1">'bad'</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">'season Y'</span><span class="p">:</span> <span class="p">{</span>
+      <span class="p">{</span> <span class="s1">'episode 1'</span><span class="p">:</span> <span class="s1">'&lt;title&gt;'</span> <span class="p">},</span>
+      <span class="c1"># ...</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>We can fetch the title of season 8, episode 6:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># For the sake of example, we'll classify season 8 as good:</span>
+
+<span class="n">simpsons</span><span class="p">[</span><span class="s1">'good'</span><span class="p">][</span><span class="s1">'season 8'</span><span class="p">][</span><span class="s1">'episode 6'</span><span class="p">]</span>
+
+<span class="c1"># =&gt; "A Milhouse Divided"</span>
+</code></pre></div></div>
+
+<p>If your data is best modeled as a three-layered hash, you may want to
+consider using bucket types in the way shown above.</p>
+
+<h2 id="resources">Resources</h2>
+
+<p>More on key/value modeling in Riak can be found in <a href="http://www.youtube.com/watch?v=-_3Us7Ystyg#aid=P-4heI_bFwo">this
+presentation</a>
+by Basho evangelist <a href="https://github.com/hectcastro">Hector Castro</a>, with
+the presentation slides available <a href="https://speakerdeck.com/hectcastro/throw-some-keys-on-it-data-modeling-for-key-value-data-stores-by-example">on Speaker
+Deck</a>.</p>

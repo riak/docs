@@ -1,0 +1,217 @@
+<p>Many Unix-like operating systems and distributions are tuned for desktop
+or light use out of the box and not for a production database. This
+guide describes recommended system performance tunings for operators of
+new and existing Riak clusters. The tunings present in this guide should
+be considered as a starting point. It is important to make note of what
+changes are made and when in order to measure the impact of those
+changes.</p>
+
+<p>For performance and tuning recommendations specific to running Riak
+clusters on the Amazon Web Services EC2 environment, see <a href="/riak/kv/2.1.4/using/performance/amazon-web-services">AWS Performance Tuning</a>.</p>
+
+<p>Unless otherwise specified, the tunings recommended below are for Linux
+distributions. Users implementing Riak on BSD and Solaris distributions can
+use these tuning recommendations to make analogous changes in those operating
+systems.</p>
+
+<h2 id="storage-and-file-system-tuning">Storage and File System Tuning</h2>
+
+<h3 id="virtual-memory">Virtual Memory</h3>
+
+<p>Due to the heavily I/O-focused profile of Riak, swap usage can result in
+the entire server becoming unresponsive. We recommend setting
+<code class="language-plaintext highlighter-rouge">vm.swappiness</code> to 0 in <code class="language-plaintext highlighter-rouge">/etc/sysctl.conf</code> to prevent swapping as much
+as possible:</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">vm</span>.<span class="n">swappiness</span> = <span class="m">0</span>
+</code></pre></div></div>
+
+<p>Ideally, you should disable swap to ensure that Riak’s process pages are
+not swapped. Disabling swap will allow Riak to crash in situations where
+it runs out of memory. This will leave a crash dump file, named
+<code class="language-plaintext highlighter-rouge">erl_crash.dump</code>, in the <code class="language-plaintext highlighter-rouge">/var/log/riak</code> directory which can be used to
+determine the cause of the memory usage.</p>
+
+<h3 id="mounts">Mounts</h3>
+
+<p>Riak makes heavy use of disk I/O for its storage operations. It is
+important that you mount volumes that Riak will be using for data
+storage with the <code class="language-plaintext highlighter-rouge">noatime</code> flag, meaning that filesystem
+<a href="http://en.wikipedia.org/wiki/Inode">inodes</a> on the volume will not be
+touched when read. This flag can be set temporarily using the following
+command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mount <span class="nt">-o</span> remount,noatime &lt;riak_data_volume&gt;
+</code></pre></div></div>
+
+<p>Replace <code class="language-plaintext highlighter-rouge">&lt;riak_data_volume&gt;</code> in the above example with your actual Riak
+data volume. The <code class="language-plaintext highlighter-rouge">noatime</code> can be set in <code class="language-plaintext highlighter-rouge">/etc/fstab</code> to mount
+permanently.</p>
+
+<h3 id="schedulers">Schedulers</h3>
+
+<p>I/O or disk scheduling is a blanket term used to describe the method by
+which an operating system chooses how to order input and output
+operations to and from storage.</p>
+
+<p>The default I/O scheduler (elevator) on Linux is completely fair queuing
+or <code class="language-plaintext highlighter-rouge">cfq</code>, which is designed for desktop use. While a good
+general-purpose scheduler, is not designed to provide the kind of
+throughput expected in production database deployments.</p>
+
+<p>Scheduler recommendations:</p>
+
+<ul>
+  <li>The <code class="language-plaintext highlighter-rouge">noop</code> scheduler when deploying on iSCSI over HBAs, or any
+hardware-based RAID.</li>
+  <li>The <code class="language-plaintext highlighter-rouge">deadline</code> scheduler when using SSD-based storage.</li>
+</ul>
+
+<p>To check the scheduler in use for block device <code class="language-plaintext highlighter-rouge">sda</code>, for example, use
+the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cat</span> /sys/block/sda/queue/scheduler
+</code></pre></div></div>
+
+<p>To set the scheduler to <code class="language-plaintext highlighter-rouge">deadline</code>, use the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo </span>deadline <span class="o">&gt;</span> /sys/block/sda/queue/scheduler
+</code></pre></div></div>
+
+<p>The default I/O scheduler queue size is 128. The scheduler queue sorts
+writes in an attempt to optimize for sequential I/O and reduce seek
+time. Changing the depth of the scheduler queue to 1024 can increase the
+proportion of sequential I/O that disks perform and improve overall
+throughput.</p>
+
+<p>To check the scheduler depth for block device <code class="language-plaintext highlighter-rouge">sda</code>, use the following
+command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cat</span> /sys/block/sda/queue/nr_requests
+</code></pre></div></div>
+
+<p>To increase the scheduler depth to 1024, use the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo </span>1024 <span class="o">&gt;</span> /sys/block/sda/queue/nr_requests
+</code></pre></div></div>
+
+<h3 id="filesystem">Filesystem</h3>
+
+<p>Advanced journaling filesystems like <a href="http://zfsonlinux.org/">ZFS</a> and
+<a href="http://xfs.org/index.php/Main_Page">XFS</a> are recommended on some
+operating systems for greater reliability and recoverability.</p>
+
+<p>At this time, Basho can recommend using ZFS on Solaris, SmartOS, and
+OmniOS. ZFS may work well with Riak on direct Solaris clones like
+IllumOS, but we cannot yet recommend this. <a href="http://zfsonlinux.org">ZFS on
+Linux</a> is still too early in its project lifetime
+to be recommendable for production use due to concerns that have been
+raised about excessive memory use. ZFS on FreeBSD is more mature than
+ZFS on Linux, but Basho has not yet performed sufficient performance and
+reliability testing to recommend using ZFS and Riak on FreeBSD.</p>
+
+<p>In the meantime, the <a href="http://en.wikipedia.org/wiki/Ext3">ext3</a> and
+<a href="http://en.wikipedia.org/wiki/Ext4">ext4</a> filesystems are sufficient on
+operating systems on which ZFS or XFS are not available or recommended.</p>
+
+<p>The ext4 file system defaults include two options that increase
+integrity but slow performance. Because Riak’s integrity is based on
+multiple nodes holding the same data, these two options can be changed
+to boost I/O performance. We recommend setting <code class="language-plaintext highlighter-rouge">barrier=0</code> and
+<code class="language-plaintext highlighter-rouge">data=writeback</code> when using the ext4 filesystem.</p>
+
+<p>Similarly, the XFS file system defaults can be optimized to improve
+performance.  We recommend setting <code class="language-plaintext highlighter-rouge">nobarrier</code>, <code class="language-plaintext highlighter-rouge">logbufs=8</code>,
+<code class="language-plaintext highlighter-rouge">logbsize=256k</code>, and <code class="language-plaintext highlighter-rouge">allocsize=2M</code> when using the XFS filesystem.</p>
+
+<p>As with the <code class="language-plaintext highlighter-rouge">noatime</code> setting, these settings should be added to
+<code class="language-plaintext highlighter-rouge">/etc/fstab</code> so that they are persisted across server restarts.</p>
+
+<h2 id="kernel-and-network-tuning">Kernel and Network Tuning</h2>
+
+<p>The following settings are minimally sufficient to improve many aspects
+of Riak usage on Linux, and should be added or updated in
+<code class="language-plaintext highlighter-rouge">/etc/sysctl.conf</code>:</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_max_syn_backlog</span> = <span class="m">40000</span>
+<span class="n">net</span>.<span class="n">core</span>.<span class="n">somaxconn</span> = <span class="m">40000</span>
+<span class="n">net</span>.<span class="n">core</span>.<span class="n">wmem_default</span> = <span class="m">8388608</span>
+<span class="n">net</span>.<span class="n">core</span>.<span class="n">rmem_default</span> = <span class="m">8388608</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_sack</span> = <span class="m">1</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_window_scaling</span> = <span class="m">1</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_fin_timeout</span> = <span class="m">15</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_keepalive_intvl</span> = <span class="m">30</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_tw_reuse</span> = <span class="m">1</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_moderate_rcvbuf</span> = <span class="m">1</span>
+</code></pre></div></div>
+
+<p>In general, these recommended values should be compared with the system
+defaults and only changed if benchmarks or other performance metrics indicate
+that networking is the bottleneck.</p>
+
+<p>The following settings are optional, but may improve performance on a
+10Gb network:</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">net</span>.<span class="n">core</span>.<span class="n">rmem_max</span> = <span class="m">134217728</span>
+<span class="n">net</span>.<span class="n">core</span>.<span class="n">wmem_max</span> = <span class="m">134217728</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_mem</span>  = <span class="m">134217728</span> <span class="m">134217728</span> <span class="m">134217728</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_rmem</span> = <span class="m">4096</span> <span class="m">277750</span> <span class="m">134217728</span>
+<span class="n">net</span>.<span class="n">ipv4</span>.<span class="n">tcp_wmem</span> = <span class="m">4096</span> <span class="m">277750</span> <span class="m">134217728</span>
+<span class="n">net</span>.<span class="n">core</span>.<span class="n">netdev_max_backlog</span> = <span class="m">300000</span>
+</code></pre></div></div>
+
+<p>Certain network interfaces ship with on-board features that have been
+shown to hinder Riak network performance. These features can be disabled
+via <code class="language-plaintext highlighter-rouge">ethtool</code>.</p>
+
+<p>For an Intel chipset NIC using the
+<a href="http://www.intel.com/support/network/adapter/pro100/sb/CS-032530.htm">ixgbe</a>
+driver running as <code class="language-plaintext highlighter-rouge">eth0</code>, for example, run the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ethtool <span class="nt">-K</span> eth0 lro off
+</code></pre></div></div>
+
+<p>For a Broadcom chipset NIC using the <code class="language-plaintext highlighter-rouge">bnx</code> or <code class="language-plaintext highlighter-rouge">bnx2</code> driver, run:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ethtool <span class="nt">-K</span> eth0 tso off
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">ethtool</code> settings can be persisted across reboots by adding the above
+command to the <code class="language-plaintext highlighter-rouge">/etc/rc.local</code> script.</p>
+
+<p>Tuning these values will be required if they are changed, as they affect all
+network operations.</p>
+
+<h2 id="optional-io-settings">Optional I/O Settings</h2>
+
+<p>If your cluster is experiencing excessive I/O blocking, the following
+settings may help prevent disks from being overwhelmed during periods of
+high write activity at the expense of peak performance for spiky
+workloads:</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">vm</span>.<span class="n">dirty_background_ratio</span> = <span class="m">0</span>
+<span class="n">vm</span>.<span class="n">dirty_background_bytes</span> = <span class="m">209715200</span>
+<span class="n">vm</span>.<span class="n">dirty_ratio</span> = <span class="m">40</span>
+<span class="n">vm</span>.<span class="n">dirty_bytes</span> = <span class="m">0</span>
+<span class="n">vm</span>.<span class="n">dirty_writeback_centisecs</span> = <span class="m">100</span>
+<span class="n">vm</span>.<span class="n">dirty_expire_centisecs</span> = <span class="m">200</span>
+</code></pre></div></div>
+
+<p>These settings have been tested and benchmarked by Basho in nodes with
+16 GB of RAM.</p>
+
+<h2 id="open-files-limit">Open Files Limit</h2>
+
+<p>Riak and supporting tools can consume a large number of open file
+handles during normal operation. For stability, increasing the number of
+open files limit is necessary. See <a href="/riak/kv/2.1.4/using/performance/open-files-limit/">Open Files Limit</a> for more
+details.</p>
+
+<h2 id="other-tuning-docs">Other Tuning Docs</h2>
+
+<ul>
+  <li><a href="/riak/kv/2.1.4/using/performance/amazon-web-services">AWS Performance Tuning</a></li>
+  <li><a href="/riak/kv/2.1.4/using/performance/erlang">Erlang VM Tuning</a></li>
+  <li><a href="/riak/kv/2.1.4/using/performance/latency-reduction">Latency Reduction</a></li>
+  <li><a href="/riak/kv/2.1.4/using/performance/open-files-limit/">Open Files Limit</a></li>
+</ul>

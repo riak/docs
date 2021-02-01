@@ -1,0 +1,100 @@
+
+<p>In single-server, non-clustered data storage systems, object deletion
+is a trivial process. In an <a href="../../../learn/concepts/eventual-consistency">eventually consistent</a>, <a href="../../../learn/concepts/clusters">clustered</a> system like Riak, however,
+object deletion is far less trivial because objects live on multiple
+<a href="../../../learn/glossary/#nodes">nodes</a>, which means that a deletion process must be chosen to determine when an object can be removed from the storage backend.</p>
+
+<h2 id="object-deletion-example">Object Deletion Example</h2>
+
+<p>The problem of object deletion in distributed systems can be illustrated more concretely using the following example:</p>
+
+<ul>
+  <li>An object is stored on nodes A, B, and C</li>
+  <li>Node C suddenly goes offline due to a network failure</li>
+  <li>A client sends a delete request to node A, which forwards that
+request to node B, but it cannot reach node C</li>
+  <li>On nodes A and B, the object is deleted</li>
+  <li>Node C comes back online</li>
+  <li>A client attempts to read the object, and the request hits node C</li>
+  <li>Node C asks nodes A and B for the object, but they return <code class="language-plaintext highlighter-rouge">not_found</code>. Node C, on the other hand, still has the object.</li>
+</ul>
+
+<p>The question here is: how should node C respond to the client? Given only the above information, it isn’t possible to determine which of two possible scenarios actually occurred:</p>
+
+<ol>
+  <li>the object was deleted on A &amp; B but not on C</li>
+  <li>the object was created on C but not on A &amp; B</li>
+</ol>
+
+<p>To get around this problem, Riak uses <em>Tombstones</em>.</p>
+
+<h2 id="tombstones">Tombstones</h2>
+
+<p>Riak addresses the problem of deletion in distributed systems by replacing the deleted object with a special object called a <strong>tombstone</strong> rather than just removing it.</p>
+
+<p>This allows Riak to understand the difference between an object that has been deleted, and one that was never written in the first place. A tombstone specifically has <code class="language-plaintext highlighter-rouge">X-Riak-Deleted</code> = <code class="language-plaintext highlighter-rouge">true</code> in the metadata and a value of <code class="language-plaintext highlighter-rouge">&lt;&lt;&gt;&gt;</code> (the Erlang empty binary) in its contents, whereas an unwritten object has <em>no entry at all</em>.</p>
+
+<p>The problem with tombstones is that they take up space, albeit not very much. For this reason, Riak can be configured to automatically remove tombstones after a set period of time. This process is called <strong>reaping</strong>.</p>
+
+<p>After being reaped, a tombstone is completely removed, and the object entry ceases to exist entirely (as if it had never been written to).</p>
+
+<h2 id="configuring-object-deletion">Configuring Object Deletion</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">delete_mode</code> setting in a cluster’s <a href="../../../configuring/reference/#advanced-configuration">configuration files</a> will determine how long a tombstone will remain before being reaped.</p>
+
+<p>There are three possible settings:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">keep</code> — Disables tombstone removal</li>
+  <li><code class="language-plaintext highlighter-rouge">immediate</code> — The tombstone is removed as soon as the request is
+received</li>
+  <li>Custom time interval — How long to wait until the tombstone is
+removed, expressed in milliseconds. The default is <code class="language-plaintext highlighter-rouge">3000</code>, i.e. to
+wait 3 seconds</li>
+</ul>
+
+<p>In general, we recommend setting the <code class="language-plaintext highlighter-rouge">delete_mode</code> parameter to <code class="language-plaintext highlighter-rouge">keep</code>
+if you plan to delete and recreate objects under the same key. This protects against failure scenario cases in which a deleted object may be resurrected.</p>
+
+<p>Setting <code class="language-plaintext highlighter-rouge">delete_mode</code> to <code class="language-plaintext highlighter-rouge">immediate</code> can be useful in situations in
+which an aggressive space reclamation process is necessary, such as
+when running <a href="../../../developing/usage/mapreduce">MapReduce jobs</a>, but we do not recommend
+this in general.</p>
+
+<p>Setting <code class="language-plaintext highlighter-rouge">delete_mode</code> to a longer time duration than the default can be
+useful in certain cases involving <a href="../../cluster-operations/v3-multi-datacenter">Multi-Datacenter Replication</a>, e.g. when
+network connectivity is an issue.</p>
+
+<h2 id="deletion-from-backends">Deletion from Backends</h2>
+
+<p>When attempting to reclaim disk space, deleting data may seem like the obvious first step. However, in Riak this is not necessarily the best thing to do if the disk is nearly full. This is because Riak’s disk-based backends don’t remove data immediately. This is true both for the initial deletion when a Riak tombstone is created, and later when that tombstone is reaped.</p>
+
+<p>In the case of Bitcask, a new entry is written in the log with either the Riak tombstone or, after reaping, a Bitcask tombstone. The in-memory key-pointer is then updated to point to this new value.</p>
+
+<p>In LevelDB, a newly written value obscures the earlier value. Again, this is either the Riak tombstone or, after reaping, a LevelDB tombstone.</p>
+
+<p>Some time later, the backends will perform their regular garbage collection procedures. For Bitcask this is <a href="../../../setup/planning/backend/bitcask/#disk-usage-and-merging-settings">merging</a>, for LevelDB it is <a href="../../../setup/planning/backend/leveldb/#compaction">compaction</a>. At this time, stale entries containing the original objects will be purged from disk, along with any Bitcask or LevelDB tombstones. Riak tombstones will <em>not</em> be purged, because the backends treat them like regular objects.</p>
+
+<p>Thus, reclaiming disk space is not immediate with respect to delete operations, nor even with respect to reaping, and prior to garbage collection delete operations will actually cause disk space usage to rise slightly.</p>
+
+<h2 id="tombstones--reporting">Tombstones &amp; Reporting</h2>
+
+<p>When designing applications and operating a live Riak cluster, it is important to know how to interpret Riak’s responses to requests. With respect to deletion and tombstones, please note the following:</p>
+
+<ul>
+  <li>A delete request is considered a special case of an update. It will fail if the <code class="language-plaintext highlighter-rouge">W</code> and <code class="language-plaintext highlighter-rouge">PW</code> values are not satisfied. However, due to <a href="../../../learn/glossary/#sloppy-quorum">Sloppy Quorum</a>, deletes will usually succeed. This does not mean that tombstones have been written over <em>all</em> copies of the object, but rather that tombstones have been written on at least <code class="language-plaintext highlighter-rouge">W</code> nodes, of which at least <code class="language-plaintext highlighter-rouge">PW</code> are primaries.</li>
+  <li>Successful delete requests do not guarantee successful reaping. If a node fails before its reap timer expires, the reap timer will not automatically recommence upon restart. Rather, the tombstone will remain upon the node until a further request finds it. At this time, a new reap timer will be initiated.</li>
+  <li>A GET request that sees a quorum of Riak tombstones will return a <code class="language-plaintext highlighter-rouge">not_found</code> response to the client, even though internally Riak knows there used to be an object there.</li>
+  <li>A GET request will never see backend tombstones, because the backends report these as <code class="language-plaintext highlighter-rouge">not_found</code>. To RiakKV, such answers will appear as if the object has never been written. A <code class="language-plaintext highlighter-rouge">not_found</code> will be sent up to the client in this case, too.</li>
+  <li>A <a href="../../../developing/api/http/list-keys">Keylist</a> or <a href="../../../developing/usage/mapreduce">MapReduce</a> operation <em>will</em> return Riak tombstones, but <em>not</em> backend tombstones. This is because these operations fold over the backends directly, and make no attempt to filter Riak tombstones out of the fold by default.</li>
+</ul>
+
+<h2 id="client-library-examples">Client Library Examples</h2>
+
+<p>Check out <a href="../../../developing/usage/deleting-objects">Deleting Objects</a> in the Developing section for examples of deleting objects client-side.</p>
+
+<h2 id="resources">Resources</h2>
+
+<ul>
+  <li><a href="http://lists.basho.com/pipermail/riak-users_lists.basho.com/2011-October/006048.html">Discussion on the Riak mailing list</a></li>
+</ul>

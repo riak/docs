@@ -1,0 +1,164 @@
+
+<h2 id="how-version-3-replication-works">How Version 3 Replication Works</h2>
+
+<p>In Multi-Datacenter (MDC) Replication, a cluster can act as either the</p>
+
+<ul>
+  <li><strong>source cluster</strong>, which sends replication data to one or</li>
+  <li><strong>sink clusters</strong>, which are generally located in datacenters in other
+regions or countries.</li>
+</ul>
+
+<p>Bidirectional replication can easily be established by making a cluster
+both a source and sink to other clusters. Riak Enterprise
+Multi-Datacenter Replication is considered “masterless” in that all
+clusters participating will resolve replicated writes via the normal
+resolution methods available in Riak.</p>
+
+<p>In Multi-Datacenter Replication, there are two primary modes of
+operation:</p>
+
+<ul>
+  <li><strong>Fullsync</strong> replication is a complete synchronization that occurs
+between source and sink cluster(s), which can be performed upon
+initial connection of a sink cluster if you wish</li>
+  <li><strong>Realtime</strong> replication is a continual, incremental synchronization
+triggered by successful writing of new updates on the source cluster</li>
+</ul>
+
+<p>Fullsync and realtime replication modes are described in detail below.</p>
+
+<h2 id="concepts">Concepts</h2>
+
+<h3 id="sources">Sources</h3>
+
+<p>A source refers to a cluster that is the primary producer of replication
+data. A source can also refer to any node that is part of the source
+cluster. Source clusters push data to sink clusters.</p>
+
+<h3 id="sinks">Sinks</h3>
+
+<p>A sink refers to a cluster that is the primary consumer of replication
+data. A sink can also refer to any node that is part of the sink
+cluster. Sink clusters receive data from source clusters.</p>
+
+<h3 id="cluster-manager">Cluster Manager</h3>
+
+<p>The cluster manager is a Riak Enterprise service that provides
+information regarding nodes and protocols supported by the sink and
+source clusters. This information is primarily consumed by the
+<code class="language-plaintext highlighter-rouge">riak-repl connect</code> command.</p>
+
+<h3 id="fullsync-coordinator">Fullsync Coordinator</h3>
+
+<p>In fullsync replication, a node on the source cluster is elected to be
+the <em>fullsync coordinator</em>. This node is responsible for starting and
+stopping replication to the sink cluster. It also communicates with the
+sink cluster to exchange key lists and ultimately transfer data across a
+TCP connection. If a fullsync coordinator is terminated as the result of
+an error, it will automatically restart on the current node. If the node
+becomes unresponsive, a leader election will take place within 5 seconds
+to select a new node from the cluster to become the coordinator. In the
+event of a coordinator restart, a fullsync will have to restart.</p>
+
+<h2 id="fullsync-replication">Fullsync Replication</h2>
+
+<p>Fullsync replication scans through the list of partitions in a Riak
+cluster and determines which objects in the sink cluster need to be
+updated. A source partition is synchronized to a node on the sink
+cluster containing the current partition.</p>
+
+<h2 id="realtime-replication">Realtime Replication</h2>
+
+<p>In realtime replication, a node in the source cluster will forward data
+to the sink cluster. A node in the source cluster does not necessarily
+connect to a node containing the same <a href="/riak/kv/2.1.3/learn/glossary/#vnode">vnode</a> on
+the sink cluster. This allows Riak to spread out realtime replication
+across the entire cluster, thus improving throughput and making
+replication more fault tolerant.</p>
+
+<h3 id="initialization">Initialization</h3>
+
+<p>Before a source cluster can begin pushing realtime updates to a sink,
+the following commands must be issued:</p>
+
+<ol>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">riak-repl realtime enable &lt;sink_cluster&gt;</code></p>
+
+    <p>After this command, the realtime queues (one for each Riak node) are
+ populated with updates to the source cluster, ready to be pushed to
+ the sink.</p>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">riak-repl realtime start &lt;sink_cluster&gt;</code></p>
+
+    <p>This instructs the Riak connection manager to contact the sink
+ cluster.</p>
+
+    <p><br />
+ <img src="/images/MDC-v3-realtime1.png" alt="MDC fullsync" />
+ <br /></p>
+
+    <p>At this point realtime replication commences.</p>
+  </li>
+</ol>
+
+<ol start="3">
+<li>Nodes with queued updates establish connections to the sink cluster
+and replication begins.</li>
+</ol>
+
+<p><br />
+<img src="/images/MDC-v3-realtime2.png" alt="MDC fullsync" />
+<br /></p>
+
+<h3 id="realtime-queueing-and-synchronization">Realtime queueing and synchronization</h3>
+
+<p>Once initialized, realtime replication continues to use the queues to
+store data updates for synchronization.</p>
+
+<ol start="4">
+<li>The client sends an object to store on the source cluster.</li>
+<li>Riak writes N replicas on the source cluster.</li>
+</ol>
+
+<p><br />
+<img src="/images/MDC-v3-realtime3.png" alt="MDC fullsync" />
+<br /></p>
+
+<ol start="6">
+<li>The new object is stored in the realtime queue.</li>
+<li>The object is copied to the sink cluster.</li>
+</ol>
+
+<p><br />
+<img src="/images/MDC-v3-realtime4.png" alt="MDC fullsync" />
+<br /></p>
+
+<ol start="8">
+<li>The destination node on the sink cluster writes the object to N
+nodes.</li>
+</ol>
+
+<p><br />
+<img src="/images/MDC-v3-realtime5.png" alt="MDC fullsync" />
+<br /></p>
+
+<ol start="9">
+<li>The successful write of the object to the sink cluster is
+acknowledged and the object removed from the realtime queue.</li>
+</ol>
+
+<p><br />
+<img src="/images/MDC-v3-realtime6.png" alt="MDC fullsync" />
+<br /></p>
+
+<h2 id="restrictions">Restrictions</h2>
+
+<p>It is important to note that both clusters must have certain attributes
+in common for Multi-Datacenter Replication to work. If you are using
+either fullsync or realtime replication, both clusters must have the
+same <a href="/riak/kv/2.1.3/learn/concepts/clusters">ring size</a>; if you are using fullsync
+replication, every bucket’s <code class="language-plaintext highlighter-rouge">n_val</code> must be the same in both the
+source and sink cluster.</p>

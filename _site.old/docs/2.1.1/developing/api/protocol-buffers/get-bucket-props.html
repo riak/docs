@@ -1,0 +1,87 @@
+<p>Fetch a bucket’s properties.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbGetBucketReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">bucket</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The bucket’s name (<code class="language-plaintext highlighter-rouge">bucket</code>) must be specified. The <a href="/riak/kv/2.1.1/using/cluster-operations/bucket-types">bucket type</a> parameter (<code class="language-plaintext highlighter-rouge">type</code>) is optional. If it is not specified,
+the <code class="language-plaintext highlighter-rouge">default</code> bucket type will be used.</p>
+
+<h2 id="response">Response</h2>
+
+<p>When an <code class="language-plaintext highlighter-rouge">RpbGetBucketReq</code> message is sent to Riak, it will respond with
+an <code class="language-plaintext highlighter-rouge">RpbGetBucketResp</code> message, which returns the bucket’s properties:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbGetBucketResp</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="n">RpbBucketProps</span> <span class="na">props</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">RpbBucketProps</code> value itself is structured as follows:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbBucketProps</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">n_val</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">allow_mult</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">last_write_wins</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">RpbCommitHook</span> <span class="na">precommit</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">has_precommit</span> <span class="o">=</span> <span class="mi">5</span> <span class="p">[</span><span class="k">default</span> <span class="o">=</span> <span class="kc">false</span><span class="p">];</span>
+    <span class="k">repeated</span> <span class="n">RpbCommitHook</span> <span class="na">postcommit</span> <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">has_postcommit</span> <span class="o">=</span> <span class="mi">7</span> <span class="p">[</span><span class="k">default</span> <span class="o">=</span> <span class="kc">false</span><span class="p">];</span>
+    <span class="k">optional</span> <span class="n">RpbModFun</span> <span class="na">chash_keyfun</span> <span class="o">=</span> <span class="mi">8</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">RpbModFun</span> <span class="na">linkfun</span> <span class="o">=</span> <span class="mi">9</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">old_vclock</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">young_vclock</span> <span class="o">=</span> <span class="mi">11</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">big_vclock</span> <span class="o">=</span> <span class="mi">12</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">small_vclock</span> <span class="o">=</span> <span class="mi">13</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">pr</span> <span class="o">=</span> <span class="mi">14</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">r</span> <span class="o">=</span> <span class="mi">15</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">w</span> <span class="o">=</span> <span class="mi">16</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">pw</span> <span class="o">=</span> <span class="mi">17</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">dw</span> <span class="o">=</span> <span class="mi">18</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">rw</span> <span class="o">=</span> <span class="mi">19</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">basic_quorum</span> <span class="o">=</span> <span class="mi">20</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">notfound_ok</span> <span class="o">=</span> <span class="mi">21</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">backend</span> <span class="o">=</span> <span class="mi">22</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">search</span> <span class="o">=</span> <span class="mi">23</span><span class="p">;</span>
+    <span class="kd">enum</span> <span class="n">RpbReplMode</span> <span class="p">{</span>
+        <span class="na">FALSE</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="na">REALTIME</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+        <span class="na">FULLSYNC</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+        <span class="na">TRUE</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">optional</span> <span class="n">RpbReplMode</span> <span class="na">repl</span> <span class="o">=</span> <span class="mi">24</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">search_index</span> <span class="o">=</span> <span class="mi">25</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">datatype</span> <span class="o">=</span> <span class="mi">26</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">consistent</span> <span class="o">=</span> <span class="mi">27</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="optional-response-values">Optional Response Values</h4>
+
+<p>Each <code class="language-plaintext highlighter-rouge">RpbBucketProps</code> message returns all of the properties associated
+with a particular bucket. Default values for bucket properties, as well
+as descriptions of all of the above properties, can be found in the
+<a href="/riak/kv/2.1.1/configuring/reference/#default-bucket-properties">configuration file</a> documentation.</p>
+
+<p>It should be noted that the value of an <code class="language-plaintext highlighter-rouge">RpbBucketProps</code> message may
+include other message types, such as <code class="language-plaintext highlighter-rouge">RpbModFun</code> (specifying
+module-function pairs for bucket properties that require them) and
+<code class="language-plaintext highlighter-rouge">RpbCommitHook</code> (specifying the module-function pair and name of a
+commit hook). Those message types are structured like this:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbModFun</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">module</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">function</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">message</span> <span class="nc">RpbCommitHook</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="n">RpbModFun</span> <span class="na">modfun</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">name</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">RpbReplMode</code> is of use only to users of Riak CS’s <a href="http://docs.basho.com/riakcs/latest/cookbooks/mdc-overview/">Multi-Datacenter Replication capabilities</a></p>

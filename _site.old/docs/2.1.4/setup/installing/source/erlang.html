@@ -1,0 +1,499 @@
+
+<p>Pre-packaged versions of Riak include an Erlang installation. If you are building Riak from source, you will need to install <a href="https://github.com/basho/otp/archive/OTP_R16B02_basho10.tar.gz">Basho’s patched version of Erlang</a>. <strong>If you do not use this version of Erlang, you will not be able to use Riak’s <a href="/riak/kv/2.1.4/using/security/basics">security features</a>.</strong></p>
+
+<blockquote>
+  <p><strong>Note on Official Support</strong></p>
+
+  <p>Please note that only packaged Riak KV installs are officially supported. Visit <a href="/riak/kv/2.1.4/setup/installing">Installing Riak KV</a> for installing a supported Riak package.</p>
+</blockquote>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<h4 id="contents">Contents</h4>
+
+<ul>
+  <li><a href="#kerl-prerequisites">kerl</a></li>
+  <li><a href="#debian-ubuntu-prerequisites">Debian/Ubuntu</a></li>
+  <li><a href="#freebsd-solaris-prerequisites">FreeBSD/Solaris</a></li>
+  <li><a href="#mac-os-x-prerequisites">Mac OS X</a></li>
+  <li><a href="#rhel-centos-prerequisites">RHEL/CentOS</a></li>
+</ul>
+
+<p>To build and install Erlang you must have a GNU-compatible build system and these tools:</p>
+
+<p><strong>Unpacking</strong></p>
+
+<ul>
+  <li><a href="http://www.gzip.org/">GNU unzip</a> or a modern uncompressing utility.</li>
+  <li><a href="http://www.gnu.org/software/tar/">GNU Tar</a> for working with GNU TAR archives.</li>
+</ul>
+
+<p><strong>Building</strong></p>
+
+<ul>
+  <li><a href="http://www.gnu.org/software/autoconf/autoconf.html">autoconf</a>: generates configure scripts.</li>
+  <li><a href="http://www.gnu.org/software/make/">make</a>: generates executables and other non-source files of a program.</li>
+  <li><a href="https://gcc.gnu.org/">gcc</a>: for compiling C.</li>
+  <li><a href="http://www.gnu.org/software/ncurses/">ncurses</a>: for terminal-based interfaces.</li>
+  <li><a href="https://www.openssl.org/">OpenSSL</a>: toolkit that implements SSL and TSL protocols.</li>
+  <li><a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html">Java SE JDK</a>: platform for deploying Java.</li>
+</ul>
+
+<h2 id="kerl-prerequisites">kerl Prerequisites</h2>
+
+<p><a href="https://github.com/yrashk/kerl">kerl</a> is the quickest way to install different versions of Erlang on most systems.</p>
+
+<p>Install kerl by running the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-O</span> https://raw.githubusercontent.com/spawngrid/kerl/master/kerl
+<span class="nb">chmod </span>a+x kerl
+</code></pre></div></div>
+
+<p>If you are using Mac OS X, FreeBSD, or Solaris, see the following sections for additional requirements before building with kerl.</p>
+
+<p>Otherwise, continue with <a href="#installing-with-kerl">Installing with kerl</a>.</p>
+
+<h3 id="configuring-kerl-on-freebsdsolaris">Configuring kerl on FreeBSD/Solaris</h3>
+
+<p>Start by by creating a <code class="language-plaintext highlighter-rouge">~/.kerlrc</code> file:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">touch</span> ~/.kerlrc
+</code></pre></div></div>
+
+<p>Next add the following contents to your <code class="language-plaintext highlighter-rouge">~/.kerlrc</code> file:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">KERL_CONFIGURE_OPTIONS</span><span class="o">=</span><span class="s2">"--disable-hipe --enable-smp-support --enable-threads
+                        --enable-kernel-poll --without-odbc --enable-darwin-64bit"</span>
+</code></pre></div></div>
+
+<p>Then check for the presence of autoconf by running:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which autoconf
+</code></pre></div></div>
+<p>If this returns <code class="language-plaintext highlighter-rouge">autoconf not found</code>, install autoconf by running:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>pkg update
+<span class="nb">sudo </span>pkg <span class="nb">install </span>autoconf
+</code></pre></div></div>
+
+<p>Once you’ve configured kerl and installed autoconf continue with <a href="#installing-with-kerl">Installing with kerl</a>.</p>
+
+<h3 id="configuring-kerl-on-mac-os-x">Configuring kerl on Mac OS X</h3>
+
+<p>To compile Erlang as 64-bit on Mac OS X you need to instruct kerl to pass the correct flags to the <code class="language-plaintext highlighter-rouge">configure</code> command.</p>
+
+<p>Start by by creating a <code class="language-plaintext highlighter-rouge">~/.kerlrc</code> file:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">touch</span> ~/.kerlrc
+</code></pre></div></div>
+
+<p>Next add the following contents to your <code class="language-plaintext highlighter-rouge">~/.kerlrc</code> file:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">KERL_CONFIGURE_OPTIONS</span><span class="o">=</span><span class="s2">"--disable-hipe --enable-smp-support --enable-threads
+                        --enable-kernel-poll --without-odbc --enable-darwin-64bit"</span>
+</code></pre></div></div>
+
+<p>On OS X 10.9 (Mavericks) or later, you may need to install <a href="https://www.gnu.org/software/autoconf/">autoconf</a>.</p>
+
+<p>Check for the presence of autoconf by running:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which autoconf
+</code></pre></div></div>
+
+<p>If this returns <code class="language-plaintext highlighter-rouge">autoconf not found</code>, install autoconf with:</p>
+
+<p>With Homebrew:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew <span class="nb">install </span>autoconf
+</code></pre></div></div>
+
+<p>Or with curl:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-O</span> http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
+<span class="nb">tar </span>zxvf autoconf-2.69.tar.gz
+<span class="nb">cd </span>autoconf-2.69
+./configure <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>make <span class="nb">install</span>
+</code></pre></div></div>
+
+<p>Once you’ve configured kerl and installed autoconf continue with <a href="#installing-with-kerl">Installing with kerl</a>.</p>
+
+<h2 id="debianubuntu-prerequisites">Debian/Ubuntu Prerequisites</h2>
+
+<h3 id="dependencies">Dependencies</h3>
+
+<p>To install the required dependencies run the following <code class="language-plaintext highlighter-rouge">apt-get</code> commands:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get update
+<span class="nb">sudo </span>apt-get <span class="nb">install </span>build-essential autoconf libncurses5-dev openssl libssl-dev fop xsltproc unixodbc-dev git
+</code></pre></div></div>
+
+<h3 id="gui-dependencies">GUI Dependencies</h3>
+
+<p>If you’re using a graphical environment and want to use Erlang’s GUI utilities, you will need to install additional dependencies.</p>
+
+<blockquote>
+  <p><strong>Note on build output</strong></p>
+
+  <p>These packages are not required for operation of a Riak node.
+Notes in the build output about missing support for wxWidgets can be
+safely ignored when installing Riak in a typical non-graphical server
+environment.</p>
+</blockquote>
+
+<p>To install packages for graphics support use the following <code class="language-plaintext highlighter-rouge">apt-get</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install </span>libwxbase2.8 libwxgtk2.8-dev libqt4-opengl-dev
+</code></pre></div></div>
+
+<h3 id="next-steps">Next Steps</h3>
+
+<p>Once you’ve installed the prerequisites, continue with <a href="#installing-on-debian-ubuntu">Installing on Debian/Ubuntu</a>.</p>
+
+<h2 id="freebsdsolaris-prerequisites">FreeBSD/Solaris Prerequisites</h2>
+
+<h3 id="dependencies-1">Dependencies</h3>
+
+<p>To install the required dependencies run the following <code class="language-plaintext highlighter-rouge">pkg</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>pkg update
+<span class="nb">sudo </span>pkg <span class="nb">install </span>gcc autoconf gmake flex
+</code></pre></div></div>
+
+<h3 id="gui-dependencies-1">GUI Dependencies</h3>
+
+<p>If you’re using a graphical environment and want to use Erlang’s GUI utilities, you will need to install additional dependencies.</p>
+
+<p>To install packages for graphics support use the following <code class="language-plaintext highlighter-rouge">pkg</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>pkg <span class="nb">install </span>wx28-gtk2-2.8.12_4
+</code></pre></div></div>
+
+<h3 id="next-steps-1">Next Steps</h3>
+
+<p>Once you’ve installed the prerequisites, continue with <a href="#installing-on-freebsd-solaris">Installing on FreeBSD/Solaris</a>.</p>
+
+<h2 id="mac-os-x-prerequisites">Mac OS X Prerequisites</h2>
+
+<ul>
+  <li><a href="http://developer.apple.com/">XCode Developer Tools</a> - Apple Software Development Tools.</li>
+  <li><a href="http://brew.sh/">Homebrew</a> (<em>optional</em>) - Package Manager.</li>
+</ul>
+
+<p>First install <a href="http://developer.apple.com/">XCode Developer Tools</a>. XCode is a set software development tools for developing on OS X.</p>
+
+<p>We also recommend installing <a href="http://brew.sh/">Homebrew</a>, a package manager for OS X. Homebrew is not required to install Erlang and is optional.</p>
+
+<p>Next, if you are running OS X 10.9 (Mavericks) or later, you may need to
+install <a href="https://www.gnu.org/software/autoconf/">autoconf</a>. To check for
+the presence of autoconf run:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which autoconf
+</code></pre></div></div>
+
+<p>If this returns <code class="language-plaintext highlighter-rouge">autoconf not found</code>, install autoconf with:</p>
+
+<p>With Homebrew:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew <span class="nb">install </span>autoconf
+</code></pre></div></div>
+
+<p>Or with curl:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-O</span> http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
+<span class="nb">tar </span>zxvf autoconf-2.69.tar.gz
+<span class="nb">cd </span>autoconf-2.69
+./configure <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>make <span class="nb">install</span>
+</code></pre></div></div>
+
+<p>Once you’ve installed the prerequisites continue with <a href="#installing-on-mac-os-x">Installing on Mac OS X</a>.</p>
+
+<h2 id="rhelcentos-prerequisites">RHEL/CentOS Prerequisites</h2>
+
+<h3 id="dependencies-2">Dependencies</h3>
+
+<p>To install the required dependencies run the following <code class="language-plaintext highlighter-rouge">yum</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>gcc gcc-c++ glibc-devel make ncurses-devel openssl-devel autoconf java-1.8.0-openjdk-devel git
+</code></pre></div></div>
+
+<h3 id="gui-dependencies-2">GUI Dependencies</h3>
+
+<p>If you’re using a graphical environment and want to use Erlang’s GUI utilities, you will need to install additional dependencies.</p>
+
+<p>To install packages for graphics support use the following <code class="language-plaintext highlighter-rouge">blank</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>wxBase.x86_64
+</code></pre></div></div>
+
+<h3 id="next-steps-2">Next Steps</h3>
+
+<p>Once you’ve installed the prerequisites, continue with <a href="#installing-on-rhel-centos">Installing on RHEL/CentOS</a>.</p>
+
+<h2 id="installation">Installation</h2>
+
+<ul>
+  <li><a href="#installing-with-kerl">Installing with kerl</a></li>
+  <li><a href="#installing-on-debian-ubuntu">Installing on Debian/Ubuntu</a></li>
+  <li><a href="#installing-on-freebsd-solaris">Installing on FreeBSD/Solaris</a></li>
+  <li><a href="#installing-on-mac-os-x">Installing on Mac OS X</a></li>
+  <li><a href="#installing-on-rhel-centos">Installing on RHEL/CentOS</a></li>
+</ul>
+
+<h2 id="installing-with-kerl">Installing with kerl</h2>
+
+<p>First make sure you have installed the necessary dependencies and prerequisites found in <a href="#kerl-prerequisites">kerl Prerequisites</a>.</p>
+
+<p>With <a href="https://github.com/yrashk/kerl">kerl</a>  installed, you can install Basho’s recommended version of
+Erlang <a href="https://github.com/basho/otp">from Github</a> using the following
+command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./kerl build git git://github.com/basho/otp.git OTP_R16B02_basho8 R16B02-basho8
+</code></pre></div></div>
+
+<p>This builds the Erlang distribution and performs all of the steps
+required to manually install Erlang for you.</p>
+
+<p>After Erlang is successfully built, you can install the build as follows:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./kerl <span class="nb">install </span>R16B02-basho8 ~/erlang/R16B02-basho8
+<span class="nb">.</span> ~/erlang/R16B02-basho8/activate
+</code></pre></div></div>
+
+<p>The last line activates the Erlang build that was just installed into
+<code class="language-plaintext highlighter-rouge">~/erlang/R16B02-basho8</code>.</p>
+
+<blockquote>
+  <p>See the kerl <a href="https://github.com/yrashk/kerl">README</a> for more details on the available commands.</p>
+</blockquote>
+
+<p>Confirm Erlang installed to the correct location:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which erl
+</code></pre></div></div>
+
+<p>And start Erlang from your terminal with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl
+</code></pre></div></div>
+
+<h2 id="installing-on-debianubuntu">Installing on Debian/Ubuntu</h2>
+
+<p>First make sure you have installed the necessary dependencies found in <a href="#debian-ubuntu-prerequisites">Debian/Ubuntu Prerequisites</a>.</p>
+
+<p>Next download <a href="http://s3.amazonaws.com/downloads.basho.com/erlang/otp_src_R16B02-basho8.tar.gz">Basho’s patched version of Erlang</a>.</p>
+
+<p>Using <code class="language-plaintext highlighter-rouge">wget</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/erlang/otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Then unpack the download with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar </span>zxvf otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Next <code class="language-plaintext highlighter-rouge">cd</code> into the unpacked directory, build and install Erlang with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>OTP_R16B02_basho8
+./otp_build autoconf
+./configure <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>make <span class="nb">install</span>
+</code></pre></div></div>
+
+<p>Confirm Erlang installed to the correct location:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which erl
+</code></pre></div></div>
+
+<p>And start Erlang from your terminal with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl
+</code></pre></div></div>
+
+<h2 id="installing-on-freebsdsolaris">Installing on FreeBSD/Solaris</h2>
+
+<p>First make sure you installed the necessary dependencies in <a href="#freebsd-solaris-prerequisites">FreeBSD/Solaris Prerequisites</a>.</p>
+
+<p>Next download <a href="http://s3.amazonaws.com/downloads.basho.com/erlang/otp_src_R16B02-basho8.tar.gz">Basho’s patched version of Erlang</a>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ftp http://s3.amazonaws.com/downloads.basho.com/erlang/otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Then unpack the download with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar </span>zxvf otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Next <code class="language-plaintext highlighter-rouge">cd</code> into the unpacked directory, build and install Erlang with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>OTP_R16B02_basho8
+./otp_build autoconf
+./configure <span class="o">&amp;&amp;</span> gmake <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>gmake <span class="nb">install</span>
+</code></pre></div></div>
+
+<p>Confirm Erlang installed to the correct location by running:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which erl
+</code></pre></div></div>
+
+<p>And start Erlang from your terminal with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl
+</code></pre></div></div>
+
+<h2 id="installing-on-mac-os-x">Installing on Mac OS X</h2>
+
+<p>First make sure you have installed the necessary dependencies found in <a href="#mac-os-x-prerequisites">Mac OS X Prerequisites</a>.</p>
+
+<p>You can install Erlang in several ways on OS X:</p>
+
+<ul>
+  <li><a href="#installing-on-mac-os-x-from-source">From Source</a></li>
+  <li><a href="#installing-on-mac-os-x-with-homebrew">Homebrew</a></li>
+  <li><a href="#installing-on-mac-os-x-with-macports">MacPorts</a></li>
+</ul>
+
+<h2 id="installing-on-mac-os-x-from-source">Installing on Mac OS X from Source</h2>
+
+<p>Next download <a href="http://s3.amazonaws.com/downloads.basho.com/erlang/otp_src_R16B02-basho8.tar.gz">Basho’s patched version of Erlang</a>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-O</span> http://s3.amazonaws.com/downloads.basho.com/erlang/otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Then unpack the download with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar </span>zxvf otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Follow the steps below to configure Erlang for your operating system.</p>
+
+<h4 id="configuring-erlang-on-mavericks-os-x-109-mountain-lion-os-x-108-and-lion-os-x-107">Configuring Erlang on Mavericks (OS X 10.9), Mountain Lion (OS X 10.8), and Lion (OS X 10.7)</h4>
+
+<p>If you’re on Mavericks (OS X 10.9), Mountain Lion (OS X 10.8), or Lion
+(OS X 10.7) you can use LLVM (the default) or GCC to compile Erlang.</p>
+
+<p>Using LLVM:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">CFLAGS</span><span class="o">=</span><span class="nt">-O0</span> ./configure <span class="nt">--disable-hipe</span> <span class="nt">--enable-smp-support</span> <span class="nt">--enable-threads</span> <span class="se">\</span>
+<span class="nt">--enable-kernel-poll</span> <span class="nt">--enable-darwin-64bit</span>
+</code></pre></div></div>
+
+<p>Or if you prefer GCC:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">CC</span><span class="o">=</span>gcc-4.2 <span class="nv">CPPFLAGS</span><span class="o">=</span><span class="s1">'-DNDEBUG'</span> <span class="nv">MAKEFLAGS</span><span class="o">=</span><span class="s1">'-j 3'</span> <span class="se">\</span>
+./configure <span class="nt">--disable-hipe</span> <span class="nt">--enable-smp-support</span> <span class="nt">--enable-threads</span> <span class="se">\</span>
+<span class="nt">--enable-kernel-poll</span> <span class="nt">--enable-darwin-64bit</span>
+</code></pre></div></div>
+
+<h4 id="configuring-erlang-on-snow-leopard-os-x-106">Configuring Erlang on Snow Leopard (OS X 10.6)</h4>
+
+<p>If you’re on Snow Leopard (OS X 10.6) or Leopard (OS X 10.5) with an
+Intel processor:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./configure <span class="nt">--disable-hipe</span> <span class="nt">--enable-smp-support</span> <span class="nt">--enable-threads</span> <span class="se">\</span>
+<span class="nt">--enable-kernel-poll</span>  <span class="nt">--enable-darwin-64bit</span>
+</code></pre></div></div>
+
+<h4 id="configuring-erlang-on-older-versions-of-os-x">Configuring Erlang on older versions of OS X</h4>
+
+<p>If you’re on a non-Intel processor or older version of OS X:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./configure <span class="nt">--disable-hipe</span> <span class="nt">--enable-smp-support</span> <span class="nt">--enable-threads</span> <span class="se">\</span>
+<span class="nt">--enable-kernel-poll</span>
+</code></pre></div></div>
+
+<p>After you’ve configured your system <code class="language-plaintext highlighter-rouge">cd</code> into the unpacked directory, build and install Erlang with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>OTP_R16B02_basho8
+./otp_build autoconf
+./configure <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>make <span class="nb">install</span>
+</code></pre></div></div>
+
+<p>Confirm Erlang installed to the correct location by running:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which erl
+</code></pre></div></div>
+
+<p>And start Erlang from your terminal with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl
+</code></pre></div></div>
+
+<h2 id="installing-on-mac-os-x-with-homebrew">Installing on Mac OS X with Homebrew</h2>
+
+<p>To install Erlang with Homebrew, use this command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>brew <span class="nb">install </span>erlang
+</code></pre></div></div>
+
+<p>Confirm Erlang installed to the correct location by running:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which erl
+</code></pre></div></div>
+
+<p>And start Erlang from your terminal with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl
+</code></pre></div></div>
+
+<h2 id="installing-on-mac-os-x-with-macports">Installing on Mac OS X with MacPorts</h2>
+
+<p>Installing with MacPorts:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>port <span class="nb">install </span>erlang +ssl
+</code></pre></div></div>
+
+<p>Confirm Erlang installed to the correct location by running:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which erl
+</code></pre></div></div>
+
+<p>And start Erlang from your terminal with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl
+</code></pre></div></div>
+
+<h2 id="installing-on-rhelcentos">Installing on RHEL/CentOS</h2>
+
+<p>First make sure you have installed the necessary dependencies and prerequisites found in <a href="#rhel-centos-prerequisites">RHEL/CentOS Prerequisites</a>.</p>
+
+<p>Using <code class="language-plaintext highlighter-rouge">wget</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/erlang/otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Then unpack the download with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">tar </span>zxvf otp_src_R16B02-basho8.tar.gz
+</code></pre></div></div>
+
+<p>Next <code class="language-plaintext highlighter-rouge">cd</code> into the unpacked directory, build and install Erlang with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>OTP_R16B02_basho8
+./otp_build autoconf
+./configure <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>make <span class="nb">install</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note for RHEL6/CentOS6</strong></p>
+
+  <p>In certain versions of RHEL6 and CentO6 the <code class="language-plaintext highlighter-rouge">openSSL-devel</code> package
+ships with Elliptical Curve Cryptography partially disabled. To
+communicate this to Erlang and prevent compile- and run-time errors, the
+environment variable <code class="language-plaintext highlighter-rouge">CFLAGS="-DOPENSSL_NO_EC=1"</code> needs to be added to
+Erlang’s <code class="language-plaintext highlighter-rouge">./configure</code> call.</p>
+
+  <p>The full <code class="language-plaintext highlighter-rouge">make</code> invocation then becomes</p>
+
+  <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">CFLAGS</span><span class="o">=</span><span class="s2">"-DOPENSSL_NO_EC=1"</span> ./configure <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nb">sudo </span>make <span class="nb">install</span>
+</code></pre></div>  </div>
+</blockquote>
+
+<p>Confirm Erlang installed to the correct location:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>which erl
+</code></pre></div></div>
+
+<p>And start Erlang from your terminal with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl
+</code></pre></div></div>

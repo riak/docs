@@ -1,0 +1,67 @@
+
+<p>By default, LevelDB keeps all of your data. But Riak KV allows you to configure global object expiration (<code class="language-plaintext highlighter-rouge">expiry</code>) or <a href="https://en.wikipedia.org/wiki/Time_to_live">time to live (TTL)</a> for your data.</p>
+
+<p>Expiration is disabled by default, but enabling it lets you expire older objects to reclaim the space used or purge data with a limited time value.</p>
+
+<h2 id="enabling-expiry">Enabling Expiry</h2>
+
+<p>To enable global object expiry, add the <code class="language-plaintext highlighter-rouge">leveldb.expiration</code> setting to your riak.conf file:</p>
+
+<pre><code class="language-riak.conf">leveldb.expiration = on
+</code></pre>
+
+<p>Turning on global object expiration will not retroactively expire previous data. Only data created while expiration is on will be scheduled for expiration.</p>
+
+<h2 id="setting-retention-time">Setting Retention Time</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">retention_time</code> setting is used to specify the time until objects expire.
+Durations are set using a combination of an integer and a shortcut for the supported units:</p>
+
+<ul>
+  <li>Milliseconds - <code class="language-plaintext highlighter-rouge">ms</code></li>
+  <li>Seconds - <code class="language-plaintext highlighter-rouge">s</code></li>
+  <li>Minutes - <code class="language-plaintext highlighter-rouge">m</code></li>
+  <li>Hours - <code class="language-plaintext highlighter-rouge">h</code></li>
+  <li>Days - <code class="language-plaintext highlighter-rouge">d</code></li>
+  <li>Weeks - <code class="language-plaintext highlighter-rouge">w</code></li>
+  <li>Fortnight - <code class="language-plaintext highlighter-rouge">f</code></li>
+</ul>
+
+<p>The following example configures objects to expire after 5 hours:</p>
+
+<pre><code class="language-riak.conf">leveldb.expiration = on
+leveldb.expiration.retention_time = 5h
+</code></pre>
+
+<p>You can also combine durations. For example, let’s say you wanted objects to expire after 8 days and 9 hours:</p>
+
+<pre><code class="language-riak.conf">leveldb.expiration = on
+leveldb.expiration.retention_time = 8d9h
+</code></pre>
+
+<h2 id="expiry-modes">Expiry Modes</h2>
+
+<p>Global expiration supports two modes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">whole_file</code> - the whole sorted string table (<code class="language-plaintext highlighter-rouge">.sst</code>) file is deleted when all of its objects are expired.</li>
+  <li><code class="language-plaintext highlighter-rouge">normal</code> - individual objects are removed as part of the usual compaction process.</li>
+</ul>
+
+<p>We recommend using <code class="language-plaintext highlighter-rouge">whole_file</code> with time series data that has a similar lifespan, as it will be much more efficient.</p>
+
+<p>The following example configure objects to expire after 1 day:</p>
+
+<pre><code class="language-riak.conf">leveldb.expiration = on
+leveldb.expiration.retention_time = 1d
+leveldb.expiration.mode = whole_file
+</code></pre>
+
+<h2 id="disable-expiry">Disable Expiry</h2>
+
+<p>To disable global object expiration, set <code class="language-plaintext highlighter-rouge">leveldb.expiration</code> to <code class="language-plaintext highlighter-rouge">off</code> in your riak.conf file. If expiration is disabled, the other 2 settings are ignored. For example:</p>
+
+<pre><code class="language-riak.conf">leveldb.expiration = off
+leveldb.expiration.retention_time = 1d
+leveldb.expiration.mode = whole_file
+</code></pre>

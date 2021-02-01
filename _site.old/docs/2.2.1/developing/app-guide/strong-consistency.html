@@ -1,0 +1,221 @@
+
+<blockquote>
+  <p><strong>Please Note:</strong></p>
+
+  <p>Riak KV’s strong consistency is an experimental feature and may be removed from the product in the future. Strong consistency is not commercially supported or production-ready. Strong consistency is incompatible with Multi-Datacenter Replication, Riak Search, Bitcask Expiration, LevelDB Secondary Indexes, Riak Data Types and Commit Hooks. We do not recommend its usage in any production environment.</p>
+</blockquote>
+
+<p>In versions 2.0 and later, Riak allows you to create buckets that
+provide <a href="/riak/kv/2.2.1/using/reference/strong-consistency">strong consistency</a> guarantees for the data stored within
+them, enabling you to use Riak as a CP system (consistent plus partition
+tolerant) for all of the data in that bucket. You can store just some of
+your data in strongly consistent buckets or all of your data, depending
+on your use case. Strong consistency was added to complement Riak’s
+standard <a href="/riak/kv/2.2.1/learn/concepts/eventual-consistency">eventually consistent</a>, high
+availability mode.</p>
+
+<h2 id="tradeoffs">Tradeoffs</h2>
+
+<p>When data is stored in a bucket with strong consistency guarantees, a
+value is guaranteed readable by any client <em>immediately</em> after a
+successful write has occurred to a given key. In this sense, single-key
+strongly consistent operations are atomic, and operations on a given key
+are <a href="http://en.wikipedia.org/wiki/Linearizability">linearizable</a>. This
+behavior comes at the expense of availability because a <a href="/riak/kv/2.2.1/using/reference/strong-consistency/#trade-offs">quorum</a> of primary <a href="/riak/kv/2.2.1/learn/glossary/#vnode">vnodes</a> responsible for the key must be online and reachable or the request will
+fail.</p>
+
+<p>This trade-off is unavoidable for strongly consistent data, but the
+<a href="http://en.wikipedia.org/wiki/CAP_theorem">choice is now yours</a> to make.</p>
+
+<h2 id="enabling-strong-consistency">Enabling Strong Consistency</h2>
+
+<p>Complete instructions on enabling strong consistency can be found in
+our documentation on <a href="/riak/kv/2.2.1/configuring/strong-consistency/#enabling-strong-consistency">configuring strong consistency</a>.</p>
+
+<h2 id="creating-consistent-bucket-types">Creating Consistent Bucket Types</h2>
+
+<p><a href="/riak/kv/2.2.1/using/reference/strong-consistency">Strong Consistency</a> requirements in Riak are applied on a bucket-by-bucket basis, meaning that you can use some buckets in an eventually consistent fashion and others in a strongly consistent
+fashion, depending on your use case.</p>
+
+<p>To apply strong consistency to a bucket, you must create a <a href="/riak/kv/2.2.1/developing/usage/bucket-types">bucket type</a> that sets the <code class="language-plaintext highlighter-rouge">consistent</code> bucket property to
+<code class="language-plaintext highlighter-rouge">true</code>, activate that type, and then apply that type to specific
+bucket/key pairs.</p>
+
+<p>To give an example, we’ll create a bucket type called
+<code class="language-plaintext highlighter-rouge">strongly_consistent</code> with the <code class="language-plaintext highlighter-rouge">consistent</code> bucket property set to
+<code class="language-plaintext highlighter-rouge">true</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create strongly_consistent <span class="se">\</span>
+    <span class="s1">'{"props":{"consistent":true}}'</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note on bucket type names</strong></p>
+
+  <p>You can name <a href="/riak/kv/2.2.1/developing/usage/bucket-types">bucket types</a> whatever you wish, with
+the exception of <code class="language-plaintext highlighter-rouge">default</code>, which is a reserved term (a full listing of
+the properties associated with the <code class="language-plaintext highlighter-rouge">default</code> bucket type can be found in
+the documentation on <a href="/riak/kv/2.2.1/using/cluster-operations/bucket-types">bucket properties and operations</a>).</p>
+</blockquote>
+
+<p>Once the <code class="language-plaintext highlighter-rouge">strongly_consistent</code> bucket type has been created, we can
+check the status of the type to ensure that it has propagated through
+all nodes and is thus ready to be activated:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status strongly_consistent
+</code></pre></div></div>
+
+<p>If the console outputs <code class="language-plaintext highlighter-rouge">strongly_consistent has been created and may be
+activated</code> and the properties listing shows that <code class="language-plaintext highlighter-rouge">consistent</code> has been
+set to <code class="language-plaintext highlighter-rouge">true</code>, then you may proceed with activation:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type activate strongly_consistent
+</code></pre></div></div>
+
+<p>When activation is successful, the console will return the following:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>strongly_consistent has been activated
+</code></pre></div></div>
+
+<p>Now, any bucket that bears the type <code class="language-plaintext highlighter-rouge">strongly_consistent</code>—or whatever
+you wish to name it—will provide strong consistency guarantees.</p>
+
+<p>Elsewhere in the Riak docs, you can find more information on <a href="/riak/kv/2.2.1/developing/usage/bucket-types">using bucket types</a>, on the concept of <a href="/riak/kv/2.2.1/using/reference/strong-consistency">strong consistency</a>, and on strong
+consistency <a href="/riak/kv/2.2.1/configuring/strong-consistency">for operators</a>.</p>
+
+<h2 id="replication-properties">Replication Properties</h2>
+
+<p>Strongly consistent operations in Riak function much differently from
+their <a href="/riak/kv/2.2.1/learn/concepts/eventual-consistency">eventually consistent</a> counterparts.
+Whereas eventually consistent operations enable you to set values for a
+variety of <a href="/riak/kv/2.2.1/developing/app-guide/replication-properties">replication properties</a> either on each request or at the
+bucket level, <a href="/riak/kv/2.2.1/developing/usage/bucket-types">using bucket types</a>, these settings are quietly ignored
+for strongly consistent operations. These settings include <code class="language-plaintext highlighter-rouge">r</code>, <code class="language-plaintext highlighter-rouge">pr</code>,
+<code class="language-plaintext highlighter-rouge">w</code>, <code class="language-plaintext highlighter-rouge">rw</code>, and others. Two replication properties that <em>can</em> be set,
+however, are <code class="language-plaintext highlighter-rouge">n_val</code> and <code class="language-plaintext highlighter-rouge">return_body</code>.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">n_val</code> property is extremely important for two reasons:</p>
+
+<ol>
+  <li>It dictates how fault tolerant a strongly consistent bucket is. More
+information can be found in <a href="/riak/kv/2.2.1/configuring/strong-consistency/#fault-tolerance">our recommendations for operators</a>.</li>
+  <li>Once the <code class="language-plaintext highlighter-rouge">n_val</code> property is set for a given bucket type, it cannot
+be changed. If you wish to change the <code class="language-plaintext highlighter-rouge">n_val</code> for one or more
+strongly consistent buckets <a href="/riak/kv/2.2.1/developing/usage/bucket-types">using bucket types</a>, you will need to
+create a new bucket type with the desired <code class="language-plaintext highlighter-rouge">n_val</code>.</li>
+</ol>
+
+<p>We also recommend setting the <code class="language-plaintext highlighter-rouge">n_val</code> on strongly consistent buckets to
+at least 5. More on why we make this recommendation can be found in
+<a href="/riak/kv/2.2.1/configuring/strong-consistency/#fault-tolerance">Fault Tolerance</a>.</p>
+
+<h2 id="causal-context">Causal Context</h2>
+
+<p>Riak uses <a href="/riak/kv/2.2.1/learn/concepts/causal-context">causal context</a> to determine the causal history of objects.
+In versions of Riak KV prior to 2.0, <a href="/riak/kv/2.2.1/learn/concepts/causal-context/#vector-clocks">vector clocks</a> were used to provide objects with causal context
+metadata. In Riak versions 2.0 and later there is an option to use
+<a href="/riak/kv/2.2.1/learn/concepts/causal-context/#dotted-version-vectors">dotted version vectors</a>, which function much like vector clocks from
+the standpoint of clients, but with important advantages over vector
+clocks.</p>
+
+<p>While we strongly recommend attaching context to objects for all
+updates—whether traditional vector clocks or the newer dotted version
+vectors—they are purely <a href="/riak/kv/2.2.1/developing/usage/conflict-resolution">optional</a> for all
+eventually consistent operations in Riak. This is not the case for
+strongly consistent operations. <strong>When modifying strongly consistent
+objects in Riak, you <em>must</em> attach a causal context</strong>.</p>
+
+<p>If you attempt to modify a strongly consistent object without attaching
+a context to the request, the request will always fail. And while it is
+possible to make writes to non-existing keys without attaching context,
+we recommend doing this only if you are certain that the key does not
+yet exist.</p>
+
+<p>Instructions on using causal context can be found in our documentation
+on <a href="/riak/kv/2.2.1/developing/usage/updating-objects">object updates</a>.</p>
+
+<h2 id="strongly-consistent-writes">Strongly Consistent Writes</h2>
+
+<p>Writing to strongly consistent keys involves some of the same best
+practices that we advise when writing to eventually consistent keys. We
+recommend bearing the following in mind:</p>
+
+<ol>
+  <li>If you <em>know</em> that a key does not yet exist, you can write to that
+key without supplying a context with the object. If you are unsure, then you should default to supplying a context object.</li>
+  <li>If an object already exists under a key, strong consistency demands
+that you supply a <a href="#causal-context">causal context</a>. If you do not supply one, the update
+will necessarily fail.</li>
+  <li>Because strongly consistent writes must occasionally
+<a href="/riak/kv/2.2.1/using/reference/strong-consistency/#strong-vs.-eventual-consistency">sacrifice availability</a> for the sake of
+consistency, <strong>strongly consistent updates can fail even under normal
+conditions</strong>, particularly in the event of concurrent updates.</li>
+</ol>
+
+<h2 id="error-messages">Error Messages</h2>
+
+<p>For the most part, performing reads, writes, and deletes on data in
+strongly consistent buckets works much like it does in
+non-strongly-consistent-buckets. One important exception to this is how
+writes are performed. Strongly consistent buckets cannot allow siblings
+by definition, and so all writes to existing keys must include a context
+with the object.</p>
+
+<p>If you attempt a write to a non-empty key without including causal
+context, you will receive the following error:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="no">Riak</span><span class="o">::</span><span class="no">Conflict</span><span class="p">:</span> <span class="no">The</span> <span class="n">object</span> <span class="n">is</span> <span class="k">in</span> <span class="n">conflict</span> <span class="p">(</span><span class="n">has</span> <span class="n">siblings</span><span class="p">)</span> <span class="n">and</span> <span class="n">cannot</span> <span class="n">be</span> <span class="n">treated</span> <span class="n">singly</span> <span class="n">or</span> <span class="ss">saved:
+</span></code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">java</span><span class="o">.</span><span class="na">lang</span><span class="o">.</span><span class="na">IllegalArgumentException</span><span class="o">:</span> <span class="nc">VClock</span> <span class="n">cannot</span> <span class="n">be</span> <span class="kc">null</span><span class="o">.</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">isSuccess</span><span class="p">();</span>  <span class="c1">// false</span>
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getStatusCode</span><span class="p">();</span> <span class="c1">// 412</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">riak</span><span class="p">.</span><span class="n">RiakError</span><span class="p">:</span> <span class="s">'failed'</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">error</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"failed"</span><span class="o">&gt;&gt;</span><span class="p">}</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">&lt;html&gt;&lt;head&gt;&lt;title&gt;412 Precondition Failed&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Precondition Failed&lt;/h1&gt;Precondition Failed&lt;p&gt;&lt;hr&gt;&lt;address&gt;mochiweb+webmachine web server&lt;/address&gt;&lt;/body&gt;&lt;/html&gt;
+</code></pre>
+
+<blockquote>
+  <p><strong>Getting Started with Riak KV clients</strong></p>
+
+  <p>If you are connecting to Riak using one of Basho’s official
+<a href="/riak/kv/2.2.1/developing/client-libraries">client libraries</a>, you can find more information about getting started with your client in our <a href="/riak/kv/2.2.1/developing/getting-started">Developing with Riak KV: Getting Started</a> section.</p>
+</blockquote>
+
+<h2 id="known-issue-with-client-libraries">Known Issue with Client Libraries</h2>
+
+<p>All of Basho’s official <a href="/riak/kv/2.2.1/developing/client-libraries">client libraries</a> currently convert errors returned by Riak into generic exceptions, with a message derived from the error message returned by Riak. In many cases this presents no
+problems, since many error conditions are normal when using Riak.</p>
+
+<p>When working with strong consistency, however, operations like
+<a href="/riak/kv/2.2.1/configuring/strong-consistency/#implementation-details">conditional puts</a> commonly
+produce errors that are difficult for clients to interpret. For example,
+it is expected behavior for conditional puts to fail in the case of
+concurrent updates to an object. At present, the official Riak clients
+will convert this failure into an exception that is no different from
+other error conditions, i.e. they will not indicate any
+strong-consistency-specific errors.</p>
+
+<p>The best solution to this problem at the moment is to catch these
+exceptions on the application side and parse server-side error messages
+to see if the error involved a conditional failure. If so, you should
+set up your application to retry any updates, perhaps a specified number
+of times or perhaps indefinitely, depending on the use case.</p>
+
+<p>If you do set up a retry logic of this sort, however, it is necessary
+to retry the entire read/modify/put cycle, meaning that you will need
+to fetch the object, modify it, and then write. If you perform a simple
+put over and over again, without reading the object, the update will
+continue to fail.</p>
+
+<p>A future version of Riak will address these issues by modifying the
+server API to more accurately report errors specific to strongly
+consistent operations.</p>

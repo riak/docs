@@ -1,0 +1,129 @@
+<p>Send a Search request to retrieve a list of documents, along with a few
+stats.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbSearchQueryReq</span> <span class="p">{</span>
+  <span class="k">required</span> <span class="kt">bytes</span>  <span class="na">q</span>      <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+  <span class="k">required</span> <span class="kt">bytes</span>  <span class="na">index</span>  <span class="o">=</span>  <span class="mi">2</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">rows</span>   <span class="o">=</span>  <span class="mi">3</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">start</span>  <span class="o">=</span>  <span class="mi">4</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">bytes</span>  <span class="na">sort</span>   <span class="o">=</span>  <span class="mi">5</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">bytes</span>  <span class="na">filter</span> <span class="o">=</span>  <span class="mi">6</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">bytes</span>  <span class="na">df</span>     <span class="o">=</span>  <span class="mi">7</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">bytes</span>  <span class="na">op</span>     <span class="o">=</span>  <span class="mi">8</span><span class="p">;</span>
+  <span class="k">repeated</span> <span class="kt">bytes</span>  <span class="na">fl</span>     <span class="o">=</span>  <span class="mi">9</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">bytes</span>  <span class="na">presort</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Required Parameters</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">q</code> — The contents of the query</li>
+  <li><code class="language-plaintext highlighter-rouge">index</code> — The name of the index to search</li>
+</ul>
+
+<p>Optional Parameters</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">rows</code> — The maximum number of rows to return</li>
+  <li><code class="language-plaintext highlighter-rouge">start</code> — A start offset, i.e. the number of keys to skip before
+returning values</li>
+  <li><code class="language-plaintext highlighter-rouge">sort</code> — How the search results are to be sorted</li>
+  <li><code class="language-plaintext highlighter-rouge">filter</code> — Filters search with additional query scoped to inline
+fields</li>
+  <li><code class="language-plaintext highlighter-rouge">df</code> — Override the <code class="language-plaintext highlighter-rouge">default_field</code> setting in the schema file</li>
+  <li><code class="language-plaintext highlighter-rouge">op</code> — <code class="language-plaintext highlighter-rouge">and</code> or <code class="language-plaintext highlighter-rouge">or</code>, to override the <code class="language-plaintext highlighter-rouge">default_op</code> operation setting
+in the schema file</li>
+  <li><code class="language-plaintext highlighter-rouge">fl</code> — Return the fields limit</li>
+  <li><code class="language-plaintext highlighter-rouge">presort</code> — Presort. The options are <code class="language-plaintext highlighter-rouge">key</code> or <code class="language-plaintext highlighter-rouge">score</code></li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>The results of a search query are returned as a repeating list of 0 or
+more <code class="language-plaintext highlighter-rouge">RpbSearchDoc</code>s. <code class="language-plaintext highlighter-rouge">RpbSearchDoc</code>s themselves are composed of 0 or
+more key/value pairs (<code class="language-plaintext highlighter-rouge">RpbPair</code>) that match the given request
+parameters. It also returns the maximum search score and the number of
+results.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// RbpPair is a generic key/value pair datatype used for</span>
+<span class="c1">// other message types</span>
+<span class="kd">message</span> <span class="nc">RpbPair</span> <span class="p">{</span>
+  <span class="k">required</span> <span class="kt">bytes</span> <span class="na">key</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">value</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">message</span> <span class="nc">RpbSearchDoc</span> <span class="p">{</span>
+  <span class="k">repeated</span> <span class="n">RpbPair</span> <span class="na">fields</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">message</span> <span class="nc">RpbSearchQueryResp</span> <span class="p">{</span>
+  <span class="k">repeated</span> <span class="n">RpbSearchDoc</span> <span class="na">docs</span>      <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">float</span>        <span class="na">max_score</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+  <span class="k">optional</span> <span class="kt">uint32</span>       <span class="na">num_found</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Values</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">docs</code> — A list of docs that match the search request</li>
+  <li><code class="language-plaintext highlighter-rouge">max_score</code> — The top score returned</li>
+  <li><code class="language-plaintext highlighter-rouge">num_found</code> — Returns the total number of values matched by this
+search</li>
+</ul>
+
+<h2 id="example">Example</h2>
+
+<p>Request</p>
+
+<p>Here we search for any animals that being with the string <code class="language-plaintext highlighter-rouge">pig</code>. We only
+want the first 100, and sort the values by a <code class="language-plaintext highlighter-rouge">name</code> field.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>RpbSearchQueryReq protoc decode:
+q: <span class="s2">"pig*"</span>
+index: <span class="s2">"animals"</span>
+rows: 100
+start: 0
+<span class="nb">sort</span>: <span class="s2">"name"</span>
+
+Hex     00 00 00 1A 1B 0A 04 70 69 67 2A 12 07 61 6E
+        69 6D 61 6C 73 18 64 20 00 2A 04 6E 61 6D 65
+Erlang  <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,26,27,10,4,112,105,103,42,18,7,97,110,
+          105,109,97,108,115,24,100,32,0,42,4,110,97,
+          109,101&gt;&gt;
+</span></code></pre></div></div>
+
+<p>Response</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex     00 00 00 36 1B 0A 1D 0A 0D 0A 06 61 6E 69 6D
+        61 6C 12 03 70 69 67 0A 0C 0A 04 6E 61 6D 65
+        12 04 66 72 65 64 0A 12 0A 10 0A 06 61 6E 69
+        6D 61 6C 12 06 70 69 67 65 6F 6E 18 02
+Erlang  <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,54,27,10,29,10,13,10,6,97,110,105,109,
+          97,108,18,3,112,105,103,10,12,10,4,110,97,
+          109,101,18,4,102,114,101,100,10,18,10,16,10,
+          6,97,110,105,109,97,108,18,6,112,105,103,
+          101,111,110,24,2&gt;&gt;
+
+RpbSearchQueryResp protoc decode:
+docs {
+  fields {
+    key: "animal"
+    value: "pig"
+  }
+  fields {
+    key: "name"
+    value: "fred"
+  }
+}
+docs {
+  fields {
+    key: "animal"
+    value: "pigeon"
+  }
+}
+num_found: 2
+</span></code></pre></div></div>

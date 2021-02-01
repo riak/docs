@@ -1,0 +1,120 @@
+<h2 id="creating-objects-in-riak">Creating Objects In Riak</h2>
+
+<p>First, let’s create a few objects and a bucket to keep them in.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">my_bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s2">"test"</span><span class="p">)</span>
+
+<span class="n">val1</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">obj1</span> <span class="o">=</span> <span class="n">my_bucket</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s1">'one'</span><span class="p">)</span>
+<span class="n">obj1</span><span class="p">.</span><span class="nf">data</span> <span class="o">=</span> <span class="n">val1</span>
+<span class="n">obj1</span><span class="p">.</span><span class="nf">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>In this first example we have stored the integer 1 with the lookup key
+of <code class="language-plaintext highlighter-rouge">one</code>. Next, let’s store a simple string value of <code class="language-plaintext highlighter-rouge">two</code> with a
+matching key.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">val2</span> <span class="o">=</span> <span class="s2">"two"</span>
+<span class="n">obj2</span> <span class="o">=</span> <span class="n">my_bucket</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s1">'two'</span><span class="p">)</span>
+<span class="n">obj2</span><span class="p">.</span><span class="nf">data</span> <span class="o">=</span> <span class="n">val2</span>
+<span class="n">obj2</span><span class="p">.</span><span class="nf">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>That was easy. Finally, let’s store a bit of JSON. You will probably
+recognize the pattern by now.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">val3</span> <span class="o">=</span> <span class="p">{</span> <span class="ss">myValue: </span><span class="mi">3</span> <span class="p">}</span>
+<span class="n">obj3</span> <span class="o">=</span> <span class="n">my_bucket</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="s1">'three'</span><span class="p">)</span>
+<span class="n">obj3</span><span class="p">.</span><span class="nf">data</span> <span class="o">=</span> <span class="n">val3</span>
+<span class="n">obj3</span><span class="p">.</span><span class="nf">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h2 id="reading-objects-from-riak">Reading Objects From Riak</h2>
+
+<p>Now that we have a few objects stored, let’s retrieve them and make sure
+they contain the values we expect.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetched1</span> <span class="o">=</span> <span class="n">my_bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'one'</span><span class="p">)</span>
+<span class="n">fetched2</span> <span class="o">=</span> <span class="n">my_bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'two'</span><span class="p">)</span>
+<span class="n">fetched3</span> <span class="o">=</span> <span class="n">my_bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'three'</span><span class="p">)</span>
+
+<span class="n">fetched1</span><span class="p">.</span><span class="nf">data</span> <span class="o">==</span> <span class="n">val1</span>
+<span class="n">fetched2</span><span class="p">.</span><span class="nf">data</span> <span class="o">==</span> <span class="n">val2</span>
+<span class="n">fetched3</span><span class="p">.</span><span class="nf">data</span><span class="p">.</span><span class="nf">to_json</span> <span class="o">==</span> <span class="n">val3</span><span class="p">.</span><span class="nf">to_json</span>
+</code></pre></div></div>
+
+<p>That was easy. we simply request the objects by key. in the last
+example, we converted to JSON so we can compare a string key to a symbol
+key.</p>
+
+<h2 id="updating-objects-in-riak">Updating Objects In Riak</h2>
+
+<p>While some data may be static, other forms of data may need to be
+updated. This is also easy to accomplish. Let’s update the value of
+myValue in the 3rd example to 42.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetched3</span><span class="p">.</span><span class="nf">data</span><span class="p">[</span><span class="s2">"myValue"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">42</span>
+<span class="n">fetched3</span><span class="p">.</span><span class="nf">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h2 id="deleting-objects-from-riak">Deleting Objects From Riak</h2>
+
+<p>As a last step, we’ll demonstrate how to delete data. You’ll see that
+the delete message can be called either against the bucket or the
+object.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">my_bucket</span><span class="p">.</span><span class="nf">delete</span><span class="p">(</span><span class="s1">'one'</span><span class="p">)</span>
+<span class="n">obj2</span><span class="p">.</span><span class="nf">delete</span><span class="p">()</span>
+<span class="n">obj3</span><span class="p">.</span><span class="nf">delete</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h2 id="working-with-complex-objects">Working With Complex Objects</h2>
+
+<p>Since the world is a little more complicated than simple integers and
+bits of strings, let’s see how we can work with more complex objects.
+Take, for example, this Ruby hash that encapsulates some knowledge about
+a book.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">book</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="ss">:isbn</span> <span class="o">=&gt;</span> <span class="s1">'1111979723'</span><span class="p">,</span>
+  <span class="ss">:title</span> <span class="o">=&gt;</span> <span class="s1">'Moby Dick'</span><span class="p">,</span>
+  <span class="ss">:author</span> <span class="o">=&gt;</span> <span class="s1">'Herman Melville'</span><span class="p">,</span>
+  <span class="ss">:body</span> <span class="o">=&gt;</span> <span class="s1">'Call me Ishmael. Some years ago...'</span><span class="p">,</span>
+  <span class="ss">:copies_owned</span> <span class="o">=&gt;</span> <span class="mi">3</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>All right, so we have some information about our Moby Dick collection
+that we want to save. Storing this to Riak should look familiar by now.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">books_bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'books'</span><span class="p">)</span>
+<span class="n">new_book</span> <span class="o">=</span> <span class="n">books_bucket</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">book</span><span class="p">[</span><span class="ss">:isbn</span><span class="p">])</span>
+<span class="n">new_book</span><span class="p">.</span><span class="nf">data</span> <span class="o">=</span> <span class="n">book</span>
+<span class="n">new_book</span><span class="p">.</span><span class="nf">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>Some of you may be thinking, “But how does the Ruby Riak client
+encode/decode my object?” If we fetch our book back and print the raw
+data, we shall know:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetched_book</span> <span class="o">=</span> <span class="n">books_bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">book</span><span class="p">[</span><span class="ss">:isbn</span><span class="p">])</span>
+<span class="nb">puts</span> <span class="n">fetched_book</span><span class="p">.</span><span class="nf">raw_data</span>
+</code></pre></div></div>
+
+<p>Raw Data:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="nl">"isbn"</span><span class="p">:</span><span class="s2">"1111979723"</span><span class="p">,</span><span class="nl">"title"</span><span class="p">:</span><span class="s2">"Moby Dick"</span><span class="p">,</span><span class="nl">"author"</span><span class="p">:</span><span class="s2">"Herman Melville"</span><span class="p">,</span><span class="w">
+</span><span class="nl">"body"</span><span class="p">:</span><span class="s2">"Call me Ishmael. Some years ago..."</span><span class="p">,</span><span class="nl">"copies_owned"</span><span class="p">:</span><span class="mi">3</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>JSON! The Ruby Riak client will serialize objects to JSON when it comes
+across structured data like hashes.  For more advanced control over
+serialization you can use a library called
+<a href="https://github.com/basho/ripple">Ripple</a>, which is a rich Ruby modeling
+layer over the basic riak client. Ripple falls outside the scope of
+this document but we shall visit it later.</p>
+
+<p>Now, let’s clean up our mess:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">new_book</span><span class="p">.</span><span class="nf">delete</span><span class="p">()</span>
+</code></pre></div></div>

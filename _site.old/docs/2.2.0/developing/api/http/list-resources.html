@@ -1,0 +1,69 @@
+<p>List available HTTP resources for the Riak node. This can be used by clients to
+automatically recognize the location of the resources for specific operations.</p>
+
+<p>The standard resources are:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_buckets</code> - <a href="/riak/kv/2.2.0/developing/api/http/#bucket-operations">Bucket Operations</a></li>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_index</code> - <a href="/riak/kv/2.2.0/developing/api/http/secondary-indexes">HTTP Secondary Indexes</a></li>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_link_walker</code> - <a href="/riak/kv/2.2.0/developing/api/http/link-walking">HTTP Link Walking</a></li>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_mapred</code> - <a href="/riak/kv/2.2.0/developing/api/http/mapreduce">HTTP MapReduce</a></li>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_object</code>- <a href="/riak/kv/2.2.0/developing/api/http/#object-key-operations">Object/Key Operations</a></li>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_ping</code> - <a href="/riak/kv/2.2.0/developing/api/http/ping">HTTP Ping</a></li>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_props</code> - <a href="/riak/kv/2.2.0/developing/api/http/set-bucket-props">HTTP Set Bucket Properties</a></li>
+  <li><code class="language-plaintext highlighter-rouge">riak_kv_wm_stats</code> - <a href="/riak/kv/2.2.0/developing/api/http/status">HTTP Status</a></li>
+</ul>
+
+<h2 id="request">Request</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /
+</code></pre></div></div>
+
+<p>Headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Accept</code> - <code class="language-plaintext highlighter-rouge">application/json</code> or <code class="language-plaintext highlighter-rouge">text/html</code></li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>Normal status codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+</ul>
+
+<p>Important headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Link</code> - all resources that are described in the response body, but in Link
+form</li>
+</ul>
+
+<h2 id="example">Example</h2>
+
+<p>Request JSON response</p>
+
+<pre><code class="language-curl">$ curl -i http://localhost:8098 -H "Accept: application/json"
+HTTP/1.1 200 OK
+Vary: Accept
+Server: MochiWeb/1.1 WebMachine/1.10.0 (never breaks eye contact)
+Link: &lt;/buckets&gt;; rel="riak_kv_wm_buckets",&lt;/riak&gt;; rel="riak_kv_wm_buckets",&lt;/buckets&gt;; rel="riak_kv_wm_counter",&lt;/buckets&gt;; rel="riak_kv_wm_index",&lt;/buckets&gt;; rel="riak_kv_wm_keylist",&lt;/buckets&gt;; rel="riak_kv_wm_link_walker",&lt;/riak&gt;; rel="riak_kv_wm_link_walker",&lt;/mapred&gt;; rel="riak_kv_wm_mapred",&lt;/buckets&gt;; rel="riak_kv_wm_object",&lt;/riak&gt;; rel="riak_kv_wm_object",&lt;/ping&gt;; rel="riak_kv_wm_ping",&lt;/buckets&gt;; rel="riak_kv_wm_props",&lt;/stats&gt;; rel="riak_kv_wm_stats"
+Date: Wed, 27 Nov 2013 20:18:31 GMT
+Content-Type: application/json
+Content-Length: 398
+
+{"riak_kv_wm_buckets":"/buckets","riak_kv_wm_buckets":"/riak","riak_kv_wm_counter":"/buckets","riak_kv_wm_index":"/buckets","riak_kv_wm_keylist":"/buckets","riak_kv_wm_link_walker":"/buckets","riak_kv_wm_link_walker":"/riak","riak_kv_wm_mapred":"/mapred","riak_kv_wm_object":"/buckets","riak_kv_wm_object":"/riak","riak_kv_wm_ping":"/ping","riak_kv_wm_props":"/buckets","riak_kv_wm_stats":"/stats"}
+
+# Request HTML response
+curl -i http://localhost:8098 -H "Accept: text/html"
+HTTP/1.1 200 OK
+Vary: Accept
+Server: MochiWeb/1.1 WebMachine/1.10.0 (never breaks eye contact)
+Link: &lt;/buckets&gt;; rel="riak_kv_wm_buckets",&lt;/riak&gt;; rel="riak_kv_wm_buckets",&lt;/buckets&gt;; rel="riak_kv_wm_counter",&lt;/buckets&gt;; rel="riak_kv_wm_index",&lt;/buckets&gt;; rel="riak_kv_wm_keylist",&lt;/buckets&gt;; rel="riak_kv_wm_link_walker",&lt;/riak&gt;; rel="riak_kv_wm_link_walker",&lt;/mapred&gt;; rel="riak_kv_wm_mapred",&lt;/buckets&gt;; rel="riak_kv_wm_object",&lt;/riak&gt;; rel="riak_kv_wm_object",&lt;/ping&gt;; rel="riak_kv_wm_ping",&lt;/buckets&gt;; rel="riak_kv_wm_props",&lt;/stats&gt;; rel="riak_kv_wm_stats"
+Date: Wed, 27 Nov 2013 20:20:05 GMT
+Content-Type: text/html
+Content-Length: 666
+
+&lt;html&gt;&lt;body&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="buckets"&gt;riak_kv_wm_buckets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="/riak"&gt;riak_kv_wm_buckets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="buckets"&gt;riak_kv_wm_counter&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="buckets"&gt;riak_kv_wm_index&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="buckets"&gt;riak_kv_wm_keylist&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="buckets"&gt;riak_kv_wm_link_walker&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="/riak"&gt;riak_kv_wm_link_walker&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="mapred"&gt;riak_kv_wm_mapred&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="buckets"&gt;riak_kv_wm_object&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="/riak"&gt;riak_kv_wm_object&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="ping"&gt;riak_kv_wm_ping&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="buckets"&gt;riak_kv_wm_props&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="stats"&gt;riak_kv_wm_stats&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/body&gt;&lt;/html&gt;
+</code></pre>

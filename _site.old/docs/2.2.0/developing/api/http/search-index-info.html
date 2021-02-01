@@ -1,0 +1,37 @@
+<p>Retrieves information about all currently available <a href="/riak/kv/2.2.0/developing/usage/search">Search indexes</a> in JSON format.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /search/index
+</code></pre></div></div>
+
+<h2 id="response">Response</h2>
+
+<p>If there are no currently available Search indexes, a <code class="language-plaintext highlighter-rouge">200 OK</code> will be
+returned but with an empty list as the response value.</p>
+
+<p>Below is the example output if there is one Search index, called
+<code class="language-plaintext highlighter-rouge">test_index</code>, currently available:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[</span><span class="w">
+  </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"n_val"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"test_index"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"schema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"_yz_default"</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">]</span><span class="w">
+</span></code></pre></div></div>
+
+<h4 id="normal-response-codes">Normal Response Codes</h4>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+</ul>
+
+<h4 id="typical-error-codes">Typical Error Codes</h4>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">404 Object Not Found</code> — Typically returned if Riak Search is not
+  currently enabled on the node</li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> — The request timed out internally</li>
+</ul>

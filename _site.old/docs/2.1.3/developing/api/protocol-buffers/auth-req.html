@@ -1,0 +1,12 @@
+<p>Sends a username (<code class="language-plaintext highlighter-rouge">user</code>) and password (<code class="language-plaintext highlighter-rouge">password</code>) to Riak as part of
+an authentication request. Both values are sent as binaries.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbAuthReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">user</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">password</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>For more on authentication, see our documentation on <a href="/riak/kv/2.1.3/using/security/basics">Authentication and Authorization</a>.</p>

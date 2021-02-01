@@ -1,0 +1,143 @@
+
+<p>Riak KV is a database designed for easy operation and scaling. Below are some best practices that will enable you to improve performance and reliability at all stages in the life of your Riak cluster.</p>
+
+<h2 id="disk-capacity">Disk Capacity</h2>
+
+<p>Filling up disks is a serious problem in Riak. In general, you should
+add capacity under the following conditions:</p>
+
+<ul>
+  <li>a disk becomes more than 80% full</li>
+  <li>you have fewer than 10 days of capacity remaining at current rates of
+growth</li>
+</ul>
+
+<h2 id="raid-levels">RAID Levels</h2>
+
+<p>Riak provides resilience through its built-in redundancy.</p>
+
+<ul>
+  <li>RAID0 can be used to increase the performance at the expense of
+single-node reliability</li>
+  <li>RAID5/6 can be used to increase the reliability over RAID0 but still
+offers higher performance than single disks</li>
+  <li>You should choose a RAID level (or no RAID) that you’re comfortable
+with</li>
+</ul>
+
+<h2 id="disk-leeway">Disk Leeway</h2>
+
+<ul>
+  <li>Adding new nodes instantly increases the total capacity of the
+cluster, but you should allow enough internal network capacity that
+<a href="/riak/kv/2.2.1/using/reference/handoff">handing off</a> existing data outpaces the arrival of new
+data.</li>
+  <li>Once you’ve reached a scale at which the amount of new data arriving
+is a small fraction of the cluster’s total capacity, you can add new
+nodes when you need them. You should be aware, however, that adding
+new nodes can actually <em>increase</em> disk usage on existing nodes in the
+short term as data is rebalanced within the cluster.</li>
+  <li>If you are certain that you are likely to run out of capacity, we
+recommend allowing a week or two of leeway so that you have plenty of
+time to add nodes and for <a href="/riak/kv/2.2.1/using/reference/handoff">handoff</a> to occur before the disks reach
+capacity</li>
+  <li>For large volumes of storage it’s usually prudent to add more capacity
+once a disk is 80% full</li>
+</ul>
+
+<h2 id="cpu-capacity-leeway">CPU Capacity Leeway</h2>
+
+<ul>
+  <li>In a steady state, your peak CPU utilization, ignoring other
+processes, should be less than 30%</li>
+  <li>If you provide sufficient CPU capacity leeway, you’ll have spare
+capacity to handle other processes, such as backups, <a href="/riak/kv/2.2.1/using/reference/handoff">handoff</a>, and <a href="/riak/kv/2.2.1/learn/glossary/#active-anti-entropy-aae">active anti-entropy</a></li>
+</ul>
+
+<h2 id="network-capacity-leeway">Network Capacity Leeway</h2>
+
+<ul>
+  <li>Network traffic tends to be “bursty,” i.e. it tends to vary both quite
+a bit and quickly</li>
+  <li>Your normal load, as averaged over a 10-minute period, should be no
+more than 20% of maximum capacity</li>
+  <li>Riak generates 3-5 times the amount of intra-node traffic as inbound
+traffic, so you should allow for this in your network design</li>
+</ul>
+
+<h2 id="when-to-add-nodes">When to Add Nodes</h2>
+
+<p>You should add more nodes in the following scenarios:</p>
+
+<ul>
+  <li>you have reached 80% of storage capacity</li>
+  <li>you have less than 10 days of leeway before you expect the cluster to
+fill up</li>
+  <li>the current node’s IO/CPU activity is higher than average for extended
+period of time, especially for <a href="/riak/kv/2.2.1/configuring/mapreduce">MapReduce</a>
+operations</li>
+</ul>
+
+<p>An alternative to adding more nodes is to add more storage to existing
+nodes. However, you should do this only if:</p>
+
+<ul>
+  <li>you’re confident that there is plenty of spare network and CPU
+capacity, <em>and</em></li>
+  <li>you can upgrade storage <em>equally across all nodes</em>. If storage is
+added in an unbalanced fashion, Riak will continue storing data
+equally across nodes, and the node with the smallest available storage
+space is likely to fail first. Thus, if one node uses 1 TB but the
+rest use 1.5 TB, Riak will overload the 1 TB node first.</li>
+</ul>
+
+<p>The recommendations above should be taken only as general guidelines
+because the specifics of your cluster will matter a great deal when
+making capacity decisions. The following considerations are worth
+bearing in mind:</p>
+
+<ul>
+  <li>If your disks are 90% full but only filling up 1% per month, this
+might be a perfectly “safe” scenario. In cases like this, the velocity
+of adding new data is more important than any raw total.</li>
+  <li>The burstiness of your write load is also an important consideration.
+If writes tend to come in large batches that are unpredictably timed,
+it can be more difficult to estimate when disks will become full,
+which means that you should probably over-provision storage as a
+precaution.</li>
+  <li>If Riak shares disks with other processes or is on the system root
+mount point, i.e. <code class="language-plaintext highlighter-rouge">/</code>, we recommend leaving a little extra disk space
+in addition to the estimates discussed above, as other system
+processes might use disk space unexpectedly.</li>
+</ul>
+
+<h2 id="how-to-add-nodes">How to Add Nodes</h2>
+
+<ul>
+  <li>You should add as many additional nodes as you require in one
+operation</li>
+  <li>Don’t add nodes one at a time if you’re adding multiple nodes</li>
+  <li>You can limit the transfer rate so that priority is given to live
+customer traffic</li>
+</ul>
+
+<p>This process is explored in more detail in <a href="/riak/kv/2.2.1/using/cluster-operations/adding-removing-nodes">Adding and Removing Nodes</a>.</p>
+
+<h2 id="scaling">Scaling</h2>
+
+<ul>
+  <li>All large-scale systems are bound by the availability of some
+resources</li>
+  <li>From a stability point of view, the best state for a busy Riak cluster
+to maintain is the following:
+    <ul>
+      <li>New network connections are limited to ensure that existing network
+connections consume most network bandwidth</li>
+      <li>CPU at &lt; 30%</li>
+      <li>Disk IO at &lt; 90%</li>
+    </ul>
+  </li>
+  <li>You should use HAProxy or your application servers to limit new
+network connections to keep network and IO below 90% and CPU below
+30%.</li>
+</ul>

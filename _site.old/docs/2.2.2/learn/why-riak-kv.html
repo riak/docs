@@ -1,0 +1,213 @@
+
+<h2 id="what-is-riak">What is Riak?</h2>
+
+<p>Riak is a distributed database designed to deliver maximum data
+availability by distributing data across multiple servers. As long as
+your Riak client can reach <em>one</em> Riak server, it should be able to write
+data.</p>
+
+<p>Riak is used as an <strong>eventually consistent</strong> system in that the data you want to read should remain available in most failure scenarios, although it may not be the most up-to-date version of that data.</p>
+
+<h3 id="bashos-goals-for-riak">Basho’s goals for Riak</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Goal</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Availability</strong></td>
+      <td>Riak writes to and reads from multiple servers to offer data availability even when hardware or the network itself are experiencing failure conditions</td>
+    </tr>
+    <tr>
+      <td><strong>Operational simplicity</strong></td>
+      <td>Easily add new machines to your Riak cluster without incurring a larger operational burden</td>
+    </tr>
+    <tr>
+      <td><strong>Scalability</strong></td>
+      <td>Riak automatically distributes data around the cluster and yields a near-linear performance increase as you add capacity</td>
+    </tr>
+    <tr>
+      <td><strong>Masterless</strong></td>
+      <td>Your requests are not held hostage to a specific server in the cluster that may or may not be available</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="when-riak-makes-sense">When Riak makes sense</h3>
+
+<p>If your data does not fit on a single server and demands a distributed
+database architecture, you should take a close look at Riak as a
+potential solution to your data availability issues. Getting distributed
+databases right is <strong>very</strong> difficult, and Riak was built to address the
+problem of data availability with as few trade-offs and downsides as
+possible.</p>
+
+<p>Riak’s focus on availability makes it a good fit whenever downtime is
+unacceptable. No one can promise 100% uptime, but Riak is designed to
+survive network partitions and hardware failures that would
+significantly disrupt most databases.</p>
+
+<p>A less-heralded feature of Riak is its predictable latency. Because its
+fundamental operations—read, write, and delete—do not involve
+complex data joins or locks, it services those requests promptly. Thanks
+to this capability, Riak is often selected as a data storage backend for
+data management software from a variety of paradigms, such as
+<a href="http://www.datomic.com/overview.html">Datomic</a>.</p>
+
+<p>From the standpoint of the actual content of your data, Riak might also
+be a good choice if your data can be modeled as one of Riak’s currently
+available <a href="/riak/kv/2.2.2/developing/data-types">Data Types</a>:  flags, registers, counters,
+sets, or maps. These Data Types enable you to take advantage of Riak’s
+high availability approach while simplifying application development.</p>
+
+<h3 id="when-riak-is-less-of-a-good-fit">When Riak is Less of a Good Fit</h3>
+
+<p>We recommend running no fewer than 5 data servers in a cluster.
+This means that Riak can be overkill for small databases. If you’re not
+already sure that you will need a distributed database, there’s a good
+chance that you won’t need Riak.</p>
+
+<p>If explosive growth is a possibility, however, you are always highly
+advised to prepare for that in advance. Scaling at Internet speeds is
+sometimes compared to overhauling an airplane mid-flight. If you feel
+that such a transition might be necessary in the future, then you might
+want to consider Riak.</p>
+
+<p>Riak’s simple data model, consisting of keys and values as its atomic
+elements, means that your data must be denormalized if your system is to
+be reasonably performant. For most applications this is not a serious
+hurdle. But if your data simply cannot be effectively managed as keys
+and values, Riak will most likely not be the best fit for you.</p>
+
+<p>Correspondingly, if your application demands a high query load by any
+means other than key/value lookup—e.g. SQL-style <code class="language-plaintext highlighter-rouge">SELECT * FROM table</code>
+operations—Riak will not be as efficient as other databases. If you
+wish to compare Riak with other data technologies, Basho offers a tool
+called <a href="/riak/kv/2.2.2/using/performance/benchmarking">Basho Bench</a> to help measure its performance, so that you can
+decide whether the availability and operational benefits of Riak
+outweigh its disadvantages.</p>
+
+<h2 id="how-does-a-riak-cluster-work">How Does a Riak Cluster Work?</h2>
+
+<p>A Riak cluster is a group of <strong>nodes</strong> that are in constant
+communication to ensure data availability and partition tolerance.</p>
+
+<h3 id="what-is-a-riak-node">What is a Riak Node?</h3>
+
+<p>A Riak node is not quite the same as a server, but in a production
+environment the two should be equivalent. A developer may run multiple
+nodes on a single laptop, but this would never be advisable in a real
+production cluster.</p>
+
+<p>Each node in a Riak cluster is equivalent, containing a complete,
+independent copy of the whole Riak package. There is no “master” node;
+no node has more responsibilities than others; and no node has special
+tasks not performed by other nodes. This uniformity provides the basis
+for Riak’s fault tolerance and scalability.</p>
+
+<p>Each node is responsible for multiple data partitions, as discussed
+below:</p>
+
+<h3 id="riak-automatically-re-distributes-data-when-capacity-is-added">Riak Automatically Re-Distributes Data When Capacity is Added</h3>
+
+<p>When you add (or remove) machines, data is rebalanced automatically with
+no downtime. New machines claim data until ownership is equally spread
+around the cluster, with the resulting cluster status updates shared to
+every node via a gossip protocol and used to route requests. This is
+what makes it possible for any node in the cluster to receive requests.
+The end result is that developers don’t need to deal with the underlying
+complexity of where data lives.</p>
+
+<h3 id="consistent-hashing">Consistent Hashing</h3>
+
+<p>Data is distributed across nodes using consistent hashing. Consistent
+hashing ensures that data is evenly distributed around the cluster and
+makes possible the automatic redistribution of data as the cluster
+scales.</p>
+
+<h3 id="intelligent-replication">Intelligent Replication</h3>
+
+<p>Riak’s replication scheme ensures that you can still read, write, and
+update data if nodes go down. Riak allows you to set a replication
+variable, N (also known as the <code class="language-plaintext highlighter-rouge">n_val</code>), that specifies the number of
+nodes on which a value will be replicated.</p>
+
+<p>An <code class="language-plaintext highlighter-rouge">n_val</code> value of 3 (the default) means that each object is replicated
+3 times. When an object’s key is mapped onto a given node, Riak will
+continue on and automatically replicate the data onto two more nodes.
+This parameter enables you to replicate values to 7 nodes in a 10-node
+cluster, 10 nodes in a 15-node cluster, and so on.</p>
+
+<h2 id="when-things-go-wrong">When Things Go Wrong</h2>
+
+<p>Riak retains fault tolerance, data integrity, and availability even in
+failure conditions such as hardware failure and network partitions. Riak
+has a number of means of addressing these scenarios and other bumps in
+the road, like version conflicts in data.</p>
+
+<h3 id="hinted-handoff">Hinted Handoff</h3>
+
+<p>Hinted handoff enables Riak to handle node failure. If a node goes down,
+a neighboring node will take over its storage operations. When the
+failed node returns, the updates received by the neighboring node are
+handed back to it. This ensures that availability for writes and updates
+is maintained automatically, minimizing the operational burden of
+failure conditions.</p>
+
+<h3 id="version-conflicts">Version Conflicts</h3>
+
+<p>In any system that replicates data, conflicts can arise, for example
+when two clients update the same object at the exact same time or when
+not all updates have yet reached hardware that is experiencing lag.</p>
+
+<p>In Riak, replicas are <a href="/riak/kv/2.2.2/learn/concepts/eventual-consistency">eventually consistent</a>,
+meaning that while data is always available, not all replicas may have
+the most recent update at the exact same time, causing brief
+periods—generally on the order of milliseconds—of inconsistency
+while all state changes are synchronized.</p>
+
+<p>Riak addresses data conflicts as follows: When you make a read request,
+Riak looks up all replicas for that object. By default, Riak will return
+the most recently updated version, determined by looking at the object’s
+vector clock. Vector clocks are metadata attached to each replica when
+it is created. They are extended each time a replica is updated to keep
+track of versions. You can also allow clients to resolve conflicts
+themselves if that is a better fit for your use case.</p>
+
+<h3 id="riak-data-types">Riak Data Types</h3>
+
+<p>If you are not interested in dealing with version conflicts on the
+application side, <a href="/riak/kv/2.2.2/developing/data-types">Riak Data Types</a> offer a powerful
+yet easy-to-use means of storing certain types of data while allowing
+Riak to handle merge conflicts. These conflicts are resolved
+automatically by Riak using Data Type-specific algorithms inspired by
+research into <a href="http://hal.upmc.fr/docs/00/55/55/88/PDF/techreport.pdf">convergent replicated data types</a>.</p>
+
+<h3 id="read-repair">Read Repair</h3>
+
+<p>When an outdated replica is returned as part of a read request, Riak
+will automatically update the out-of-sync replica to make it consistent.
+<a href="/riak/kv/2.2.2/learn/glossary/#read-repair">Read repair</a>, a self-healing property of
+the database, will even update a replica that returns a <code class="language-plaintext highlighter-rouge">not_found</code> in
+the event that a node loses the data due to physical failure.</p>
+
+<h3 id="reading-and-writing-data-in-failure-conditions">Reading and Writing Data in Failure Conditions</h3>
+
+<p>In Riak, you can set an R value for reads and a W value for writes.
+These values give you control over how many replicas must respond to a
+request for it to succeed.</p>
+
+<p>Let’s say that you have an N value of 3 (aka <code class="language-plaintext highlighter-rouge">n_val=3</code>) for a particular
+key/value pair, but one of the physical nodes responsible for a replica
+is down. With an <code class="language-plaintext highlighter-rouge">r=2</code> setting, only 2 replicas must return results for
+read to be deemed successful. This allows Riak to provide read
+availability even when nodes are down or laggy. The same applies for the
+W in writes. If this value is not specified, Riak defaults to <code class="language-plaintext highlighter-rouge">quorum</code>,
+according to which the majority of nodes must respond.</p>
+
+<p>There is more on <a href="/riak/kv/2.2.2/developing/app-guide/replication-properties">replication properties</a> elsewhere in the
+documentation.</p>

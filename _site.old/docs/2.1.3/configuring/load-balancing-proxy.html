@@ -1,0 +1,248 @@
+
+<p>The recommended best practice for operating Riak in production is to
+place Riak behind a load-balancing or proxy solution, either hardware-
+or software- based, while never directly exposing Riak to public network
+interfaces.</p>
+
+<p>Riak users have reported success in using Riak with a variety of load-
+balancing and proxy solutions. Common solutions include proprietary
+hardware-based load balancers, cloud-based load balancing options, such
+as Amazon’s Elastic Load Balancer, and open-source software based
+projects like HAProxy and Nginx.</p>
+
+<p>This guide briefly explores the commonly used open-source software-based
+solutions HAProxy and Nginx, and provides some configuration and
+operational tips gathered from community users and operations oriented
+engineers at Basho.</p>
+
+<p>While it is by no means an exhaustive overview of the topic, this guide
+should provide a starting point for choosing and implementing your own
+solution.</p>
+
+<h2 id="haproxy">HAProxy</h2>
+
+<p><a href="http://haproxy.1wt.eu/">HAProxy</a> is a fast and reliable open-source
+solution for load balancing and proxying of HTTP- and TCP-based
+application traffic.</p>
+
+<p>Users have reported success in using HAProxy in combination with Riak in
+a number of configurations and scenarios. Much of the information and
+example configuration for this section is drawn from experiences of
+users in the Riak community in addition to suggestions from Basho
+engineering.</p>
+
+<h3 id="example-configuration">Example Configuration</h3>
+
+<p>The following is an example starting-point configuration for HAProxy to
+act as a load balancer. The example cluster has 4 nodes and will be
+accessed by Riak clients using both the Protocol Buffers and HTTP
+interfaces.</p>
+
+<blockquote>
+  <p><strong>Note on open files limits</strong></p>
+
+  <p>The operating system’s open files limits need to be greater than 256000
+for the example configuration that follows. Consult the <a href="/riak/kv/2.1.3/using/performance/open-files-limit">Open Files Limit</a> documentation for details on configuring the value for different operating systems.</p>
+</blockquote>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">global</span>
+        <span class="n">log</span> <span class="m">127</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">1</span>     <span class="n">local0</span>
+        <span class="n">log</span> <span class="m">127</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">1</span>     <span class="n">local1</span> <span class="n">notice</span>
+        <span class="n">maxconn</span>           <span class="m">256000</span>
+        <span class="n">chroot</span>            /<span class="n">var</span>/<span class="n">lib</span>/<span class="n">haproxy</span>
+        <span class="n">user</span>              <span class="n">haproxy</span>
+        <span class="n">group</span>             <span class="n">haproxy</span>
+        <span class="n">spread</span>-<span class="n">checks</span>     <span class="m">5</span>
+        <span class="n">daemon</span>
+        <span class="n">quiet</span>
+
+<span class="n">defaults</span>
+        <span class="n">log</span>               <span class="n">global</span>
+        <span class="n">option</span>            <span class="n">dontlognull</span>
+        <span class="n">option</span>            <span class="n">redispatch</span>
+        <span class="n">option</span>            <span class="n">allbackups</span>
+        <span class="n">maxconn</span>           <span class="m">256000</span>
+        <span class="n">timeout</span> <span class="n">connect</span>   <span class="m">5000</span>
+
+<span class="n">backend</span> <span class="n">riak_rest_backend</span>
+       <span class="n">mode</span>               <span class="n">http</span>
+       <span class="n">balance</span>            <span class="n">roundrobin</span>
+       <span class="n">option</span>             <span class="n">httpchk</span> <span class="n">GET</span> /<span class="n">ping</span>
+       <span class="n">option</span>             <span class="n">httplog</span>
+       <span class="n">server</span> <span class="n">riak1</span> <span class="n">riak1</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8098</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+       <span class="n">server</span> <span class="n">riak2</span> <span class="n">riak2</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8098</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+       <span class="n">server</span> <span class="n">riak3</span> <span class="n">riak3</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8098</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+       <span class="n">server</span> <span class="n">riak4</span> <span class="n">riak4</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8098</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+
+<span class="n">frontend</span> <span class="n">riak_rest</span>
+       <span class="n">bind</span>               <span class="m">127</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">1</span>:<span class="m">8098</span>
+       <span class="c"># Example bind for SSL termination
+</span>       <span class="c"># bind             127.0.0.1:8443 ssl crt /opt/local/haproxy/etc/data.pem
+</span>       <span class="n">mode</span>               <span class="n">http</span>
+       <span class="n">option</span>             <span class="n">contstats</span>
+       <span class="n">default_backend</span>    <span class="n">riak_rest_backend</span>
+
+
+<span class="n">backend</span> <span class="n">riak_protocol_buffer_backend</span>
+       <span class="n">balance</span>            <span class="n">leastconn</span>
+       <span class="n">mode</span>               <span class="n">tcp</span>
+       <span class="n">option</span>             <span class="n">tcpka</span>
+       <span class="n">option</span>             <span class="n">srvtcpka</span>
+       <span class="n">server</span> <span class="n">riak1</span> <span class="n">riak1</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8087</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+       <span class="n">server</span> <span class="n">riak2</span> <span class="n">riak2</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8087</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+       <span class="n">server</span> <span class="n">riak3</span> <span class="n">riak3</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8087</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+       <span class="n">server</span> <span class="n">riak4</span> <span class="n">riak4</span>.&lt;<span class="n">FQDN</span>&gt;:<span class="m">8087</span> <span class="n">weight</span> <span class="m">1</span> <span class="n">maxconn</span> <span class="m">1024</span>  <span class="n">check</span>
+
+
+<span class="n">frontend</span> <span class="n">riak_protocol_buffer</span>
+       <span class="n">bind</span>               <span class="m">127</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">1</span>:<span class="m">8087</span>
+       <span class="n">mode</span>               <span class="n">tcp</span>
+       <span class="n">option</span>             <span class="n">tcplog</span>
+       <span class="n">option</span>             <span class="n">contstats</span>
+       <span class="n">mode</span>               <span class="n">tcp</span>
+       <span class="n">option</span>             <span class="n">tcpka</span>
+       <span class="n">option</span>             <span class="n">srvtcpka</span>
+       <span class="n">default_backend</span>    <span class="n">riak_protocol_buffer_backend</span>
+</code></pre></div></div>
+
+<p>A specific configuration detail worth noting from the example is the
+commented option for SSL termination. HAProxy supports SSL directly as
+of version 1.5. Provided that your HAProxy instance was built with
+OpenSSL support, you can enable it by uncommenting the example line and
+modifying it to suit your environment. More information is available in
+the <a href="http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#5-ssl">HAProxy
+documentation</a>.</p>
+
+<p>Also note that the above example is considered a starting point and is a
+work in progress based upon <a href="https://gist.github.com/1507077">this
+example</a>. You should carefully examine
+the configuration and change it according to your specific environment.</p>
+
+<h3 id="maintaining-nodes-behind-haproxy">Maintaining Nodes Behind HAProxy</h3>
+
+<p>When using HAProxy with Riak, you can instruct HAProxy to ping each node
+in the cluster and automatically remove nodes that do not respond.</p>
+
+<p>You can also specify a round-robin configuration in HAProxy and have
+your application handle connection failures by retrying after a timeout,
+thereby reaching a functioning node upon retrying the connection
+attempt.</p>
+
+<p>HAPproxy also has a standby system you can use to remove a node from
+rotation while allowing existing requests to finish. You can remove
+nodes from HAProxy directly from the command line by interacting with
+the HAProxy stats socket with a utility such as
+<a href="http://www.dest-unreach.org/socat/">socat</a>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"disable server &lt;backend&gt;/&lt;riak_node&gt;"</span> | socat stdio /etc/haproxy/haproxysock
+</code></pre></div></div>
+
+<p>At this point, you can perform maintenance on the node, down the node,
+and so on. When you’ve finished working with the node and it is again
+available for requests, you can re-enable it:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo</span> <span class="s2">"enable server &lt;backend&gt;/&lt;riak_node&gt;"</span> | socat stdio /etc/haproxy/haproxysock
+</code></pre></div></div>
+
+<p>Consult the following HAProxy documentation resources for more
+information on configuring HAProxy in your environment:</p>
+
+<ul>
+  <li><a href="http://developers.google.com/s/results/?q=haproxy">HAProxy Documentation</a></li>
+  <li><a href="http://haproxy.1wt.eu/download/1.2/doc/architecture.txt">HAProxy Architecture</a></li>
+</ul>
+
+<h2 id="nginx">Nginx</h2>
+
+<p>Some users have reported success in using the <a href="http://nginx.org/">Nginx</a>
+HTTP server to proxy requests for Riak clusters. An example that
+provides access to a Riak cluster <em>through GET requests only</em> is
+provided here for reference.</p>
+
+<h3 id="example-configuration-1">Example Configuration</h3>
+
+<p>The following is an example starting point configuration for Nginx to
+act as a front-end proxy to a 5-node Riak cluster.</p>
+
+<p>This example forwards all GET requests to Riak nodes while rejecting all
+other HTTP operations.</p>
+
+<p>This example configuration was verified on <strong>Nginx version 1.2.3</strong>. Please be
+aware that earlier versions of Nginx did not support any HTTP 1.1 semantics
+for upstream communication to backends. You should carefully examine this
+configuration and make changes appropriate to your specific environment before
+attempting to use it</p>
+
+<p>Here is an example <code class="language-plaintext highlighter-rouge">nginx.conf</code> file:</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">upstream</span> <span class="n">riak_hosts</span> {
+  <span class="c"># server  10.0.1.10:8098;
+</span>  <span class="c"># server  10.0.1.11:8098;
+</span>  <span class="c"># server  10.0.1.12:8098;
+</span>  <span class="c"># server  10.0.1.13:8098;
+</span>  <span class="c"># server  10.0.1.14:8098;
+</span>}
+
+<span class="n">server</span> {
+  <span class="n">listen</span>   <span class="m">80</span>;
+  <span class="n">server_name</span>  <span class="err">_</span>;
+  <span class="n">access_log</span>  /<span class="n">var</span>/<span class="n">log</span>/<span class="n">nginx</span>/<span class="n">riak</span>.<span class="n">access</span>.<span class="n">log</span>;
+
+  <span class="c"># your standard Nginx config for your site here...
+</span>  <span class="n">location</span> / {
+    <span class="n">root</span> /<span class="n">var</span>/<span class="n">www</span>/<span class="n">nginx</span>-<span class="n">default</span>;
+  }
+
+  <span class="c"># Expose the /riak endpoint and allow queries for keys only
+</span>  <span class="n">location</span> /<span class="n">riak</span>/ {
+      <span class="n">proxy_set_header</span> <span class="n">Host</span> $<span class="n">host</span>;
+      <span class="n">proxy_redirect</span> <span class="n">off</span>;
+
+      <span class="n">client_max_body_size</span>       <span class="m">10</span><span class="n">m</span>;
+      <span class="n">client_body_buffer_size</span>    <span class="m">128</span><span class="n">k</span>;
+
+      <span class="n">proxy_connect_timeout</span>      <span class="m">90</span>;
+      <span class="n">proxy_send_timeout</span>         <span class="m">90</span>;
+      <span class="n">proxy_read_timeout</span>         <span class="m">90</span>;
+
+      <span class="n">proxy_buffer_size</span>          <span class="m">64</span><span class="n">k</span>;  <span class="c"># If set to a smaller value,
+</span>                                       <span class="c"># nginx can complain with an
+</span>                                       <span class="c"># "too large headers" error
+</span>      <span class="n">proxy_buffers</span>              <span class="m">4</span> <span class="m">64</span><span class="n">k</span>;
+      <span class="n">proxy_busy_buffers_size</span>    <span class="m">64</span><span class="n">k</span>;
+      <span class="n">proxy_temp_file_write_size</span> <span class="m">64</span><span class="n">k</span>;
+
+    <span class="n">if</span> ($<span class="n">request_method</span> != <span class="n">GET</span>) {
+      <span class="n">return</span> <span class="m">405</span>;
+    }
+
+    <span class="c"># Disallow any link with the MapReduce query format "bucket,tag,_"
+</span>    <span class="n">if</span> ($<span class="n">uri</span> ~ <span class="s2">"/riak/[^/]*/[^/]*/[^,]+,[^,]+,"</span> ) {
+      <span class="n">return</span> <span class="m">405</span>;
+    }
+
+    <span class="n">if</span> ($<span class="n">request_method</span> = <span class="n">GET</span>) {
+      <span class="n">proxy_pass</span> <span class="n">http</span>://<span class="n">riak_hosts</span>;
+    }
+  }
+}
+</code></pre></div></div>
+
+<p>Even when filtering and limiting requests to GETs only as done in the example,
+you should strongly consider additional access controls beyond what Nginx can
+provide directly, such as specific firewall rules to limit inbound connections
+to trusted sources.</p>
+
+<h3 id="querying-secondary-indexes-over-http">Querying Secondary Indexes Over HTTP</h3>
+
+<p>When accessing Riak over HTTP and issuing Secondary Index queries, you
+can encounter an issue due to the default Nginx handling of HTTP header
+names containing underscore (<code class="language-plaintext highlighter-rouge">_</code>) characters.</p>
+
+<p>By default, Nginx will issue errors for such queries, but you can
+instruct Nginx to handle such header names when doing Secondary Index
+queries over HTTP by adding the following directive to the appropriate
+<code class="language-plaintext highlighter-rouge">server</code> section of <code class="language-plaintext highlighter-rouge">nginx.conf</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>underscores_in_headers on;
+</code></pre></div></div>

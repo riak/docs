@@ -1,0 +1,37 @@
+<p>Creates a new Riak Search <a href="/riak/kv/2.1.1/developing/usage/search/#simple-setup">index</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PUT /search/index/&lt;index_name&gt;
+</code></pre></div></div>
+
+<h2 id="optional-request-body">Optional Request Body</h2>
+
+<p>If you run a <code class="language-plaintext highlighter-rouge">PUT</code> request to this endpoint without a request body, Riak
+will create a new Search index that uses the <a href="/riak/kv/2.1.1/developing/usage/search-schemas/#the-default-schema">default Search schema</a>, i.e. <code class="language-plaintext highlighter-rouge">_yz_default</code>.</p>
+
+<p>To specify a different schema, however, you must pass Riak a JSON object
+as the request body in which the <code class="language-plaintext highlighter-rouge">schema</code> field specifies the name of
+the schema to use. If you’ve <a href="/riak/kv/2.1.1/developing/usage/search-schemas/#custom-schemas">stored a schema</a> called <code class="language-plaintext highlighter-rouge">my_custom_schema</code>, the following <code class="language-plaintext highlighter-rouge">PUT</code>
+request would create an index called <code class="language-plaintext highlighter-rouge">my_index</code> that used that schema:</p>
+
+<pre><code class="language-curl">curl -XPUT http://localhost:8098/search/index/my_index \
+  -H "Content-Type: application/json" \
+  -d '{"schema": "my_custom_schema"}'
+</code></pre>
+
+<p>More information can be found in <a href="/riak/kv/2.1.1/developing/usage/search">Using Search</a>.</p>
+
+<h2 id="normal-response-codes">Normal Response Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">204 No Content</code> — The index has been successfully created</li>
+</ul>
+
+<h2 id="typical-error-codes">Typical Error Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">409 Conflict</code> — The index cannot be created because there is
+  already an index with that name</li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> — The request timed out internally</li>
+</ul>

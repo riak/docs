@@ -1,0 +1,138 @@
+<h2 id="creating-objects-in-riak">Creating Objects In Riak</h2>
+
+<p>First, let’s create a few Riak objects. For these examples we’ll be
+using the bucket <code class="language-plaintext highlighter-rouge">test</code>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">MyBucket</span> <span class="o">=</span> <span class="o">&lt;&lt;</span><span class="s">"test"</span><span class="o">&gt;&gt;</span><span class="p">.</span>
+
+<span class="nv">Val1</span> <span class="o">=</span> <span class="mi">1</span><span class="p">.</span>
+<span class="nv">Obj1</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"one"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Val1</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Obj1</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>In this first example, we have stored the integer 1 with the lookup key
+of <code class="language-plaintext highlighter-rouge">one</code>. Next, let’s store a simple string value of <code class="language-plaintext highlighter-rouge">two</code> with a
+matching key.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Val2</span> <span class="o">=</span> <span class="o">&lt;&lt;</span><span class="s">"two"</span><span class="o">&gt;&gt;</span><span class="p">.</span>
+<span class="nv">Obj2</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"two"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Val2</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Obj2</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>That was easy. Finally, let’s store something more complex, a tuple this
+time. You will probably recognize the pattern by now.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Val3</span> <span class="o">=</span> <span class="p">{</span><span class="n">value</span><span class="p">,</span> <span class="mi">3</span><span class="p">}.</span>
+<span class="nv">Obj3</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"three"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Val3</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Obj3</span><span class="p">).</span>
+</code></pre></div></div>
+
+<h2 id="reading-objects-from-riak">Reading Objects From Riak</h2>
+
+<p>Now that we have a few objects stored, let’s retrieve them and make sure
+they contain the values we expect.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Fetched1</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"one"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Fetched2</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"two"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Fetched3</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"three"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+
+<span class="nv">Val1</span> <span class="o">=:=</span> <span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">Fetched1</span><span class="p">)).</span> <span class="c">%% true
+</span><span class="nv">Val2</span> <span class="o">=:=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">Fetched2</span><span class="p">).</span>                 <span class="c">%% true
+</span><span class="nv">Val3</span> <span class="o">=:=</span> <span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">Fetched3</span><span class="p">)).</span> <span class="c">%% true
+</span></code></pre></div></div>
+
+<p>That was easy. We simply request the objects by bucket and key.</p>
+
+<h2 id="updating-objects-in-riak">Updating Objects In Riak</h2>
+
+<p>While some data may be static, other forms of data may need to be
+updated. This is also easy to do. Let’s update the value in the third
+example to 42, update the Riak object, and then save it.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">NewVal3</span> <span class="o">=</span> <span class="nb">setelement</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nv">Val3</span><span class="p">,</span> <span class="mi">42</span><span class="p">).</span>
+<span class="nv">UpdatedObj3</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">update_value</span><span class="p">(</span><span class="nv">Fetched3</span><span class="p">,</span> <span class="nv">NewVal3</span><span class="p">).</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">NewestObj3</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">UpdatedObj3</span><span class="p">,</span> <span class="p">[</span><span class="n">return_body</span><span class="p">]).</span>
+</code></pre></div></div>
+
+<p>We can verify that our new value was saved by looking at the value
+returned.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">rp</span><span class="p">(</span><span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">NewestObj3</span><span class="p">))).</span>
+</code></pre></div></div>
+
+<h2 id="deleting-objects-from-riak">Deleting Objects From Riak</h2>
+
+<p>Nothing is complete without a delete, as they say. Fortunately, that’s
+easy too.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">delete</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"one"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">delete</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"two"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">delete</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"three"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>Now we can verify that the objects have been removed from Riak.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">error</span><span class="p">,</span><span class="n">notfound</span><span class="p">}</span> <span class="o">=:=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"one"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="p">{</span><span class="n">error</span><span class="p">,</span><span class="n">notfound</span><span class="p">}</span> <span class="o">=:=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"two"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="p">{</span><span class="n">error</span><span class="p">,</span><span class="n">notfound</span><span class="p">}</span> <span class="o">=:=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MyBucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"three"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<h2 id="working-with-complex-objects">Working With Complex Objects</h2>
+
+<p>Since the world is a little more complicated than simple integers and
+bits of strings, let’s see how we can work with more complex objects.
+Take, for example, this record that encapsulates some information about
+a book.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">rd</span><span class="p">(</span><span class="n">book</span><span class="p">,</span> <span class="p">{</span><span class="n">title</span><span class="p">,</span> <span class="n">author</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">isbn</span><span class="p">,</span> <span class="n">copies_owned</span><span class="p">}).</span>
+
+<span class="nv">MobyDickBook</span> <span class="o">=</span> <span class="nl">#book</span><span class="p">{</span><span class="n">title</span><span class="o">=</span><span class="s">"Moby Dick"</span><span class="p">,</span>
+                     <span class="n">isbn</span><span class="o">=</span><span class="s">"1111979723"</span><span class="p">,</span>
+                     <span class="n">author</span><span class="o">=</span><span class="s">"Herman Melville"</span><span class="p">,</span>
+                     <span class="n">body</span><span class="o">=</span><span class="s">"Call me Ishmael. Some years ago..."</span><span class="p">,</span>
+                     <span class="n">copies_owned</span><span class="o">=</span><span class="mi">3</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<p>So we have some information about our Moby Dick collection that we want
+to save. Storing this to Riak should look familiar by now:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">MobyObj</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"books"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                        <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">MobyDickBook</span><span class="nl">#book.isbn</span><span class="p">),</span>
+                        <span class="nv">MobyDickBook</span><span class="p">).</span>
+
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">MobyObj</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>Some of you may be thinking: “How does the Erlang Riak client
+encode/decode my object?” If we fetch our book back and print the value,
+we shall know:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">FetchedBook</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                        <span class="o">&lt;&lt;</span><span class="s">"books"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                                        <span class="o">&lt;&lt;</span><span class="s">"1111979723"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+
+<span class="nf">rp</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">FetchedBook</span><span class="p">)).</span>
+</code></pre></div></div>
+
+<p>The response:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;&lt;131,104,6,100,0,4,98,111,111,107,107,0,9,77,111,98,121,
+  32,68,105,99,107,107,0,15,72,101,114,109,97,110,32,77,
+  101,108,118,105,108,108,101,107,0,34,67,97,108,108,32,
+  109,101,32,73,115,104,109,97,101,108,46,32,83,111,109,
+  101,32,121,101,97,114,115,32,97,103,111,46,46,46,107,0,
+  10,49,49,49,49,57,55,57,55,50,51,97,3&gt;&gt;
+</code></pre></div></div>
+
+<p>Erlang binaries! The Riak Erlang client library encodes everything as
+binaries. If we wanted to get a <code class="language-plaintext highlighter-rouge">book</code> object back we could use
+<code class="language-plaintext highlighter-rouge">binary_to_term/1</code> to get our original object back:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">rp</span><span class="p">(</span><span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">FetchedBook</span><span class="p">))).</span>
+</code></pre></div></div>
+
+<p>Next let’s clean up our mess:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">delete</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"books"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"1111979723"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">stop</span><span class="p">(</span><span class="nv">Pid</span><span class="p">).</span>
+</code></pre></div></div>

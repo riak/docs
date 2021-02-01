@@ -1,0 +1,32 @@
+<p>Retrieves information about a Riak Search <a href="/riak/kv/2.2.1/developing/usage/search/#simple-setup">index</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /search/index/&lt;index_name&gt;
+</code></pre></div></div>
+
+<h2 id="normal-response-codes">Normal Response Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+</ul>
+
+<h2 id="typical-error-codes">Typical Error Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">404 Object Not Found</code> — No Search index with that name is currently
+  available</li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> — The request timed out internally</li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>If the index is found, Riak will output a JSON object describing the
+index, including its name, the <a href="/riak/kv/2.2.1/developing/app-guide/replication-properties/#a-primer-on-n-r-and-w"><code class="language-plaintext highlighter-rouge">n_val</code></a> associated with it, and the <a href="/riak/kv/2.2.1/developing/usage/search-schemas">search schema</a> used by the index. Here is an example:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my_index"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"n_val"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"schema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"_yz_default"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>

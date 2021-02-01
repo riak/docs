@@ -1,0 +1,230 @@
+<p>Reads an object from the specified bucket/key.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /types/type/buckets/bucket/keys/key
+GET /buckets/bucket/keys/key
+</code></pre></div></div>
+
+<p>Important headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Accept</code> - When <code class="language-plaintext highlighter-rouge">multipart/mixed</code> is the preferred content-type, objects with
+siblings will return all siblings in single request. See <a href="#siblings-examples">Siblings examples</a>. See
+also RFC 2616 - <a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.1">Accept header definition</a>.</li>
+</ul>
+
+<p>Optional headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">If-None-Match</code> and <code class="language-plaintext highlighter-rouge">If-Modified-Since</code> invoke conditional request semantics,
+matching on the <code class="language-plaintext highlighter-rouge">ETag</code> and <code class="language-plaintext highlighter-rouge">Last-Modified</code> of the object, respectively.  If the
+object fails one of the tests (that is, if the ETag is equal or the object is
+unmodified since the supplied timestamp), Riak will return a <code class="language-plaintext highlighter-rouge">304 Not Modified</code>
+response. See also RFC 2616 - <a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.3.5">304 Not Modified</a>.</li>
+</ul>
+
+<p>Optional query parameters:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">r</code> - (read quorum) how many replicas need to agree when retrieving the
+object (<a href="/riak/kv/2.2.3/developing/api/http/set-bucket-props">default is defined by the bucket</a>)</li>
+  <li><code class="language-plaintext highlighter-rouge">pr</code> - how many primary replicas need to be online when doing the read
+(<a href="/riak/kv/2.2.3/developing/api/http/set-bucket-props">default is defined by the bucket</a>)</li>
+  <li><code class="language-plaintext highlighter-rouge">basic_quorum</code> - whether to return early in some failure cases (eg. when r=1
+and you get 2 errors and a success <code class="language-plaintext highlighter-rouge">basic_quorum=true</code> would return an error)
+(<a href="/riak/kv/2.2.3/developing/api/http/set-bucket-props">default is defined by the bucket</a>)</li>
+  <li><code class="language-plaintext highlighter-rouge">notfound_ok</code> - whether to treat notfounds as successful reads for the
+purposes of R (<a href="/riak/kv/2.2.3/developing/api/http/set-bucket-props">default is defined by the bucket</a>)</li>
+  <li><code class="language-plaintext highlighter-rouge">vtag</code> - when accessing an object with siblings, which sibling to retrieve.
+Scroll down to the <a href="#manually-requesting-siblings">Manually requesting siblings</a> example for more information.</li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>Normal response codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+  <li><code class="language-plaintext highlighter-rouge">300 Multiple Choices</code></li>
+  <li><code class="language-plaintext highlighter-rouge">304 Not Modified</code> (when using conditional request semantics)</li>
+</ul>
+
+<p>Typical error codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">400 Bad Request</code> - e.g. when r parameter is invalid (&gt; N)</li>
+  <li><code class="language-plaintext highlighter-rouge">404 Not Found</code> - the object could not be found on enough partitions</li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> - the request timed out internally</li>
+</ul>
+
+<p>Important headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Content-Type</code> - the media type/format</li>
+  <li><code class="language-plaintext highlighter-rouge">X-Riak-Vclock</code> - the opaque vector clock for the object</li>
+  <li><code class="language-plaintext highlighter-rouge">X-Riak-Meta-*</code> - any user-defined metadata defined when storing the object</li>
+  <li><code class="language-plaintext highlighter-rouge">ETag</code> - the entity tag for the object, useful for conditional GET operations
+and validation-based caching</li>
+  <li><code class="language-plaintext highlighter-rouge">Last-Modified</code> - a timestamp for when the object was last written, in HTTP
+datetime format</li>
+  <li><code class="language-plaintext highlighter-rouge">Link</code> - user- and system-defined links to other resources. <a href="/riak/kv/2.2.3/learn/glossary/#links">Read more about Links.</a></li>
+</ul>
+
+<p>The body of the response will be the contents of the object except when siblings
+are present.</p>
+
+<p>When <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to true in the bucket properties, concurrent updates
+are allowed to create “sibling” objects, meaning that the object has any
+number of different values that are related to one another by the vector
+clock.  This allows your application to use its own conflict resolution
+technique.</p>
+
+<p>An object with multiple sibling values will result in a <code class="language-plaintext highlighter-rouge">300 Multiple Choices</code>
+response.  If the <code class="language-plaintext highlighter-rouge">Accept</code> header prefers <code class="language-plaintext highlighter-rouge">multipart/mixed</code>, all siblings will
+be returned in a single request as sections of the <code class="language-plaintext highlighter-rouge">multipart/mixed</code> response
+body.  Otherwise, a list of “vtags” will be given in a simple text format. You
+can request individual siblings by adding the <code class="language-plaintext highlighter-rouge">vtag</code> query parameter. Scroll
+down to the ‘manually requesting siblings’ example below for more information.</p>
+
+<p>To resolve the conflict, store the resolved version with the <code class="language-plaintext highlighter-rouge">X-Riak-Vclock</code>
+given in the response.</p>
+
+<h2 id="simple-example">Simple Example</h2>
+
+<pre><code class="language-curl">$ curl -v http://127.0.0.1:8098/buckets/test/keys/doc2
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; GET /buckets/test/keys/doc2 HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt;
+&lt; HTTP/1.1 200 OK
+&lt; X-Riak-Vclock: a85hYGBgzGDKBVIsbLvm1WYwJTLmsTLcjeE5ypcFAA==
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Link: &lt;/buckets/test&gt;; rel="up"
+&lt; Last-Modified: Wed, 10 Mar 2010 18:11:41 GMT
+&lt; ETag: 6dQBm9oYA1mxRSH0e96l5W
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 13
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+{"foo":"bar"}
+</code></pre>
+
+<h2 id="siblings-examples">Siblings examples</h2>
+
+<h3 id="manually-requesting-siblings">Manually requesting siblings</h3>
+
+<p>Simple call to fetch an object that has siblings:</p>
+
+<pre><code class="language-curl">$ curl -v http://127.0.0.1:8098/buckets/test/keys/doc
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; GET /buckets/test/keys/doc HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt;
+&lt; HTTP/1.1 300 Multiple Choices
+&lt; X-Riak-Vclock: a85hYGDgyGDKBVIszMk55zKYEhnzWBlKIniO8kGF2TyvHYIKf0cIszUnMTBzHYVKbIhEUl+VK4spDFTPxhHzFyqhEoVQz7wkSAGLMGuz6FSocFIUijE3pt5HlsgCAA==
+&lt; Vary: Accept, Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: text/plain
+&lt; Content-Length: 102
+&lt;
+Siblings:
+16vic4eU9ny46o4KPiDz1f
+4v5xOg4bVwUYZdMkqf0d6I
+6nr5tDTmhxnwuAFJDd2s6G
+6zRSZFUJlHXZ15o9CG0BYl
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+</code></pre>
+
+<p>Now request one of the siblings directly:</p>
+
+<pre><code class="language-curl">$ curl -v http://127.0.0.1:8098/buckets/test/keys/doc?vtag=16vic4eU9ny46o4KPiDz1f
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; GET /buckets/test/keys/doc?vtag=16vic4eU9ny46o4KPiDz1f HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt;
+&lt; HTTP/1.1 200 OK
+&lt; X-Riak-Vclock: a85hYGDgyGDKBVIszMk55zKYEhnzWBlKIniO8kGF2TyvHYIKf0cIszUnMTBzHYVKbIhEUl+VK4spDFTPxhHzFyqhEoVQz7wkSAGLMGuz6FSocFIUijE3pt5HlsgCAA==
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Link: &lt;/buckets/test&gt;; rel="up"
+&lt; Last-Modified: Wed, 10 Mar 2010 18:01:06 GMT
+&lt; ETag: 16vic4eU9ny46o4KPiDz1f
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/x-www-form-urlencoded
+&lt; Content-Length: 13
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+{"bar":"baz"}
+</code></pre>
+
+<h3 id="get-all-siblings-in-one-request">Get all siblings in one request</h3>
+
+<pre><code class="language-curl">$ curl -v http://127.0.0.1:8098/buckets/test/keys/doc -H "Accept: multipart/mixed"
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; GET /buckets/test/keys/doc HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: multipart/mixed
+&gt;
+&lt; HTTP/1.1 300 Multiple Choices
+&lt; X-Riak-Vclock: a85hYGDgyGDKBVIszMk55zKYEhnzWBlKIniO8kGF2TyvHYIKf0cIszUnMTBzHYVKbIhEUl+VK4spDFTPxhHzFyqhEoVQz7wkSAGLMGuz6FSocFIUijE3pt5HlsgCAA==
+&lt; Vary: Accept, Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: multipart/mixed; boundary=YinLMzyUR9feB17okMytgKsylvh
+&lt; Content-Length: 766
+&lt;
+
+--YinLMzyUR9feB17okMytgKsylvh
+Content-Type: application/x-www-form-urlencoded
+Link: &lt;/buckets/test&gt;; rel="up"
+Etag: 16vic4eU9ny46o4KPiDz1f
+Last-Modified: Wed, 10 Mar 2010 18:01:06 GMT
+
+{"bar":"baz"}
+--YinLMzyUR9feB17okMytgKsylvh
+Content-Type: application/json
+Link: &lt;/buckets/test&gt;; rel="up"
+Etag: 4v5xOg4bVwUYZdMkqf0d6I
+Last-Modified: Wed, 10 Mar 2010 18:00:04 GMT
+
+{"bar":"baz"}
+--YinLMzyUR9feB17okMytgKsylvh
+Content-Type: application/json
+Link: &lt;/buckets/test&gt;; rel="up"
+Etag: 6nr5tDTmhxnwuAFJDd2s6G
+Last-Modified: Wed, 10 Mar 2010 17:58:08 GMT
+
+{"bar":"baz"}
+--YinLMzyUR9feB17okMytgKsylvh
+Content-Type: application/json
+Link: &lt;/buckets/test&gt;; rel="up"
+Etag: 6zRSZFUJlHXZ15o9CG0BYl
+Last-Modified: Wed, 10 Mar 2010 17:55:03 GMT
+
+{"foo":"bar"}
+--YinLMzyUR9feB17okMytgKsylvh--
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+</code></pre>

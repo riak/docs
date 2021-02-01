@@ -1,0 +1,138 @@
+<p>Stores an object under the specified bucket / key. Storing an object comes in
+two forms, depending on whether you want to use a key of your choosing, or let
+Riak assign a key to a new object.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>POST /types/type/buckets/bucket/keys       <span class="c"># Riak-defined key</span>
+PUT /types/type/buckets/bucket/keys/key    <span class="c"># User-defined key</span>
+POST /buckets/bucket/keys                  <span class="c"># Riak-defined key</span>
+PUT /buckets/bucket/keys/key               <span class="c"># User-defined key</span>
+</code></pre></div></div>
+
+<p>For the sake of compatibility with older clients, <code class="language-plaintext highlighter-rouge">POST</code> is also acceptable in
+the form where the key is specified.</p>
+
+<p>Important headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Content-Type</code> must be set for the stored object. Set what you expect to
+receive back when next requesting it.</li>
+  <li><code class="language-plaintext highlighter-rouge">X-Riak-Vclock</code> if the object already exists, the vector clock attached to the
+object when read.</li>
+  <li><code class="language-plaintext highlighter-rouge">X-Riak-Meta-*</code> - any additional metadata headers that should be stored with
+the object.</li>
+  <li><code class="language-plaintext highlighter-rouge">X-Riak-Index-*</code> - index entries under which this object should be indexed.
+<a href="/riak/kv/2.2.1/developing/api/http/secondary-indexes">Read more about Secondary Indexing</a></li>
+  <li><code class="language-plaintext highlighter-rouge">Link</code> - user and system-defined links to other resources. <a href="/riak/kv/2.2.1/developing/api/http/link-walking">Read more about Links.</a></li>
+</ul>
+
+<p>Optional headers (only valid on <code class="language-plaintext highlighter-rouge">PUT</code>):</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">If-None-Match</code>, <code class="language-plaintext highlighter-rouge">If-Match</code>, <code class="language-plaintext highlighter-rouge">If-Modified-Since</code>, and <code class="language-plaintext highlighter-rouge">If-Unmodified-Since</code>
+invoke conditional request semantics, matching on the <code class="language-plaintext highlighter-rouge">ETag</code> and <code class="language-plaintext highlighter-rouge">Last-Modified</code>
+of the existing object.  These can be used to prevent overwriting a modified
+object.  If the test fails, you will receive a <code class="language-plaintext highlighter-rouge">412 Precondition Failed</code>
+response. This does not prevent concurrent writes; it is possible for the
+condition to evaluate to true for multiple requests if the requests occur at the
+same time.</li>
+</ul>
+
+<p>Optional query parameters:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">w</code> (write quorum) how many replicas to write to before returning a successful
+response (default is defined by the bucket level)</li>
+  <li><code class="language-plaintext highlighter-rouge">dw</code> (durable write quorum) how many replicas to commit to durable storage
+before returning a successful response (default is defined at the bucket level)</li>
+  <li><code class="language-plaintext highlighter-rouge">pw</code> how many primary replicas must be online to attempt a write (default is
+defined at the bucket level)</li>
+  <li><code class="language-plaintext highlighter-rouge">returnbody=[true|false]</code> whether to return the contents of the stored object.</li>
+</ul>
+
+<p><em><ins>This request must include a body (entity).</ins></em></p>
+
+<h2 id="response">Response</h2>
+
+<p>Normal status codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">201 Created</code> (when submitting without a key)</li>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+  <li><code class="language-plaintext highlighter-rouge">204 No Content</code></li>
+  <li><code class="language-plaintext highlighter-rouge">300 Multiple Choices</code></li>
+</ul>
+
+<p>Typical error codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">400 Bad Request</code> - e.g. when r, w, or dw parameters are invalid (&gt; N)</li>
+  <li><code class="language-plaintext highlighter-rouge">412 Precondition Failed</code> if one of the conditional request headers failed to
+match (see above)</li>
+</ul>
+
+<p>Important headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Location</code> a relative URL to the newly-created object (when submitting without
+a key)</li>
+</ul>
+
+<p>If <code class="language-plaintext highlighter-rouge">returnbody=true</code>, any of the response headers expected from <a href="/riak/kv/2.2.1/developing/api/http/fetch-object">HTTP Fetch Object</a> may be present. Like when fetching the object, <code class="language-plaintext highlighter-rouge">300 Multiple Choices</code>
+may be returned if siblings existed or were created as part of the operation,
+and the response can be dealt with similarly.</p>
+
+<h2 id="example-storing-without-key">Example: Storing Without Key</h2>
+
+<pre><code class="language-curl">$ curl -v http://127.0.0.1:8098/buckets/test/keys \
+       -H "Content-Type: text/plain" -d 'this is a test'
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; POST /buckets/test/keys HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt; Content-Type: text/plain
+&gt; Content-Length: 14
+&gt;
+&lt; HTTP/1.1 201 Created
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Location: /buckets/test/keys/bzPygTesROPtGGVUKfyvp2RR49
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 0
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+</code></pre>
+
+<h2 id="example-storing-with-key">Example: Storing With Key</h2>
+
+<pre><code class="language-curl">$ curl -v -XPUT -d '{"bar":"baz"}' -H "Content-Type: application/json" -H "X-Riak-Vclock: a85hYGBgzGDKBVIszMk55zKYEhnzWBlKIniO8mUBAA==" http://127.0.0.1:8098/buckets/test/keys/doc?returnbody=true
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; PUT /buckets/test/keys/doc?returnbody=true HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt; Content-Type: application/json
+&gt; X-Riak-Vclock: a85hYGBgzGDKBVIszMk55zKYEhnzWBlKIniO8mUBAA==
+&gt; Content-Length: 13
+&gt;
+&lt; HTTP/1.1 200 OK
+&lt; X-Riak-Vclock: a85hYGBgymDKBVIszMk55zKYEhnzWBlKIniO8kGF2TyvHYIKfwcJZwEA
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Link: &lt;/buckets/test&gt;; rel="up"
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 13
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+{"bar":"baz"}
+</code></pre>

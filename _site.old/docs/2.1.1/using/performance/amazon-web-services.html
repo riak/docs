@@ -1,0 +1,234 @@
+<p>This guide introduces best practices for tuning Riak cluster performance
+in the Amazon Web Services (AWS) Elastic Compute Cloud (EC2) environment.</p>
+
+<blockquote>
+  <p><strong>Note:</strong></p>
+
+  <p>The following guide is supplementary. Be sure to check out <a href="../">Improving Performance</a> for general performance and tuning recommendations before continuing with this guide.</p>
+</blockquote>
+
+<h2 id="ec2-instances">EC2 Instances</h2>
+
+<p>EC2 instances are available as predefined types which encapsulate a
+fixed amount of computing resources. For Riak, the most important of
+these resources are Disk I/O, RAM, and Network I/O, followed by CPU
+cores. With this in mind, Riak users have reported success with large,
+extra large, and cluster compute instance types for use as cluster nodes
+in the AWS EC2 environment.</p>
+
+<p>The most commonly used <a href="http://aws.amazon.com/ec2/instance-types/">instance types</a> for Riak cluster nodes are <code class="language-plaintext highlighter-rouge">large</code> and <code class="language-plaintext highlighter-rouge">xlarge</code> <code class="language-plaintext highlighter-rouge">m</code> class (General Purpose), such as <code class="language-plaintext highlighter-rouge">m4.xlarge</code>. In cases where 10-gigabit Ethernet networking is desired, the Cluster Compute class of EC2 instances, such as <code class="language-plaintext highlighter-rouge">cc2.8xlarge</code> can be used.</p>
+
+<p>Amazon also offers a High I/O Quadruple Extra Large instance
+(<code class="language-plaintext highlighter-rouge">hi1.4xlarge</code>) that is backed by solid state drives (SSD) and features
+very high I/O performance.</p>
+
+<p>EBS-Optimized EC2 instances, which provide between 500 Megabits per
+second and 1,000 Megabits per second of throughput with <a href="http://aws.amazon.com/about-aws/whats-new/2012/07/31/announcing-provisioned-iops-for-amazon-ebs/">Provisioned
+IOPS</a>
+EBS volumes are also available, and recommended for use with Provisioned
+IOPS EBS volumes.</p>
+
+<p>Riak’s primary bottleneck will be disk and network I/O, meaning that in
+most cases, standard EBS will incur too much latency and iowait. Riak’s
+I/O pattern tends to operate on small blobs from many places on the
+disk, whereas EBS is best at bulk reads and writes. The negative effects
+of this pattern can be mitigated by adding RAID over multiple volumes,
+using Provisioned IOPS, and/or choosing the Bitcask backend if secondary
+indexes are not needed for the application.</p>
+
+<p>In any case, proper benchmarking and tuning are needed to achieve the
+desired performance.</p>
+
+<p>Most successful AWS cluster deployments use more EC2 instances than they would
+the same number of physical nodes to compensate for the performance
+variability caused by shared, virtualized resources. Plan to have more EC2
+instance based nodes than physical server nodes when estimating cluster size
+with respect to node count.</p>
+
+<h2 id="operating-system">Operating System</h2>
+
+<h3 id="clocks">Clocks</h3>
+
+<p>NTP is configured by default on Amazon EC2 Linux instances. Please
+refer to the <a href="http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html">Set the Time for an
+Instance</a>
+section of the EC2 documentation for steps on verifying if NTP is
+working properly. If NTP is not working properly, significant clock
+drift can occur.</p>
+
+<h3 id="mounts-and-scheduler">Mounts and Scheduler</h3>
+
+<p>On EBS volumes, the <strong>deadline</strong> scheduler should be used. To check the
+scheduler in use for block device xvdf, for example, use the following
+command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cat</span> /sys/block/xvdf/queue/scheduler
+</code></pre></div></div>
+
+<p>To set the scheduler to deadline, use the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">echo </span>deadline <span class="o">&gt;</span> /sys/block/xvdf/queue/scheduler
+</code></pre></div></div>
+
+<p>More information on the disk scheduler is available in <a href="../">Improving Performance</a>.</p>
+
+<h3 id="virtual-memory-subsystem">Virtual Memory Subsystem</h3>
+
+<p>EBS volumes have considerably less bandwidth than hardware disks.  To
+avoid saturating EBS bandwidth and inducing IO latency spikes, it is
+recommended to tune the Linux virtual memory subsystem to flush smaller
+amounts of data more often. To do so, please see <a href="../#optional-i-o-settings">Linux system performance tuning</a>.</p>
+
+<h3 id="forensics">Forensics</h3>
+
+<p>When a failure occurs, collect as much information as possible. Check
+monitoring systems, back up log and configuration files if they are
+available, including system logs like <code class="language-plaintext highlighter-rouge">dmesg</code> and <code class="language-plaintext highlighter-rouge">syslog</code>. Make sure
+that the other nodes in the Riak cluster are still operating normally
+and are not affected by a wider problem like an AWS service outage. Try
+to determine the cause of the problem from the data you have collected.
+If you are a licensed <a href="http://basho.com/riak-enterprise/">Riak Enterprise Edition</a> user and the failure comes from Riak or is not immediately obvious, you may open a ticket on the Basho Client Services help desk or contact the 24 / 7 emergency line.</p>
+
+<p>Have your collected data ready when contacting Basho Client Services. A
+Client Services Engineer (CSE) might request log files, configuration
+files, or other information.</p>
+
+<h2 id="data-loss">Data Loss</h2>
+
+<p>Many failures either do not entail data loss or have minimal loss that
+can be repaired automatically, without intervention. Outage of a single
+node does not necessarily cause data loss, as other replicas of every
+key are available elsewhere in the cluster. Once the node is detected as
+down, other nodes in the cluster will take over its responsibilities
+temporarily and transmit the updated data to it when it eventually
+returns to service (also called hinted handoff).</p>
+
+<p>The more severe data loss scenarios usually relate to hardware failure
+(in the case of AWS, service failure or instance termination). In the
+cases where data is lost, several options are available for restoring
+the data:</p>
+
+<ol>
+  <li>Restore from backup. A daily backup of Riak nodes can be helpful.
+The data in this backup may be stale depending on the time at which
+the node failed, but can be used to partially restore data from
+lost EBS volumes. If running in a RAID configuration, rebuilding the
+array may also be possible.</li>
+  <li>Restore from Multi-Datacenter Replication. If replication is enabled
+between two or more clusters, the missing data will gradually be
+restored via realtime replication and fullsync replication. A
+fullsync operation can also be triggered manually via the
+<code class="language-plaintext highlighter-rouge">riak-repl</code> command.</li>
+  <li>Restore using intra-cluster repair. Riak versions 1.2 and greater
+include a “repair” feature which will restore lost partitions with
+data from other replicas. This currently has to be invoked manually
+using the Riak console and should be performed with guidance from a
+Basho CSE.</li>
+</ol>
+
+<p>Once data has been restored, normal operations should continue. If
+multiple nodes completely lose their data, consultation and assistance
+from Basho is strongly recommended.</p>
+
+<h2 id="benchmarking">Benchmarking</h2>
+
+<p>Using a tool such as <a href="https://github.com/basho/basho_bench">Basho Bench</a>, you can generate load that
+simulates application operations by constructing and communicating
+approximately-compatible data payloads with the Riak cluster directly.</p>
+
+<p>Benchmarking is critical to determining the appropriate EC2 instance
+types, and strongly recommended. More information is available on
+benchmarking Riak clusters with <a href="../benchmarking">Basho Bench</a>.</p>
+
+<p>Besides running Basho Bench, we also advise that you load test Riak with
+your own tests to ensure that load imparted by MapReduce queries,
+full-text queries, and index queries are within the expected range.</p>
+
+<h2 id="simulating-upgrades-scaling-and-failure-states">Simulating Upgrades, Scaling, and Failure states</h2>
+
+<p>In addition to simply measuring performance, it is also important to
+measure how performance degrades when the cluster is not in
+steady-state. While under a simulation of live load, the following
+states might be simulated:</p>
+
+<ol>
+  <li>Stop one or more nodes normally and restart them after a few moments
+(simulates <a href="../../../setup/upgrading/cluster">rolling upgrade</a>).</li>
+  <li>Join two or more nodes to the cluster.</li>
+  <li>Leave nodes from the cluster (after step #2).</li>
+  <li>Hard-kill the Riak <code class="language-plaintext highlighter-rouge">beam.smp</code> process (i.e., <code class="language-plaintext highlighter-rouge">kill -9</code>) and then
+restart it.</li>
+  <li>Hard-reboot a node’s instance using the AWS console and then
+restart it.</li>
+  <li>Hard-stop and destroy a node’s instance and build a new one from
+backup.</li>
+  <li>Via networking, e.g. firewall, partition one or more nodes from
+the rest of the cluster and then restore the original
+configuration.</li>
+</ol>
+
+<h2 id="out-of-memory">Out-of-Memory</h2>
+
+<p>Sometimes, Riak will exit when it runs out of available RAM. While this
+does not necessarily cause data loss, it may indicate that the cluster
+needs to be scaled out. While the Riak node is out, other nodes may also
+be at risk if free capacity is low on the rest of the cluster, so
+monitor carefully.</p>
+
+<p>Replacing the EC2 instance type with one that has greater RAM capacity
+may temporarily alleviate the problem, but out of memory (OOM) tends to
+be an indication that the cluster is underprovisioned.</p>
+
+<p>Software bugs (memory leaks) could also be a cause of OOM, so we
+recommend Riak Enterprise Edition users to contact Basho Client Services
+if this problem occurs.</p>
+
+<h2 id="dealing-with-ip-addresses">Dealing with IP addresses</h2>
+
+<p>EC2 instances that are not provisioned inside a VPC can change the
+following attributes after a restart:</p>
+
+<ul>
+  <li>Private IP address</li>
+  <li>Public IP address</li>
+  <li>Private DNS</li>
+  <li>Public DNS</li>
+</ul>
+
+<p>Because these parameters play a role in a Riak instance’s node name,
+ensure that you follow the steps outlined in the <a href="../../repair-recovery/failed-node/#node-name-changed">Node Name Changed</a> section to replace
+it.</p>
+
+<p>To avoid this inconvenience, you can deploy Riak inside a
+<a href="http://aws.amazon.com/vpc/">VPC</a>. Instances inside the VPC do not
+change their private IP address on restart. In addition you get the
+following benefits:</p>
+
+<ul>
+  <li>Access control lists can be defined at multiple levels</li>
+  <li>The instance is not automatically open to the internet</li>
+  <li>Amazon VPC is <a href="http://aws.amazon.com/vpc/pricing/">free</a></li>
+</ul>
+
+<h2 id="choice-of-storage">Choice of Storage</h2>
+
+<p>EC2 instances support ephemeral and EBS storage. Ephemeral is local to
+the instance, generally performs better, but disappears when instances
+go down.</p>
+
+<p>On the other hand, EBS is effectively network attached storage that
+persists after instances go down. Along with EBS you can optionally
+enable <a href="http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIOPS.html">Provisioned
+IOPS</a>
+(PIOPS) provide more stable performance.</p>
+
+<p>For more information on EC2 storage options, please see their
+<a href="http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Storage.html">documentation</a>.</p>
+
+<h2 id="references">References</h2>
+
+<ul>
+  <li><a href="../">Improving Performance</a></li>
+  <li><a href="../../repair-recovery">Failure and Recovery</a></li>
+  <li><a href="https://help.basho.com">Basho Client Services Help Desk</a></li>
+</ul>

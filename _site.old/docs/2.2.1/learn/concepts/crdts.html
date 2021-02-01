@@ -1,0 +1,244 @@
+
+<p>Riak Data Types are convergent replicated data types (CRDTs), inspired by the work of <a href="http://hal.upmc.fr/docs/00/55/55/88/PDF/techreport.pdf">Marc Shapiro, Nuno Preguiça, Carlos Baquero, and Marek Zawirski</a>. Riak KV supports the following eventually-convergent data types, described in later sections:</p>
+
+<ul>
+  <li>Counters</li>
+  <li>Flags</li>
+  <li>HyperLogLogs</li>
+  <li>Maps</li>
+  <li>Registers</li>
+  <li>Sets</li>
+</ul>
+
+<p>The difference between Riak Data Types and typical key/value data stored in Riak KV is that Riak Data Types are operations-based from the standpoint of Riak KV clients.</p>
+
+<p>Instead of the usual create, read, update, and delete (CRUD) operations
+performed on key/value pairs, data types enable you to perform
+operations such as removing a register from a map, telling a counter to
+increment itself by 5, or enabling a flag that was previously disabled.</p>
+
+<p>It’s important to note that Riak Data Types are operations-based from the standpoint of connecting clients. Like CRDTs, the <a href="/riak/kv/2.2.1/learn/concepts/crdts/#convergence">convergence logic</a> is state-based behind the scenes.</p>
+
+<p>Riak Data Types enable applications to use CRDTs through a simple interface, without being exposed to the complex state-based logic underneath. More on Data Types and state can be found in the section on <a href="/riak/kv/2.2.1/learn/concepts/crdts/#implementation">implementation</a> below.</p>
+
+<p>For more articles on CRDTs, check out this <a href="http://christophermeiklejohn.com/crdt/2014/07/22/readings-in-crdts.html">reading list</a>.</p>
+
+<h2 id="counters">Counters</h2>
+
+<p>Counters are a bucket-level Riak data type that can be used by themselves, associated with a bucket/key pair, or used within a map. A counter’s value can only be a positive integer, negative integer, or zero.</p>
+
+<p>Counters are useful when a count is needed, for example:</p>
+
+<ul>
+  <li>Counting the number of people following someone on Twitter</li>
+  <li>Counting the amount of likes on a Facebook post</li>
+  <li>Counting the points scored by a player in a game</li>
+</ul>
+
+<p>If you require unique, ordered IDs counters should not be used because uniqueness cannot be guaranteed.</p>
+
+<h3 id="operations">Operations</h3>
+
+<p>Counters are subject to two operations: increment and decrement.</p>
+
+<h2 id="flags">Flags</h2>
+
+<p>Flags are similar to Boolean values, but instead of <code class="language-plaintext highlighter-rouge">true</code> or
+<code class="language-plaintext highlighter-rouge">false</code> flags are the value <code class="language-plaintext highlighter-rouge">enable</code> or <code class="language-plaintext highlighter-rouge">disable</code>. Flags can only be stored within maps; they cannot be stored in a bucket/key on their own.</p>
+
+<p>Some examples of using flags:</p>
+
+<ul>
+  <li>Showing if a tweet has been retweeted</li>
+  <li>Showing if a user has signed up for a specific pricing plan</li>
+</ul>
+
+<h3 id="operations-1">Operations</h3>
+
+<p>Flags support only two operations: <code class="language-plaintext highlighter-rouge">enable</code> and <code class="language-plaintext highlighter-rouge">disable</code>. Flags can be
+added to or removed from a map, but those operations are performed on
+the map and not on the flag directly.</p>
+
+<h2 id="hyperloglogs">HyperLogLogs</h2>
+
+<p>HyperLogLogs (HLLs) are a data type used to count unique elements within a data set or stream.</p>
+
+<p>For example, hyperloglogs can be used for:</p>
+
+<ul>
+  <li>Counting the number of unique visitors to your website</li>
+  <li>Counting the number of unique searches users performed</li>
+</ul>
+
+<h3 id="operations-2">Operations</h3>
+
+<p>HyperLogLogs support two operations: adding elements and retrieving the count.</p>
+
+<h2 id="maps">Maps</h2>
+
+<p>Maps are the most versatile of the Riak data types because all other data types can be embedded within them, <em>including maps themselves</em>. This enables the creation of complex, custom data types from a few basic building blocks.</p>
+
+<p>Maps are best suited for complex, multi-faceted data. The following
+JSON-inspired pseudocode shows how a tweet might be structured as a map:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Map tweet {
+    Counter: numberOfRetweets,
+    Register: username,
+    Register: tweetContent,
+    Flag: favorited?,
+    Map: userInfo
+}
+</code></pre></div></div>
+
+<h3 id="operations-3">Operations</h3>
+
+<p>You can perform two types of operations on maps:</p>
+
+<ol>
+  <li>Operations performed directly on the map itself, which includes
+adding fields to and removing fields from the map (e.g. adding a flag
+or removing a counter).</li>
+  <li>Operations performed on the Data Types nested in the map, e.g.
+incrementing a counter in the map or setting a flag to <code class="language-plaintext highlighter-rouge">enable</code>.
+Those operations behave just like the operations specific to that
+Data Type.</li>
+</ol>
+
+<h2 id="registers">Registers</h2>
+
+<p>Registers are essentially named binaries (like strings). Any binary
+value can act as the value of a register. Like flags, registers cannot
+be used on their own and must be embedded in maps.</p>
+
+<p>Some examples of using registers:</p>
+
+<ul>
+  <li>Storing the name <code class="language-plaintext highlighter-rouge">Cassius</code> in the register <code class="language-plaintext highlighter-rouge">first_name</code> in a map called <code class="language-plaintext highlighter-rouge">user14325_info</code></li>
+  <li>Storing the title of a blog post in a map called <code class="language-plaintext highlighter-rouge">2010-03-01_blog_post</code></li>
+</ul>
+
+<h3 id="operations-4">Operations</h3>
+
+<p>Registers can only have the binaries stored within them changed. They can be added to and removed from maps, but those operations take place on the map in which the register is nested, and not on the register itself.</p>
+
+<h2 id="sets">Sets</h2>
+
+<p>Sets are collections of unique binary values, such as strings. All of
+the values in a set are unique. For example, if you attempt to add the
+element <code class="language-plaintext highlighter-rouge">shovel</code> to a set that already contains <code class="language-plaintext highlighter-rouge">shovel</code>, the operation
+will be ignored by Riak KV. Sets can be used either on their own or
+embedded in a map.</p>
+
+<p>Some examples of using sets:</p>
+
+<ul>
+  <li>Storing the UUIDs of a user’s friends in a social network application</li>
+  <li>Storing items in an e-commerce shopping cart</li>
+</ul>
+
+<h3 id="operations-5">Operations</h3>
+
+<p>Sets are subject to four basic operations: add an element, remove an
+element, add multiple elements, or remove multiple elements.</p>
+
+<h2 id="advantages-and-disadvantages-of-data-types">Advantages and Disadvantages of Data Types</h2>
+
+<p><a href="/riak/kv/2.2.1/developing/usage/conflict-resolution">Conflict resolution</a> in Riak KV can be difficult because it involves reasoning about concurrency, <a href="/riak/kv/2.2.1/learn/concepts/eventual-consistency">eventual consistency</a>, <a href="/riak/kv/2.2.1/learn/concepts/causal-context/#siblings">siblings</a>, and other issues that many other databases don’t require you to consider.</p>
+
+<p>One of the core purposes behind data types is to relieve developers
+using Riak KV of the burden of producing data convergence at the
+application level by absorbing a great deal of that complexity into Riak KV
+itself. Riak KV manages this complexity by building eventual consistency
+into the data types themselves instead of requiring clients to do so.</p>
+
+<p>You can still build applications with Riak KV that treat it as a highly
+available key/value store, and you will always have this choice. What
+Riak Data Types provide is additional flexibility and a broader choice
+palette.</p>
+
+<p>The trade-off that data types necessarily present is that they don’t
+allow you to produce your own convergence logic. If your use case
+demands that you be able to create your own deterministic merge
+functions, then Riak Data Types might not be a good fit.</p>
+
+<h2 id="implementation">Implementation</h2>
+
+<p>Conflicts between replicas are inevitable in a distributed system like
+Riak KV.</p>
+
+<p>For example, if a map is stored in the key <code class="language-plaintext highlighter-rouge">my_map</code>, it is always
+possible that the value of <code class="language-plaintext highlighter-rouge">my_map</code> will be different in nodes A and B.</p>
+
+<p>Without using data types, that conflict must be resolved using
+timestamps, <a href="/riak/kv/2.2.1/learn/concepts/causal-context/#vector-clocks">vector clocks</a>, <a href="/riak/kv/2.2.1/learn/concepts/causal-context/#dotted-version-vectors">dotted version vectors</a>, or some other means. With data types, conflicts are resolved by Riak KV itself, using a subsystem called <a href="https://github.com/basho/riak_dt"><code class="language-plaintext highlighter-rouge">riak_dt</code></a>.</p>
+
+<h2 id="convergence">Convergence</h2>
+
+<p>The benefit of data types is that Riak KV knows how to resolve value
+conflicts by applying data type-specific rules.</p>
+
+<p>Riak KV does this by remembering the history of a value and broadcasting that
+history along with the current value in the form of a <a href="/riak/kv/2.1.4/developing/data-types/#data-types-and-context">context object</a> that is similar to a <a href="/riak/kv/2.2.1/learn/concepts/causal-context/#vector-clocks">vector clock</a> or <a href="/riak/kv/2.2.1/learn/concepts/causal-context/#dotted-version-vectors">dotted version vectors</a>. Riak KV uses the history of each data type to make deterministic judgments about which value should be deemed correct.</p>
+
+<h3 id="example">Example</h3>
+
+<p>Imagine a set stored in the key <code class="language-plaintext highlighter-rouge">fruits</code>. On one <a href="/riak/kv/2.2.1/learn/glossary/#node">node</a> the set <code class="language-plaintext highlighter-rouge">fruits</code> has two elements, <code class="language-plaintext highlighter-rouge">apple</code> and <code class="language-plaintext highlighter-rouge">orange</code>. While on another node the set has only one element, <code class="language-plaintext highlighter-rouge">apple</code>.</p>
+
+<p>What happens when the two nodes communicate and note the divergence?</p>
+
+<p>In this case Riak KV would declare the set with two elements the winner.
+At that point, the node with the incorrect set would be told: “The set
+<code class="language-plaintext highlighter-rouge">fruits</code> should have elements <code class="language-plaintext highlighter-rouge">apple</code> and <code class="language-plaintext highlighter-rouge">orange</code>.”</p>
+
+<p>In general, convergence involves the following stages:</p>
+
+<ol>
+  <li>Check for divergence. If the data types have the same value, Riak KV
+does nothing. But if divergence is noted…</li>
+  <li>Riak KV applies data type-specific merge rules, like in the <code class="language-plaintext highlighter-rouge">fruits</code>
+set example above, which will result in a “correct” value.</li>
+  <li>After the merge logic is applied and the correct value is determined,
+the relevant <a href="/riak/kv/2.2.1/learn/glossary/#vnode">vnodes</a> are notified and act to
+correct the divergence.</li>
+</ol>
+
+<h2 id="convergence-rules">Convergence Rules</h2>
+
+<p>Convergence means that data type conflicts are weighted in a certain direction. Riak’s Data Types have their own internal weights that dictate what happens in case of conflict:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data Type</th>
+      <th style="text-align: left">Convergence rule</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Flags</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">enable</code> wins over <code class="language-plaintext highlighter-rouge">disable</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Registers</td>
+      <td style="text-align: left">The most chronologically recent value wins, based on timestamps</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Counters</td>
+      <td style="text-align: left">Implemented as a PN-Counter (<a href="http://hal.upmc.fr/docs/00/55/55/88/PDF/techreport.pdf">paper</a>), so all increments and decrements by all actors are eventually applied.  Every actor wins.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Sets</td>
+      <td style="text-align: left">If an element is concurrently added and removed, the add will win</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Maps</td>
+      <td style="text-align: left">If a field is concurrently added or updated and removed, the add/update will win</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>In a production Riak KV cluster being hit by lots and lots of concurrent
+writes, value conflicts are inevitable. Riak Data Types are not perfect, particularly because they do not guarantee <a href="/riak/kv/2.2.1/learn/concepts/strong-consistency">strong consistency</a> and you cannot specify the rules yourself. But the
+rules that dictate the convergence logic behind the Riak Data Types
+were carefully chosen to minimize the potential downsides associated
+with value conflicts.</p>

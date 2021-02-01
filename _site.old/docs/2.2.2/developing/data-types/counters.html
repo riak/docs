@@ -1,0 +1,554 @@
+<p>Counters are a bucket-level Riak data type that can be used by themselves, associated with a bucket/key pair, or used <a href="../maps#counters-within-maps">within a map</a>. A counter’s value can only be a positive integer, negative integer, or zero.</p>
+
+<p>The examples in this section will show you how to use counters on their own.</p>
+
+<h2 id="set-up-a-bucket-type">Set Up a Bucket Type</h2>
+
+<blockquote>
+  <p>If you’ve already created and activated a bucket type with the <code class="language-plaintext highlighter-rouge">datatype</code> parameter set to <code class="language-plaintext highlighter-rouge">counter</code>, skip to the <a href="#client-setup">next section</a>.</p>
+</blockquote>
+
+<p>Start by creating a bucket type with the <code class="language-plaintext highlighter-rouge">datatype</code> parameter set to <code class="language-plaintext highlighter-rouge">counter</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create counters <span class="s1">'{"props":{"datatype":"counter"}}'</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note</strong></p>
+
+  <p>The <code class="language-plaintext highlighter-rouge">counters</code> bucket type name provided above is an example and is not required to be <code class="language-plaintext highlighter-rouge">counters</code>. You are free to name bucket types whatever you like, with the exception of <code class="language-plaintext highlighter-rouge">default</code>.</p>
+</blockquote>
+
+<p>After creating a bucket with a Riak data type, confirm the bucket property configuration associated with that type is correct:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status counters
+</code></pre></div></div>
+
+<p>This returns a list of bucket properties and their values
+in the form of <code class="language-plaintext highlighter-rouge">property: value</code>.</p>
+
+<p>If our <code class="language-plaintext highlighter-rouge">counters</code> bucket type has been set properly we should see the following pair in our console output:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>datatype: counter
+</code></pre></div></div>
+
+<p>Once we have confirmed the bucket type is properly configured, we can activate the bucket type to be used in Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type activate counters
+</code></pre></div></div>
+
+<p>We can check if activation has been successful by using the same <code class="language-plaintext highlighter-rouge">bucket-type status</code> command shown above:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status counters
+</code></pre></div></div>
+
+<p>After creating and activating our new <code class="language-plaintext highlighter-rouge">counters</code> bucket type, we can setup our client to start using the bucket type as detailed in the next section.</p>
+
+<h2 id="client-setup">Client Setup</h2>
+
+<p>First, we need to direct our client to the bucket type/bucket/key
+location that contains our counter.</p>
+
+<p>For this example we’ll use the <code class="language-plaintext highlighter-rouge">counters</code> bucket type created and activated above and a bucket called <code class="language-plaintext highlighter-rouge">counters</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Java client, a bucket/bucket type combination is specified</span>
+<span class="c1">// using a Namespace object. To specify bucket, bucket type, and key,</span>
+<span class="c1">// use a Location object that incorporates the Namespace object, as is</span>
+<span class="c1">// done below.</span>
+<span class="nc">Namespace</span> <span class="n">countersBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"counters"</span><span class="o">,</span> <span class="s">"counters"</span><span class="o">);</span>
+<span class="nc">Location</span> <span class="n">location</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">countersBucket</span><span class="o">,</span> <span class="s">"&lt;insert_key_here&gt;"</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'counters'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'counters'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$bucket</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Bucket</span><span class="p">(</span><span class="s1">'counters'</span><span class="p">,</span> <span class="s1">'counters'</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'counters'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'counters'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="c1">// You can either use the appropriate Options class or the Builder</span>
+
+<span class="c1">// Options:</span>
+<span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchCounterOptions</span><span class="p">(</span><span class="s">"counters"</span><span class="p">,</span> <span class="s">"counters"</span><span class="p">,</span> <span class="s">"&lt;insert_key_here&gt;"</span><span class="p">);</span>
+
+<span class="c1">// Builder:</span>
+<span class="n">FetchCounter</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FetchCounter</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"&lt;insert_key_here&gt;"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// The following can be passed as options to FetchCounter</span>
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">&lt;insert_key_here&gt;</span><span class="dl">'</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% Buckets are simply named binaries in the Erlang client. See the
+%% examples below for more information
+</span></code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/counters/buckets/counters/datatypes/&lt;key&gt;
+
+# Note that this differs from the URL structure for non-Data-Type
+# requests, which end in /keys/&lt;key&gt;
+</code></pre>
+
+<h2 id="create-a-counter">Create a Counter</h2>
+
+<p>To create a counter, you need to specify a bucket/key pair to hold that
+counter. Here is the general syntax for doing so:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Here, we'll use the Namespace object that we created above and</span>
+<span class="c1">// incorporate it into a Location object that includes the key (as yet</span>
+<span class="c1">// unspecified) for our counter</span>
+
+<span class="c1">// Using the countersBucket Namespace object from above:</span>
+<span class="nc">Location</span> <span class="n">counter</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">countersBucket</span><span class="o">,</span> <span class="s">"&lt;key&gt;"</span><span class="o">);</span>
+
+<span class="c1">// Or we can specify the Location all at once:</span>
+<span class="nc">Location</span> <span class="n">counter</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"counters"</span><span class="o">,</span> <span class="s">"counters"</span><span class="o">),</span> <span class="s">"&lt;key&gt;"</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Counter</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">bucket_type</span><span class="p">)</span>
+
+<span class="c1"># Or you can specify a bucket and bucket type all at once and pass that</span>
+<span class="c1"># into the constructor</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="n">bucket_type</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="n">bucket</span><span class="p">)</span>
+<span class="n">counter</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Counter</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># using the $bucket var created earlier</span>
+<span class="nv">$location</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Location</span><span class="p">(</span><span class="s1">'key'</span><span class="p">,</span> <span class="nv">$bucket</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># The client detects the bucket type's data type and automatically
+# returns the right datatype for you, in this case a counter
+</span><span class="n">counter</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+<span class="c1"># This way is also acceptable:
+</span><span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="n">counter</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">fetchCounterOptions</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchCounterOptions</span><span class="p">(</span><span class="s">"counters"</span><span class="p">,</span> <span class="s">"counters"</span><span class="p">,</span> <span class="s">"&lt;key&gt;"</span><span class="p">);</span>
+<span class="n">FetchCounter</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchCounter</span><span class="p">(</span><span class="n">fetchCounterOptions</span><span class="p">);</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+<span class="n">CounterResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">cmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// The following can be passed as options to the *Counter methods on the</span>
+<span class="c1">// Node.js Client object</span>
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">&lt;insert_key_here&gt;</span><span class="dl">'</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% Counters are not encapsulated with the bucket/key in the Erlang
+%% client. See the examples below for more information.
+</span></code></pre></div></div>
+
+<pre><code class="language-curl"># This will create a counter with an initial value of 0
+
+curl -XPOST http://localhost:8098/types/counters/buckets/&lt;bucket&gt;/datatypes/&lt;key&gt; \
+  -H "Content-Type: application/json" \
+  -d '{"increment": 0}'
+</code></pre>
+
+<p>Let’s say that we want to create a counter called <code class="language-plaintext highlighter-rouge">traffic_tickets</code> in
+our <code class="language-plaintext highlighter-rouge">counters</code> bucket to keep track of our legal misbehavior. We can
+create this counter and ensure that the <code class="language-plaintext highlighter-rouge">counters</code> bucket will use our
+<code class="language-plaintext highlighter-rouge">counters</code> bucket type like this:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the countersBucket Namespace object from above:</span>
+
+<span class="nc">Location</span> <span class="n">trafficTickets</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">countersBucket</span><span class="o">,</span> <span class="s">"traffic_tickets"</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'counters'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'counters'</span><span class="p">)</span>
+<span class="n">counter</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Counter</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'traffic_tickets'</span><span class="p">)</span>
+
+<span class="c1"># Alternatively, the Ruby client enables you to set a bucket type as</span>
+<span class="c1"># being globally associated with a Riak data type. The following would</span>
+<span class="c1"># set all counter buckets to use the counters bucket type:</span>
+
+<span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">DEFAULT_BUCKET_TYPES</span><span class="p">[</span><span class="ss">:counter</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'counters'</span>
+
+<span class="c1"># This would enable us to create our counter without specifying a bucket type</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'counters'</span><span class="p">)</span>
+<span class="n">counter</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Counter</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'traffic_tickets'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># using the $bucket var created earlier</span>
+<span class="nv">$location</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Location</span><span class="p">(</span><span class="s1">'traffic_tickets'</span><span class="p">,</span> <span class="nv">$bucket</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'counters'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'traffic_tickets'</span><span class="p">)</span>
+<span class="n">counter</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="s">'traffic_tickets'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">fetchCounterOptions</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchCounterOptions</span><span class="p">(</span><span class="s">"counters"</span><span class="p">,</span> <span class="s">"counters"</span><span class="p">,</span> <span class="s">"traffic_tickts"</span><span class="p">);</span>
+<span class="n">FetchCounter</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchCounter</span><span class="p">(</span><span class="n">fetchCounterOptions</span><span class="p">);</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+<span class="n">CounterResult</span> <span class="p">=</span> <span class="n">cmd</span><span class="p">.</span><span class="n">Result</span><span class="p">;</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the options from above:</span>
+
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">traffic_tickets</span><span class="dl">'</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Counter</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">new</span><span class="p">().</span>
+
+<span class="c">%% Counters in the Erlang client are opaque data structures that collect
+%% operations as you mutate them. We will associate the data structure
+%% with a bucket type, bucket, and key later on.
+</span></code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPOST http://localhost:8098/types/counters/buckets/counters/datatypes/traffic_tickets \
+  -H "Content-Type: application/json" \
+  -d '{"increment": 0}'
+</code></pre>
+
+<h2 id="increment-a-counter">Increment a Counter</h2>
+
+<p>Now that our client knows which bucket/key pairing to use for our
+counter, <code class="language-plaintext highlighter-rouge">traffic_tickets</code> will start out at 0 by default. If we happen
+to get a ticket that afternoon, we can increment the counter:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the "trafficTickets" Location from above:</span>
+
+<span class="nc">CounterUpdate</span> <span class="n">cu</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">CounterUpdate</span><span class="o">(</span><span class="mi">1</span><span class="o">);</span>
+<span class="nc">UpdateCounter</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateCounter</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">trafficTickets</span><span class="o">,</span> <span class="n">cu</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="nf">increment</span>
+
+<span class="c1"># This will increment the counter both on the application side and in</span>
+<span class="no">Riak</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\IncrementCounter</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">withIncrement</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="n">increment</span><span class="p">()</span>
+
+<span class="c1"># Updates are staged locally and have to be explicitly sent to Riak
+# using the store() method.
+</span><span class="n">counter</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="n">UpdateCounter</span> <span class="n">updateCmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateCounter</span><span class="p">.</span><span class="nf">Builder</span><span class="p">(</span><span class="n">increment</span><span class="p">:</span> <span class="m">1</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"traffic_tickets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithReturnBody</span><span class="p">(</span><span class="k">true</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">updateCmd</span><span class="p">);</span>
+<span class="n">CounterResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">updateCmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="c1">// response.Value will be 1</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the options from above:</span>
+
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">traffic_tickets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">increment</span><span class="p">:</span> <span class="mi">1</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">updateCounter</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Counter1</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">increment</span><span class="p">(</span><span class="nv">Counter</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPOST http://localhost:8098/types/counters/buckets/counters/datatypes/traffic_tickets \
+  -H "Content-Type: application/json" \
+  -d '{"increment": 1}'
+</code></pre>
+
+<h2 id="increment-a-counter-by-more-than-1">Increment a Counter by More Than 1</h2>
+
+<p>The default value of an increment operation is 1, but you can increment
+by more than 1 (but always by an integer).</p>
+
+<p>Continuing with our <code class="language-plaintext highlighter-rouge">traffic_tickets</code> example, let’s say we receive 5 tickets in a single day:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the "trafficTickets" Location from above:</span>
+<span class="nc">CounterUpdate</span> <span class="n">cu</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">CounterUpdate</span><span class="o">(</span><span class="mi">5</span><span class="o">);</span>
+<span class="nc">UpdateCounter</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateCounter</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">trafficTickets</span><span class="o">,</span> <span class="n">cu</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="nf">increment</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\IncrementCounter</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">withIncrement</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="n">increment</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">builder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateCounter</span><span class="p">.</span><span class="nf">Builder</span><span class="p">(</span><span class="m">5</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"traffic_tickets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithReturnBody</span><span class="p">(</span><span class="k">true</span><span class="p">);</span>
+
+<span class="n">UpdateCounter</span> <span class="n">updateCmd</span> <span class="p">=</span> <span class="n">builder</span><span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">updateCmd</span><span class="p">);</span>
+<span class="n">CounterResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">updateCmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="c1">// response.Value is 5 more than before</span>
+
+<span class="c1">// To decrement:</span>
+<span class="c1">// Modify the builder's increment, then construct a new command</span>
+<span class="n">builder</span><span class="p">.</span><span class="nf">WithIncrement</span><span class="p">(-</span><span class="m">5</span><span class="p">);</span>
+<span class="n">updateCmd</span> <span class="p">=</span> <span class="n">builder</span><span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">updateCmd</span><span class="p">);</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">rslt</span><span class="p">);</span>
+
+<span class="n">response</span> <span class="p">=</span> <span class="n">updateCmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="c1">// response.Value is 5 less than before</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">traffic_tickets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">increment</span><span class="p">:</span> <span class="mi">5</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">updateCounter</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Counter2</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">increment</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="nv">Counter1</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPOST http://localhost:8098/types/counters/buckets/counters/datatypes/traffic_tickets \
+  -H "Content-Type: application/json" \
+  -d '{"increment": 5}'
+</code></pre>
+
+<h2 id="retrieve-counter-value">Retrieve Counter Value</h2>
+
+<p>We can retrieve the value of the counter and view how many tickets have accumulated:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the "trafficTickets" Location from above:</span>
+<span class="nc">FetchCounter</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchCounter</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">trafficTickets</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchCounter</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">RiakCounter</span> <span class="n">counter</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getDatatype</span><span class="o">();</span>
+<span class="nc">Long</span> <span class="n">ticketsCount</span> <span class="o">=</span> <span class="n">counter</span><span class="o">.</span><span class="na">view</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="nf">value</span>
+<span class="c1"># Output will always be an integer</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$trafficTickets</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchCounter</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">getCounter</span><span class="p">();</span>
+
+<span class="nv">$trafficTickets</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span> <span class="c1"># returns an integer</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="n">dirty_value</span>
+
+<span class="c1"># The value fetched from Riak is always immutable, whereas the "dirty
+# value" takes into account local modifications that have not been
+# sent to the server. For example, whereas the call above would return
+# 6, the call below will return 0' since we started with an empty
+# counter:
+</span>
+<span class="n">counter</span><span class="p">.</span><span class="n">value</span>
+
+<span class="c1"># To fetch the value stored on the server, use the call below. Note
+# that this will clear any changes to the counter that have not yet been
+# sent to Riak
+</span><span class="n">counter</span><span class="p">.</span><span class="nb">reload</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">fetchCounterOptions</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchCounterOptions</span><span class="p">(</span><span class="s">"counters"</span><span class="p">,</span> <span class="s">"counters"</span><span class="p">,</span> <span class="s">"traffic_tickts"</span><span class="p">);</span>
+<span class="n">FetchCounter</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">FetchCounter</span><span class="p">(</span><span class="n">fetchCounterOptions</span><span class="p">);</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+<span class="n">CounterResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">cmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="c1">// response.Value has the counter value</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">traffic_tickets</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchCounter</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">notFound</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">logger</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="dl">"</span><span class="s2">bt: %s, b: %s, k: %s, counter: NOT FOUND</span><span class="dl">"</span><span class="p">,</span>
+                <span class="nx">options</span><span class="p">.</span><span class="nx">bucketType</span><span class="p">,</span> <span class="nx">options</span><span class="p">.</span><span class="nx">bucket</span><span class="p">,</span> <span class="nx">options</span><span class="p">.</span><span class="nx">key</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">bt: %s, b: %s, k: %s, counter: %d</span><span class="dl">"</span><span class="p">,</span>
+                <span class="nx">options</span><span class="p">.</span><span class="nx">bucketType</span><span class="p">,</span> <span class="nx">options</span><span class="p">.</span><span class="nx">bucket</span><span class="p">,</span> <span class="nx">options</span><span class="p">.</span><span class="nx">key</span><span class="p">,</span>
+                <span class="nx">rslt</span><span class="p">.</span><span class="nx">counterValue</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">dirty_value</span><span class="p">(</span><span class="nv">Counter2</span><span class="p">).</span>
+
+<span class="c">%% The value fetched from Riak is always immutable, whereas the "dirty
+%% value" takes into account local modifications that have not been
+%% sent to the server. For example, whereas the call above would return
+%% '6', the call below will return '0' since we started with an empty
+%% counter:
+</span>
+<span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">value</span><span class="p">(</span><span class="nv">Counter2</span><span class="p">).</span>
+
+<span class="c">%% To fetch the value stored on the server, use the call below:
+</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">CounterX</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">fetch_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                            <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"counters"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"counters"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                                            <span class="o">&lt;&lt;</span><span class="s">"traffic_tickets"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/counters/buckets/counters/datatypes/traffic_tickets
+
+# Response:
+{"type":"counter", "value": &lt;value&gt;}
+</code></pre>
+
+<h2 id="decrement-a-counter">Decrement a Counter</h2>
+
+<p>Counters enable you to decrement values in addition to incrementing them as seen above.</p>
+
+<p>For example, let’s say we hire an expert lawyer who gets one of the traffic tickets stricken from our record:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the "trafficTickets" Location from above:</span>
+<span class="nc">CounterUpdate</span> <span class="n">cu</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">CounterUpdate</span><span class="o">(-</span><span class="mi">1</span><span class="o">);</span>
+<span class="nc">UpdateCounter</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateCounter</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">trafficTickets</span><span class="o">,</span> <span class="n">cu</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="nf">decrement</span>
+
+<span class="c1"># Just like incrementing, you can also decrement by more than one, e.g.:</span>
+<span class="n">counter</span><span class="p">.</span><span class="nf">decrement</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\IncrementCounter</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">withIncrement</span><span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">counter</span><span class="p">.</span><span class="n">decrement</span><span class="p">()</span>
+
+<span class="c1"># Just like incrementing, you can also decrement by more than one, e.g.:
+</span><span class="n">counter</span><span class="p">.</span><span class="n">decrement</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Using/DataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">updateCmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateCounter</span><span class="p">.</span><span class="nf">Builder</span><span class="p">(-</span><span class="m">3</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"traffic_tickets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">updateCmd</span><span class="p">);</span>
+<span class="n">response</span> <span class="p">=</span> <span class="n">updateCmd</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="c1">// response.Value is three less than before</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counter</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">traffic_tickets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">increment</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span>
+<span class="p">};</span>
+
+<span class="c1">// As with incrementing, you can also decrement by more than one, e.g.:</span>
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counter</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">traffic_tickets</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">increment</span><span class="p">:</span> <span class="o">-</span><span class="mi">3</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Counter3</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">decrement</span><span class="p">(</span><span class="nv">Counter2</span><span class="p">).</span>
+
+<span class="c">%% As with incrementing, you can also decrement by more than one:
+</span>
+<span class="nv">Counter4</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">decrement</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="nv">Counter3</span><span class="p">).</span>
+
+<span class="c">%% At some point, we'll want to send our local updates to the server
+%% so they get recorded and are visible to others. Extract the update
+%% using the to_op/1 function, then pass it to
+%% riakc_pb_socket:update_type/4,5.
+</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">update_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"counters"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"counters"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                            <span class="o">&lt;&lt;</span><span class="s">"traffic_tickets"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                            <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">to_op</span><span class="p">(</span><span class="nv">Counter4</span><span class="p">)).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPOST http://localhost:8098/types/counters/buckets/counters/datatypes/traffic_tickets \
+  -H "Content-Type: application/json" \
+  -d '{"decrement": 3}'
+</code></pre>

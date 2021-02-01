@@ -1,0 +1,72 @@
+
+<p>Riak’s <a href="/riak/kv/2.2.2/configuring/reference">configuration files</a> provide a variety of parameters that
+enable you to fine-tune how Riak interacts with two important elements
+of the underlying operating system: distribution ports and OS
+processes/garbage collection.</p>
+
+<h2 id="ports">Ports</h2>
+
+<p>Distribution ports connect Riak nodes within a <a href="/riak/kv/2.2.2/learn/concepts/clusters">cluster</a>. The
+following port-related parameters are available:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">runtime_health.triggers.distribution_port</code> — Whether distribution
+ports with full input buffers will be counted as busy.
+    <ul>
+      <li>Default: <code class="language-plaintext highlighter-rouge">on</code></li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">runtime_health.triggers.port</code> — Whether ports with full input
+buffers will be counted as busy. Ports can represent open files or network sockets.
+    <ul>
+      <li>Default: <code class="language-plaintext highlighter-rouge">on</code></li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">runtime_health.thresholds.busy_ports</code> — The threshold at which a
+warning will be triggered about the number of ports that are overly
+busy. Ports with full input buffers count toward this threshold.
+    <ul>
+      <li>Default: <code class="language-plaintext highlighter-rouge">2</code></li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="processes">Processes</h2>
+
+<p>Riak will log warnings related to busy operating system processes and
+garbage collection. You can specify the conditions in which warnings are
+triggered using the following parameters:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">runtime_health.thresholds.busy_processes</code> — The threshold at which
+a warning will be triggered about the number of processes that are
+overly busy. Processes with large heaps or that take a long time to
+garbage collect will count toward this threshold.
+    <ul>
+      <li>Default: <code class="language-plaintext highlighter-rouge">30</code></li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">runtime_health.triggers.process.heap_size</code> — A process will be
+marked as busy when its size exceeds this size (in bytes).
+    <ul>
+      <li>Default: <code class="language-plaintext highlighter-rouge">160444000</code></li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">runtime_health.triggers.process.garbage_collection</code> — A process
+will be marked as busy when it exceeds this amount of time doing
+garbage collection. Enabling this setting can cause performance
+problems on multi-core systems.
+    <ul>
+      <li>Default: <code class="language-plaintext highlighter-rouge">off</code></li>
+      <li>Example when enabled: <code class="language-plaintext highlighter-rouge">50ms</code></li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">runtime_health.triggers.process.long_schedule</code> — A process will
+become busy when it exceeds this length of time during a single
+process scheduling and execution cycle.
+    <ul>
+      <li>Default: <code class="language-plaintext highlighter-rouge">off</code></li>
+      <li>Example when enabled: <code class="language-plaintext highlighter-rouge">20ms</code></li>
+    </ul>
+  </li>
+</ul>

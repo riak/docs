@@ -1,0 +1,137 @@
+
+<p>Riak was originally designed as an <a href="/riak/kv/2.2.3/learn/concepts/eventual-consistency">eventually consistent</a> system, fundamentally geared toward providing partition
+(i.e. fault) tolerance and high read and write availability.</p>
+
+<p>While this focus on high availability is a great fit for many data
+storage needs, there are also many use cases for which strong data
+consistency is more important than availability. Basho introduced a new
+strong consistency option in version 2.0 to address these use cases.
+In Riak, strong consistency is applied <a href="/riak/kv/2.2.3/developing/usage/bucket-types">using bucket types</a>, which
+enables developers to apply strong consistency guarantees on a per-key
+basis.</p>
+
+<p>Elsewhere in the documentation there are instructions for <a href="/riak/kv/2.2.3/developing/app-guide/strong-consistency/">enabling and using</a> strong consistency, as well as a <a href="/riak/kv/2.2.3/configuring/strong-consistency">guide for operators</a> looking to manage,
+configure, and monitor strong consistency.</p>
+
+<h2 id="strong-vs-eventual-consistency">Strong vs. Eventual Consistency</h2>
+
+<p>If you successfully write a value to a key in a strongly consistent
+system, the next successful read of that key is guaranteed to show that
+write. A client will never see out-of-date values. The drawback is that
+some operations may fail if an insufficient number of object replicas
+are available. More on this in the section on <a href="#trade-offs">trade-offs</a>.</p>
+
+<p>In an eventually consistent system, on the other hand, a read may return
+an out-of-date value, particularly during system or network failures.
+The advantage of this approach is that reads and writes can succeed even
+when a cluster is experiencing significant service degradation.</p>
+
+<h3 id="example">Example</h3>
+
+<p>Building on the example presented in the <a href="/riak/kv/2.2.3/learn/concepts/eventual-consistency">eventual consistency</a> doc,
+imagine that information about who manages Manchester United is stored
+in Riak, in the key <code class="language-plaintext highlighter-rouge">manchester-manager</code>. In the eventual consistency
+example, the value associated with this key was originally
+<code class="language-plaintext highlighter-rouge">David Moyes</code>, meaning that that was the first successful write to that
+key. But then <code class="language-plaintext highlighter-rouge">Louis van Gaal</code> became Man U’s manager, and a write was
+executed to change the value of <code class="language-plaintext highlighter-rouge">manchester-manager</code>.</p>
+
+<p>Now imagine that this write failed on one node in a multi-node cluster.
+Thus, all nodes report that the value of <code class="language-plaintext highlighter-rouge">manchester-manager</code> is <code class="language-plaintext highlighter-rouge">Louis
+van Gaal</code> except for one. On the errant node, the value of the
+<code class="language-plaintext highlighter-rouge">manchester-manager</code> key is still <code class="language-plaintext highlighter-rouge">David Moyes</code>. An eventually
+consistent system is one in which a get request will most likely return
+<code class="language-plaintext highlighter-rouge">Louis van Gaal</code> but could return the outdated value <code class="language-plaintext highlighter-rouge">David Moyes</code>.</p>
+
+<p>In a strongly consistent system, conversely, any successful read on
+<code class="language-plaintext highlighter-rouge">manchester-manager</code> will return <code class="language-plaintext highlighter-rouge">Louis van Gaal</code> and never <code class="language-plaintext highlighter-rouge">David Moyes</code>.
+Reads will return <code class="language-plaintext highlighter-rouge">Louis van Gaal</code> every single time until Man U gets a new
+manager and someone performs a successful write to <code class="language-plaintext highlighter-rouge">manchester-manager</code>
+to change its value.</p>
+
+<p>It might also be useful to imagine it a bit more abstractly. The
+following causal sequence would characterize a strongly consistent
+system:</p>
+
+<ol>
+  <li>The value of the key <code class="language-plaintext highlighter-rouge">k</code> is set to <code class="language-plaintext highlighter-rouge">v</code></li>
+  <li>All successful reads on <code class="language-plaintext highlighter-rouge">k</code> return <code class="language-plaintext highlighter-rouge">v</code></li>
+  <li>The value of <code class="language-plaintext highlighter-rouge">k</code> is changed to <code class="language-plaintext highlighter-rouge">v2</code></li>
+  <li>All successful reads on <code class="language-plaintext highlighter-rouge">k</code> return <code class="language-plaintext highlighter-rouge">v2</code></li>
+  <li>And so forth</li>
+</ol>
+
+<p>At no point in time does this system return an out-of-date value.</p>
+
+<p>The following sequence could characterize an eventually consistent
+system:</p>
+
+<ol>
+  <li>A write is made that sets the value of the key <code class="language-plaintext highlighter-rouge">k</code> to <code class="language-plaintext highlighter-rouge">v</code></li>
+  <li>Nearly all reads to <code class="language-plaintext highlighter-rouge">k</code> return <code class="language-plaintext highlighter-rouge">v</code>, but a small percentage return
+<code class="language-plaintext highlighter-rouge">not found</code></li>
+  <li>A write to <code class="language-plaintext highlighter-rouge">k</code> changes the value to <code class="language-plaintext highlighter-rouge">v2</code></li>
+  <li>Nearly all reads to <code class="language-plaintext highlighter-rouge">k</code> now return <code class="language-plaintext highlighter-rouge">v2</code>, but a small number return
+the outdated <code class="language-plaintext highlighter-rouge">v</code> (or even <code class="language-plaintext highlighter-rouge">not found</code>) because the newer value hasn’t
+yet been replicated to all nodes</li>
+</ol>
+
+<h2 id="making-the-strong-vs-eventual-decision">Making the Strong vs. Eventual Decision</h2>
+
+<p>The first system described above may sound like the undisputed champion,
+and the second system undesirable. However:</p>
+
+<ol>
+  <li>Reads and writes on the first system will often be slower—if only
+by a few milliseconds—because the system needs to manage reads and
+writes more carefully. If performance is of primary concern, the
+first system might not be worth the sacrifice.</li>
+  <li>Reads and writes on the first system may fail entirely if enough
+servers are unavailable. If high availability is the top priority,
+then the second system has a significant advantage.</li>
+</ol>
+
+<p>So when deciding whether to use strong consistency in Riak, the
+following question needs to be asked:</p>
+
+<h4 id="for-the-specific-use-case-at-hand-is-it-better-for-reads-to-fail-than-to-return-a-potentially-out-of-date-value">For the specific use case at hand, is it better for reads to fail than to return a potentially out-of-date value?</h4>
+
+<p>If the answer is yes, then you should seriously consider using Riak in a
+strongly consistent way for the data that demands it, while bearing in
+mind that other data can still be stored in Riak in an eventually
+consistent way.</p>
+
+<h2 id="trade-offs">Trade-offs</h2>
+
+<p>Using Riak in a strongly consistent fashion comes with two unavoidable
+trade-offs:</p>
+
+<ol>
+  <li>Less availability</li>
+  <li>Slightly slower performance</li>
+</ol>
+
+<p>Strongly consistent operations are necessarily less highly available
+than eventually consistent operations because they require a <strong>quorum</strong>
+of available object replicas to succeed. Quorum is defined as N / 2 + 1,
+or <code class="language-plaintext highlighter-rouge">n_val</code> / 2 + 1. If N is set to 7, at least 4 object replicas must be
+available, 2 must be available if N=3, etc.</p>
+
+<p>If there is a network partition that leaves less than a quorum of object
+replicas available within an ensemble, strongly consistent operations
+against the keys managed by that ensemble will fail.</p>
+
+<p>Nonetheless, consistent operations do provide a great deal of fault
+tolerance. Consistent operations can still succeed when a minority of
+replicas in each ensemble can be offline, faulty, or unreachable. In
+other words, <strong>strongly consistent operations will succeed as long as
+quorum is maintained</strong>. A fuller discussion can be found in the
+<a href="/riak/kv/2.2.3/configuring/strong-consistency/#fault-tolerance">operations</a>
+documentation.</p>
+
+<p>A second trade-off regards performance. Riak’s implementation of strong
+consistency involves a complex <a href="/riak/kv/2.2.3/using/reference/strong-consistency/#implementation-details">consensus subsystem</a> that typically requires more communication between Riak nodes than eventually consistent operations,
+which can entail a performance hit of varying proportions, depending on
+a variety of factors.</p>
+
+<p>Ways to address this issue can be found in <a href="/riak/kv/2.2.3/configuring/strong-consistency/#performance">strong consistency and performance</a>.</p>

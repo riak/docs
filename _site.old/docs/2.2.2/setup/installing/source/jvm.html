@@ -1,0 +1,27 @@
+
+<p>If you are using <a href="/riak/kv/2.2.2/developing/usage/search">Riak Search 2.0</a>, codename Yokozuna,
+you will need to install <strong>Java 1.6 or later</strong> to run <a href="https://lucene.apache.org/solr/">Apache
+Solr</a>, the search platform that powers
+Riak Search.</p>
+
+<p>We recommend using Oracle’s <a href="http://www.oracle.com/technetwork/java/javase/7u25-relnotes-1955741.html">JDK
+7u25</a>.
+Installation packages can be found on the <a href="http://www.oracle.com/technetwork/java/javase/downloads/java-archive-downloads-javase7-521261.html#jdk-7u25-oth-JPR">Java SE 7 Downloads
+page</a>
+and instructions on the <a href="http://www.oracle.com/technetwork/java/javase/documentation/index.html">documentation
+page</a>.</p>
+
+<h2 id="installing-solr-on-os-x">Installing Solr on OS X</h2>
+
+<p>If you’re using Riak Search on Mac OS X, you may see the following
+error:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">java</span><span class="o">.</span><span class="na">net</span><span class="o">.</span><span class="na">MalformedURLException</span><span class="o">:</span> <span class="nc">Local</span> <span class="n">host</span> <span class="n">name</span> <span class="nl">unknown:</span> <span class="o">&lt;</span><span class="no">YOUR_HOST_NAME</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<p>If you encounter this error, we recommend manually setting the hostname
+for <code class="language-plaintext highlighter-rouge">localhost</code> using
+<a href="https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man8/scutil.8.html">scutil</a>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>scutil <span class="nt">--set</span> HostName <span class="s2">"localhost"</span>
+</code></pre></div></div>

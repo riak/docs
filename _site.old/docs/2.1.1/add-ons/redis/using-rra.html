@@ -1,0 +1,220 @@
+
+<p>Now that you’ve <a href="../set-up-rra/">set up Riak Redis Add-on (RRA)</a>, you’re ready to use RRA with any Redis client which supports <code class="language-plaintext highlighter-rouge">GET</code>, <code class="language-plaintext highlighter-rouge">PUT</code> and <code class="language-plaintext highlighter-rouge">DEL</code> operations.</p>
+
+<p>This page will walk you through using RRA.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>We assume that the Redis client (<code class="language-plaintext highlighter-rouge">redis-cli</code>) is installed, either alongside the Redis server or on a test machine.</p>
+
+<p>You will need the list of Riak KV and Riak Redis Add-on host:port combinations. For testing, Riak KV values are obtained via the <a href="/riak/kv/2.1.1/developing/api/http/">HTTP API</a>.</p>
+
+<h2 id="run-the-read-through-test">Run the Read-Through Test</h2>
+
+<p>Throughout this test example, the bucket “test” and key “foo” are used to
+demonstrate how to address the hieararchical namespace support in Riak KV
+through the flat Redis key. The bucket type is not specified in this example,
+so is effectively the default bucket type, named “default”. For additional
+information regarding key namespace, see <a href="../developing-rra/">develop Riak Redis Add-on (RRA)</a>.</p>
+
+<p>The read-through test ensures that your configuration correctly tracks values obtained from Riak KV and Riak Redis Add-on (RRA). The main actions of the test are:</p>
+
+<ul>
+  <li>DELETE the Riak object at the <code class="language-plaintext highlighter-rouge">test</code> bucket with the key <code class="language-plaintext highlighter-rouge">foo</code>, which checks that there are no siblings.</li>
+  <li>PUT a Riak object with the value ‘bar’ at the <code class="language-plaintext highlighter-rouge">test</code> bucket with the key <code class="language-plaintext highlighter-rouge">foo</code>.</li>
+  <li>GET the Riak object at the <code class="language-plaintext highlighter-rouge">test</code> bucket with the key <code class="language-plaintext highlighter-rouge">foo</code>.</li>
+  <li>GET the string-representation of the object from the cache proxy service using the key <code class="language-plaintext highlighter-rouge">test:foo</code>. (The cache proxy service should parse out the first portion of the Redis colon-separated key (namespace) to identify which Riak bucket to perform the backend read from.)</li>
+  <li>Assert that the value obtained from the previous cache proxy GET is ‘bar’.</li>
+</ul>
+
+<p>First, create a file named<code class="language-plaintext highlighter-rouge">read_through_test.sh</code> with the following content:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># set test environment</span>
+<span class="nv">RIAK_HTTP_IP</span><span class="o">=</span><span class="s2">"127.0.0.1"</span>
+<span class="nv">RIAK_HTTP_PORT</span><span class="o">=</span><span class="s2">"8098"</span>
+<span class="nv">CACHE_PROXY_IP</span><span class="o">=</span><span class="s2">"127.0.0.1"</span>
+<span class="nv">CACHE_PROXY_PORT</span><span class="o">=</span><span class="s2">"22122"</span>
+<span class="nv">CACHE_PROXY_STATISTICS_PORT</span><span class="o">=</span><span class="s2">"22123"</span>
+<span class="nv">RIAK_TEST_BUCKET</span><span class="o">=</span><span class="s2">"test"</span>
+<span class="nv">KEY</span><span class="o">=</span><span class="s2">"foo"</span>
+<span class="nv">VALUE</span><span class="o">=</span><span class="s2">"bar"</span>
+
+<span class="c"># DELETE Riak object, ensure no siblings</span>
+curl <span class="nt">-s</span> <span class="nt">-X</span> DELETE <span class="s2">"http://</span><span class="nv">$RIAK_HTTP_IP</span><span class="s2">:</span><span class="nv">$RIAK_HTTP_PORT</span><span class="s2">/buckets/</span><span class="nv">$RIAK_TEST_BUCKET</span><span class="s2">/keys/</span><span class="nv">$KEY</span><span class="s2">"</span>
+
+<span class="c"># PUT Riak object</span>
+curl <span class="nt">-s</span> <span class="nt">-X</span> PUT <span class="nt">-d</span> <span class="s2">"</span><span class="nv">$VALUE</span><span class="s2">"</span> <span class="s2">"http://</span><span class="nv">$RIAK_HTTP_IP</span><span class="s2">:</span><span class="nv">$RIAK_HTTP_PORT</span><span class="s2">/buckets/</span><span class="nv">$RIAK_TEST_BUCKET</span><span class="s2">/keys/</span><span class="nv">$KEY</span><span class="s2">"</span>
+
+<span class="c"># GET Riak object</span>
+<span class="nv">RIAK_VALUE</span><span class="o">=</span><span class="si">$(</span>curl <span class="nt">-s</span> <span class="nt">-X</span> GET <span class="s2">"http://</span><span class="nv">$RIAK_HTTP_IP</span><span class="s2">:</span><span class="nv">$RIAK_HTTP_PORT</span><span class="s2">/buckets/</span><span class="nv">$RIAK_TEST_BUCKET</span><span class="s2">/keys/</span><span class="nv">$KEY</span><span class="s2">"</span><span class="si">)</span>
+
+<span class="c"># GET Cache Proxy value</span>
+<span class="nv">CACHE_VALUE</span><span class="o">=</span><span class="si">$(</span>redis-cli <span class="nt">-h</span> <span class="s2">"</span><span class="nv">$CACHE_PROXY_IP</span><span class="s2">"</span> <span class="nt">-p</span> <span class="s2">"</span><span class="nv">$CACHE_PROXY_PORT</span><span class="s2">"</span> <span class="s2">"</span><span class="nv">$RIAK_TEST_BUCKET</span><span class="s2">:</span><span class="nv">$KEY</span><span class="s2">"</span>
+
+<span class="c"># DELETE Riak object, cleanup</span>
+curl <span class="nt">-s</span> <span class="nt">-X</span> DELETE <span class="s2">"http://</span><span class="nv">$RIAK_HTTP_IP</span><span class="s2">:</span><span class="nv">$RIAK_HTTP_PORT</span><span class="s2">/buckets/</span><span class="nv">$RIAK_TEST_BUCKET</span><span class="s2">/keys/</span><span class="nv">$KEY</span><span class="s2">"</span>
+
+<span class="c"># Assert</span>
+<span class="k">if</span> <span class="o">[[</span> <span class="s2">"RIAK_VALUE"</span> <span class="o">==</span> <span class="s2">"</span><span class="nv">$CACHE_VALUE</span><span class="s2">"</span> <span class="o">]]</span><span class="p">;</span> <span class="k">then
+    </span><span class="nv">RESULT</span><span class="o">=</span><span class="s2">"Success"</span>
+<span class="k">else
+    </span><span class="nv">RESULT</span><span class="o">=</span><span class="s2">"FAIL"</span>
+<span class="k">fi
+</span><span class="nb">echo</span> <span class="s2">"</span><span class="nv">$RESULT</span><span class="s2"> - read </span><span class="nv">$RIAK_VALUE</span><span class="s2"> from Riak and </span><span class="nv">$CACHE_VALUE</span><span class="s2"> from Cache Proxy."</span>
+</code></pre></div></div>
+
+<p>Then, once you’ve created the file, run it as follows:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./read_through_test.sh 22122 8098 <span class="nb">test</span>
+</code></pre></div></div>
+
+<h3 id="exceptions">Exceptions</h3>
+
+<p>If the test does not pass, verify that both Redis and RRA are running. You can do this by running:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ps aux |grep <span class="o">[</span>r]edis
+ps aux |grep <span class="o">[</span>n]utcracker
+</code></pre></div></div>
+
+<p>The result should list <code class="language-plaintext highlighter-rouge">redis</code> and <code class="language-plaintext highlighter-rouge">nutcracker</code> respectively.</p>
+
+<p>Also, verify that Riak KV is started and listening on the protocol buffer port specified:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>riak config effective |grep proto
+</code></pre></div></div>
+
+<p>If RRA is misconfigured, [reconfigure][redis add-on setup] it, and restart the service with the following:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>service cache_proxy restart
+</code></pre></div></div>
+
+<p>If RRA is configured correctly and all required services are running, you may want to restart each service from front to back as follows:</p>
+
+<ol>
+  <li>Stop RRA.</li>
+  <li>Stop Redis.</li>
+  <li><em>Optional</em> Restart Riak KV (This should only be necessary if Riak KV is not responding to protocol buffer requests.)</li>
+  <li>Start Redis.</li>
+  <li>Start RRA.</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>service cache_proxy stop
+<span class="nb">sudo </span>service redis stop
+
+<span class="c"># optional</span>
+<span class="nb">sudo </span>riak restart
+
+<span class="nb">sudo </span>service redis start
+<span class="nb">sudo </span>service cache_proxy start
+</code></pre></div></div>
+
+<h2 id="using-riak-redis-add-on">Using Riak Redis Add-on</h2>
+
+<p>Once you’ve successfully configured Riak Redis Add-on (RRA) and established a Riak KV and Redis client in the language of your choosing, you’re ready to start using RRA.</p>
+
+<p>For objects that should not be cached, interact with Riak KV as usual: issuing GET, PUT, and DELETE commands through the Riak client.</p>
+
+<p>For objects that should be cached, read from RRA: issuing GET, SET, and DEL commands through the Redis client.</p>
+
+<h3 id="monitoring">Monitoring</h3>
+
+<h4 id="rra">RRA</h4>
+
+<p>Since RRA is installed as a service, the system service monitoring daemon will automatically restart a service with the correct configuration in the event that the service’s process was killed or terminated by other means.</p>
+
+<p>The log file for RRA is stored by default in /var/log/cache_proxy.log . RRA is logrotate friendly, responding to the signal to reopen the log file following a rotate.</p>
+
+<p>For additional monitoring, RRA provides statistics on service availability.  The statistics provided are generally useful in monitoring the health of the RRA service.</p>
+
+<p>For example, running the following command (using the loopback interface and the default statistics port as an example):</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>telnet 127.0.0.1 22123
+</code></pre></div></div>
+
+<p>Returns statistic results:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+    </span><span class="nl">"bdp_cache_proxy"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nl">"192.168.50.2:6379"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"in_queue"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"in_queue_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"out_queue"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"out_queue_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"request_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">216</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"requests"</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"response_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">39</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"responses"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_connections"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_ejected_at"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_eof"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_err"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_timedout"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="nl">"192.168.50.3:6379"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"in_queue"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"in_queue_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"out_queue"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"out_queue_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"request_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"requests"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"response_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"responses"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_connections"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_ejected_at"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_eof"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_err"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_timedout"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="nl">"192.168.50.4:6379"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="nl">"in_queue"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"in_queue_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"out_queue"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"out_queue_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"request_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">90</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"requests"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"response_bytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">258</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"responses"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_connections"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_ejected_at"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_eof"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_err"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+            </span><span class="nl">"server_timedout"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="nl">"client_connections"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"client_eof"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"client_err"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"forward_error"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"fragments"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+        </span><span class="nl">"server_ejects"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="nl">"curr_connections"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"service"</span><span class="p">:</span><span class="w"> </span><span class="s2">"nutcracker"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vagrant"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"timestamp"</span><span class="p">:</span><span class="w"> </span><span class="mi">1438301846</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"total_connections"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"uptime"</span><span class="p">:</span><span class="w"> </span><span class="mi">7227</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.4.0"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Using the above results, you should be able to determine metrics changes that would flag a change in service health. With this information you can implement monitoring to help guarantee the overall health of the cache proxy service in RRA and the custom software within your overall solution.</p>
+
+<p>While we do not endorse a specific monitoring solution, the open interface to statistics allows you to use the monitoring solution of your choice. The following is a brief listing of compatible monitoring solutions:</p>
+
+<ul>
+  <li>Custom - https://github.com/gfranxman/NutcrackerMonitor</li>
+  <li>NewRelic - http://newrelic.com/plugins/schoology/245</li>
+  <li>Nagios - https://github.com/schoology/twemproxy_nagios</li>
+</ul>
+
+<h4 id="redis">Redis</h4>
+
+<p>Various Redis monitoring solutions exist in the market and, like monitoring RRA, these monitoring solutions make underlying calls to obtain Redis statistics, typically via the <code class="language-plaintext highlighter-rouge">info</code> command alone.</p>
+
+<p>As with RRA, Redis statistics available on the Redis client port allow for monitoring via solutions such as the following:</p>
+
+<ul>
+  <li>Custom - http://volumelabs.net/redis_monitoring/</li>
+  <li>NewRelic - http://newrelic.com/plugins/poison-pen-llc/28</li>
+  <li>Nagios - https://exchange.nagios.org/directory/Plugins/Databases/check_redis-2Epl/details</li>
+</ul>

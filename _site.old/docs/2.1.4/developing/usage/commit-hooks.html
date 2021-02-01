@@ -1,0 +1,217 @@
+
+<p>Pre- and post-commit hooks are functions that are invoked before or
+after an object has been written to Riak. To provide a few examples,
+commit hooks can:</p>
+
+<ul>
+  <li>allow a write to occur with an unmodified object</li>
+  <li>modify an object</li>
+  <li>fail an update and prevent any modifications to the object</li>
+</ul>
+
+<p>Post-commit hooks are notified <em>after the fact</em> and should not modify
+the object directly. Updating Riak objects while post-commit hooks are
+invoked can cause nasty feedback loops which will wedge the hook into an
+infinite cycle unless the hook functions are carefully written to detect
+and short-circuit such cycles.</p>
+
+<p>Pre- and post-commit hooks are applied at the <a href="/riak/kv/2.1.4/learn/concepts/buckets">bucket</a> level,
+<a href="/riak/kv/2.1.4/developing/usage/bucket-types">using bucket types</a>. They are run once per successful response to the
+client.</p>
+
+<p>Both pre- and post-commit hooks are named <a href="http://learnyousomeerlang.com/">Erlang</a>
+functions.</p>
+
+<h2 id="setting-commit-hooks-using-bucket-types">Setting Commit Hooks Using Bucket Types</h2>
+
+<p>Because hooks are defined at the bucket level, you can create <a href="/riak/kv/2.1.4/developing/usage/bucket-types">bucket types</a>
+that associate one or more hooks with any bucket that bears that type.
+Let’s create a bucket type called <code class="language-plaintext highlighter-rouge">with_post_commit</code> that adds a
+post-commit hook to operations on any bucket that bears the
+<code class="language-plaintext highlighter-rouge">with_post_commit</code> type.</p>
+
+<p>The format for specifying commit hooks is to identify the module (<code class="language-plaintext highlighter-rouge">mod</code>)
+and then the name of the function (<code class="language-plaintext highlighter-rouge">fun</code>) as a JavaScript object. The
+following specifies a commit hook called <code class="language-plaintext highlighter-rouge">my_custom_hook</code> in the module
+<code class="language-plaintext highlighter-rouge">commit_hooks_module</code>:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"mod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"commit_hooks_module"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"fun"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my_custom_hook"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>When we create our <code class="language-plaintext highlighter-rouge">with_post_commit</code> bucket type, we add that object
+to either the <code class="language-plaintext highlighter-rouge">precommit</code> or <code class="language-plaintext highlighter-rouge">postcommit</code> list in the bucket type’s
+properties. Pre- and post-commit hooks are stored in lists named
+<code class="language-plaintext highlighter-rouge">precommit</code> and <code class="language-plaintext highlighter-rouge">postcommit</code>, respectively. Let’s add the hook we
+specified above to the <code class="language-plaintext highlighter-rouge">postcommit</code> property when we create our bucket
+type:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create with_post_commit <span class="se">\</span>
+  <span class="s1">'{"props":{"postcommit":["my_post_commit_hook"]}'</span>
+</code></pre></div></div>
+
+<p>Once our bucket type has been created, we must activate it so that it
+will be usable through our Riak cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type activate with_post_commit
+</code></pre></div></div>
+
+<p>If the response is <code class="language-plaintext highlighter-rouge">with_post_commit has been activated</code>, then the
+bucket type is ready for use.</p>
+
+<h2 id="pre-commit-hooks">Pre-Commit Hooks</h2>
+
+<p>Pre-commit hook Erlang functions should take a single argument, the
+Riak object being modified. Remember that deletes are also considered
+“writes,” and so pre-commit hooks will be fired when a delete occurs in
+the bucket as well. This means that hook functions will need to inspect
+the object for the <code class="language-plaintext highlighter-rouge">X-Riak-Deleted</code> metadata entry (more on this in our
+documentation on <a href="/riak/kv/2.1.4/using/reference/object-deletion">object deletion</a>) to determine whether a delete is
+occurring.</p>
+
+<p>Erlang pre-commit functions are allowed three possible return values:</p>
+
+<ul>
+  <li>A Riak object — This can either be the same object passed to the function or an updated version of the object. This allows hooks to modify the object before they are written.</li>
+  <li><code class="language-plaintext highlighter-rouge">fail</code> — The atom <code class="language-plaintext highlighter-rouge">fail</code> will cause Riak to fail the write and send a 403 Forbidden error response (in the <a href="/riak/kv/2.1.4/developing/api/http">HTTP API</a>) along with a generic error message about why the write was blocked.</li>
+  <li><code class="language-plaintext highlighter-rouge">{fail, Reason}</code> — The tuple <code class="language-plaintext highlighter-rouge">{fail, Reason}</code> will cause the same behavior as in the case above, but with the addition of <code class="language-plaintext highlighter-rouge">Reason</code> used as the error text.</li>
+</ul>
+
+<p>Errors that occur when processing Erlang pre-commit hooks will be
+reported in the <code class="language-plaintext highlighter-rouge">sasl-error.log</code> file with lines that start with
+<code class="language-plaintext highlighter-rouge">problem invoking hook</code>.</p>
+
+<h4 id="object-size-example">Object Size Example</h4>
+
+<p>This Erlang pre-commit hook will limit object values to 5 MB or smaller:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">precommit_limit_size</span><span class="p">(</span><span class="nv">Object</span><span class="p">)</span> <span class="o">-&gt;</span>
+  <span class="k">case</span> <span class="nn">erlang</span><span class="p">:</span><span class="nb">byte_size</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">Object</span><span class="p">))</span> <span class="k">of</span>
+    <span class="nv">Size</span> <span class="k">when</span> <span class="nv">Size</span> <span class="o">&gt;</span> <span class="mi">5242880</span> <span class="o">-&gt;</span> <span class="p">{</span><span class="n">fail</span><span class="p">,</span> <span class="s">"Object is larger than 5MB."</span><span class="p">};</span>
+    <span class="p">_</span> <span class="o">-&gt;</span> <span class="nv">Object</span>
+  <span class="k">end</span><span class="p">.</span>
+</code></pre></div></div>
+
+<p>The Erlang function <code class="language-plaintext highlighter-rouge">precommit_limit_size</code> takes the Riak object
+(<code class="language-plaintext highlighter-rouge">Object</code>) as its input and runs a pattern-matching operation on the
+object. If the <a href="http://www.erlang.org/doc/man/erlang.html#byte_size-1"><code class="language-plaintext highlighter-rouge">erlang:byte_size</code></a>
+function determines that the object’s size (determined by the <code class="language-plaintext highlighter-rouge">riak_object:get_value</code>
+function) is greater than 5,242,880 (5 MB in bytes), then the commit
+will return failure and the message <code class="language-plaintext highlighter-rouge">Object size is larger than 5 MB</code>.
+This will stop the write. If the object is not larger than 5 MB, Riak
+will return the object and allow the write to proceed.</p>
+
+<h3 id="chaining">Chaining</h3>
+
+<p>The default value of the bucket type’s <code class="language-plaintext highlighter-rouge">precommit</code> property is an empty
+list, meaning that no pre-commit hooks are specified by default. Adding
+one or more pre-commit hook functions to this list, as documented above,
+will cause Riak to start evaluating those hook functions when bucket
+entries are created, updated, or deleted. Riak stops evaluating
+pre-commit hooks when a hook function fails the commit.</p>
+
+<h4 id="json-validation-example">JSON Validation Example</h4>
+
+<p>Pre-commit hooks can be used in many ways in Riak. One such way to use
+pre-commmit hooks is to validate data before it is written to Riak.
+Below is an example that uses Javascript to validate a JSON object
+before it is written to Riak.</p>
+
+<p>Below is a sample JSON object that will be evaluated by the hook:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"user_info"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Mark Phillips"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"age"</span><span class="p">:</span><span class="w"> </span><span class="s2">"25"</span><span class="w">
+  </span><span class="p">},</span><span class="w">
+  </span><span class="nl">"session_info"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">3254425</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"items"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">29</span><span class="p">,</span><span class="w"> </span><span class="mi">37</span><span class="p">,</span><span class="w"> </span><span class="mi">34</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>The following hook will validate the JSON object:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">validate</span><span class="p">(</span><span class="nv">Object</span><span class="p">)</span> <span class="o">-&gt;</span>
+  <span class="k">try</span>
+    <span class="nn">mochijson2</span><span class="p">:</span><span class="nf">decode</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">Object</span><span class="p">)),</span>
+    <span class="nv">Object</span>
+  <span class="k">catch</span>
+    <span class="nn">throw</span><span class="p">:</span><span class="n">invalid_utf8</span> <span class="o">-&gt;</span>
+      <span class="p">{</span><span class="n">fail</span><span class="p">,</span> <span class="s">"Invalid JSON: Illegal UTF-8 character"</span><span class="p">};</span>
+    <span class="nn">error</span><span class="p">:</span><span class="nv">Error</span> <span class="o">-&gt;</span>
+      <span class="p">{</span><span class="n">fail</span><span class="p">,</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">flatten</span><span class="p">(</span><span class="nn">io_lib</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"Invalid JSON: </span><span class="si">~p</span><span class="s">"</span><span class="p">,[</span><span class="nv">Error</span><span class="p">]))}</span>
+  <span class="k">end</span><span class="p">.</span>
+</code></pre></div></div>
+
+<p><strong>Note</strong>: All pre-commit hook functions are executed for each create and update operation.</p>
+
+<h2 id="post-commit-hooks">Post-Commit Hooks</h2>
+
+<p>Post-commit hooks are run after a write has completed successfully. More
+specifically, the hook function is called immediately before the calling
+process is notified of the successful write.</p>
+
+<p>Hook functions must accept a single argument: the object instance just
+written. The return value of the function is ignored. As with pre-commit
+hooks, deletes are considered writes, so post-commit hook functions will
+need to inspect the object’s metadata for the presence of <code class="language-plaintext highlighter-rouge">X-Riak-Deleted</code>
+to determine whether a delete has occurred. As with pre-commit hooks,
+errors that occur when processing post-commit hooks will be reported in
+the <code class="language-plaintext highlighter-rouge">sasl-error.log</code> file with lines that start with <code class="language-plaintext highlighter-rouge">problem invoking hook</code>.</p>
+
+<h4 id="example">Example</h4>
+
+<p>The following post-commit hook creates a secondary index on the <code class="language-plaintext highlighter-rouge">email</code>
+field of a JSON object:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">postcommit_index_on_email</span><span class="p">(</span><span class="nv">Object</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="c">%% Determine the target bucket name
+</span>    <span class="nv">Bucket</span> <span class="o">=</span> <span class="nn">erlang</span><span class="p">:</span><span class="nb">iolist_to_binary</span><span class="p">([</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">bucket</span><span class="p">(</span><span class="nv">Object</span><span class="p">),</span><span class="s">"_by_email"</span><span class="p">]),</span>
+
+    <span class="c">%% Decode the JSON body of the object
+</span>    <span class="p">{</span><span class="n">struct</span><span class="p">,</span> <span class="nv">Properties</span><span class="p">}</span> <span class="o">=</span> <span class="nn">mochijson2</span><span class="p">:</span><span class="nf">decode</span><span class="p">(</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">Object</span><span class="p">)),</span>
+
+    <span class="c">%% Extract the email field
+</span>    <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"email"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="nv">Key</span><span class="p">}</span> <span class="o">=</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">keyfind</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"email"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="nv">Properties</span><span class="p">),</span>
+
+    <span class="c">%% Create a new object for the target bucket
+</span>    <span class="c">%% NOTE: This doesn't handle the case where the
+</span>    <span class="c">%%       index object already exists!
+</span>    <span class="nv">IndexObj</span> <span class="o">=</span> <span class="nn">riak_object</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span>
+        <span class="nv">Bucket</span><span class="p">,</span> <span class="nv">Key</span><span class="p">,</span> <span class="o">&lt;&lt;&gt;&gt;</span><span class="p">,</span> <span class="c">%% no object contents
+</span>            <span class="nn">dict</span><span class="p">:</span><span class="nf">from_list</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"content-type"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="s">"text/plain"</span><span class="p">},</span>
+                    <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"Links"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                        <span class="p">[</span>
+                            <span class="p">{</span>
+                                <span class="p">{</span><span class="nn">riak_object</span><span class="p">:</span><span class="nf">bucket</span><span class="p">(</span><span class="nv">Object</span><span class="p">),</span> <span class="nn">riak_object</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">Object</span><span class="p">)},</span>
+                                <span class="o">&lt;&lt;</span><span class="s">"indexed"</span><span class="o">&gt;&gt;</span>
+                            <span class="p">}]}</span>
+                        <span class="p">]</span>
+            <span class="p">)</span>
+    <span class="p">),</span>
+
+    <span class="c">%% Get a riak client
+</span>    <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">C</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riak</span><span class="p">:</span><span class="nf">local_client</span><span class="p">(),</span>
+
+    <span class="c">%% Store the object
+</span>    <span class="nv">C</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">IndexObj</span><span class="p">).</span>
+</code></pre></div></div>
+
+<h3 id="chaining-1">Chaining</h3>
+
+<p>The default value of the bucket <code class="language-plaintext highlighter-rouge">postcommit</code> property is an empty list,
+meaning that no post-commit hooks are specified by default. Adding one
+or more post-commit hook functions to the list, as documented above,
+will cause Riak to start evaluating those hook functions immediately
+after data has been created, updated, or deleted. Each post-commit hook
+function runs in a separate process so it’s possible for several hook
+functions, triggered by the same update, to execute in parallel.</p>
+
+<p><strong>Note</strong>: All post-commit hook functions are executed for each create,
+update, or delete.</p>

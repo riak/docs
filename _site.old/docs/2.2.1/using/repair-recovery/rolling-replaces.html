@@ -1,0 +1,47 @@
+
+<p>Riak KV functions as a multi-node system, so cluster-level <a href="/riak/kv/2.2.1/setup/upgrading/cluster/">version upgrades</a> and <a href="/riak/kv/2.2.1/using/repair-recovery/rolling-restart/">restarts</a> can be performed on a node-by-node or <em>rolling</em> basis.</p>
+
+<p>The following steps should be undertaken on each Riak KV node that you wish to replace:</p>
+
+<p>1. Create a free node:</p>
+
+<p>a. <a href="/riak/kv/2.2.1/using/cluster-operations/adding-removing-nodes">Create an additional node</a> with similar specifications to the other nodes in the cluster.</p>
+
+<p>b. Or leave a node that is currently in the cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  riak-admin cluster leave »nodename«
+</code></pre></div></div>
+
+<p>After creating a node or leaving a node, wait for all transfers to complete:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  riak-admin transfers
+</code></pre></div></div>
+
+<p>2. Join the free node to your cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster <span class="nb">join</span> »free_node«
+</code></pre></div></div>
+
+<p>3. Next, replace the free node with an existing node:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster replace »free_node« »nodename«
+</code></pre></div></div>
+
+<p>4. Then review the cluster transition plan:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster plan
+</code></pre></div></div>
+
+<p>5. And commit the changes:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster commit
+</code></pre></div></div>
+
+<p>6. Wait for all transfers to complete:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>
+
+<p>7. Repeat steps 2-6 above until each node has been replaced.</p>
+
+<p>8. Join the replaced node back into the cluster or decommission the additional node that was created.</p>

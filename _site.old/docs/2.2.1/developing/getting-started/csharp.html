@@ -1,0 +1,59 @@
+<p>If you haven’t set up a Riak Node and started it, please visit <a href="/riak/kv/2.2.1/using/running-a-cluster">Running A Cluster</a> first.</p>
+
+<p>To try this flavor of Riak, a working installation of the .NET Framework or Mono is required.</p>
+
+<h3 id="client-setup">Client Setup</h3>
+
+<p>Install <a href="https://github.com/basho/riak-dotnet-client/wiki/Installation">the Riak .NET Client</a> through <a href="http://nuget.org/packages/RiakClient">NuGet</a> or the Visual Studio NuGet package manager.</p>
+
+<p>By default, the Riak .NET Client will add a section to your <code class="language-plaintext highlighter-rouge">app.config</code> file
+for a four node local cluster. If you are using a remote cluster, open up
+<code class="language-plaintext highlighter-rouge">app.config</code> and change the <code class="language-plaintext highlighter-rouge">hostAddress</code> values to point to nodes in your
+remote cluster.</p>
+
+<h3 id="connecting-to-riak">Connecting to Riak</h3>
+
+<p>Connecting to Riak with the Riak .NET Client requires creating a cluster object and then creating a new client object.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+<span class="k">using</span> <span class="nn">RiakClient</span><span class="p">;</span>
+
+<span class="k">namespace</span> <span class="nn">TasteOfRiak</span>
+<span class="p">{</span>
+    <span class="k">class</span> <span class="nc">Program</span>
+    <span class="p">{</span>
+        <span class="k">static</span> <span class="k">void</span> <span class="nf">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span> <span class="n">args</span><span class="p">)</span>
+        <span class="p">{</span>
+          <span class="c1">// don't worry, we'll use this string later</span>
+          <span class="k">const</span> <span class="kt">string</span> <span class="n">contributors</span> <span class="p">=</span> <span class="s">"contributors"</span><span class="p">;</span>
+            <span class="n">IRiakEndpoint</span> <span class="n">cluster</span> <span class="p">=</span> <span class="n">RiakCluster</span><span class="p">.</span><span class="nf">FromConfig</span><span class="p">(</span><span class="s">"riakConfig"</span><span class="p">);</span>
+            <span class="n">IRiakClient</span> <span class="n">client</span> <span class="p">=</span> <span class="n">cluster</span><span class="p">.</span><span class="nf">CreateClient</span><span class="p">();</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>This creates a new <code class="language-plaintext highlighter-rouge">RiakCluster</code> which is used to create a new <code class="language-plaintext highlighter-rouge">RiakClient</code>. A <code class="language-plaintext highlighter-rouge">RiakCluster</code> object handles all the details of tracking active nodes and also provides load balancing. The <code class="language-plaintext highlighter-rouge">RiakClient</code> is used to send commands to Riak. <em>Note:</em> the <code class="language-plaintext highlighter-rouge">IRiakEndpoint</code> object implements <code class="language-plaintext highlighter-rouge">IDisposable</code> and should be correctly disposed when you’re done communicating with Riak.</p>
+
+<p>Let’s make sure the cluster is online. Add this to your <code class="language-plaintext highlighter-rouge">Main</code> method:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">pingResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Ping</span><span class="p">();</span>
+
+<span class="k">if</span> <span class="p">(</span><span class="n">pingResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"pong"</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">else</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Are you sure Riak is running?"</span><span class="p">);</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"{0}: {1}"</span><span class="p">,</span> <span class="n">pingResult</span><span class="p">.</span><span class="n">ResultCode</span><span class="p">,</span> <span class="n">pingResult</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>This is some simple code to test that a node in a Riak cluster is online - we send a simple ping message. Even if the cluster isn’t present, the Riak .NET Client will return a response message. It’s important to check that your activity was successful by using the <code class="language-plaintext highlighter-rouge">IsSuccess</code> property and then checking any errors and result codes.</p>
+
+<p>We are now ready to start interacting with Riak.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p><a href="/riak/kv/2.2.1/developing/getting-started/csharp/crud-operations">CRUD Operations</a></p>

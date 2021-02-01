@@ -1,0 +1,703 @@
+
+<blockquote>
+  <p><strong>Please Note:</strong></p>
+
+  <p>Riak KV’s strong consistency is an experimental feature and may be removed from the product in the future. Strong consistency is not commercially supported or production-ready. Strong consistency is incompatible with Multi-Datacenter Replication, Riak Search, Bitcask Expiration, LevelDB Secondary Indexes, Riak Data Types and Commit Hooks. We do not recommend its usage in any production environment.</p>
+</blockquote>
+
+<p>This document provides information on configuring and monitoring a Riak
+cluster’s optional strong consistency subsystem. Documentation for
+developers building applications using Riak’s strong consistency feature
+can be found in <a href="/riak/kv/2.2.3/developing/app-guide/strong-consistency">Using Strong Consistency</a>, while a more theoretical
+treatment can be found in <a href="/riak/kv/2.2.3/using/reference/strong-consistency">Strong Consistency</a>.</p>
+
+<h2 id="minimum-cluster-size">Minimum Cluster Size</h2>
+
+<p>In order to use strong consistency in Riak, <strong>your cluster must consist
+of at least three nodes</strong>. If it does not, all strongly consistent
+operations will fail. If your cluster is smaller than three nodes, you
+will need to <a href="/riak/kv/2.2.3/using/cluster-operations/adding-removing-nodes">add more nodes</a> and make sure
+that strong consistency is <a href="#enabling-strong-consistency">enabled</a> on all of them.</p>
+
+<p>Strongly consistent operations on a given key may also fail if a
+majority of object replicas in a given ensemble are unavailable, whether
+due to slowness, crashes, or network partitions. This means that you may
+see strongly consistent operations fail even if the minimum cluster size
+requirement has been met. More information on ensembles can be found in
+<a href="#implementation-details">Implementation Details</a>.</p>
+
+<p>While strong consistency requires at least three nodes, we have a
+variety of recommendations regarding cluster size, which can be found in
+<a href="#fault-tolerance">Fault Tolerance</a>.</p>
+
+<h2 id="enabling-strong-consistency">Enabling Strong Consistency</h2>
+
+<p>Strong consistency in Riak is disabled by default. You can enable it in
+each node’s <a href="/riak/kv/2.2.3/configuring/reference/#strong-consistency">configuration files</a>.</p>
+
+<pre><code class="language-riakconf">strong_consistency = on
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the older, app.config-based system, the strong consistency
+%% parameter is enable_consensus:
+
+{riak_core, [
+    % ...
+    {enable_consensus, true},
+    % ...
+    ]}
+</code></pre>
+
+<p>Remember that you must <a href="/riak/kv/2.2.3/using/admin/riak-cli">restart your node</a> for
+configuration changes to take effect.</p>
+
+<p>For strong consistency requirements to be applied to specific keys,
+those keys must be in <a href="/riak/kv/2.2.3/learn/concepts/buckets">buckets</a> bearing a bucket type with the
+<code class="language-plaintext highlighter-rouge">consistent</code> property set to <code class="language-plaintext highlighter-rouge">true</code>. More information can be found in
+<a href="/riak/kv/2.2.3/using/cluster-operations/bucket-types">Using Bucket Types</a>.</p>
+
+<p>If you enable strong consistency on all nodes in a cluster with fewer
+than three nodes, strong consistency will be <strong>enabled</strong> but not yet
+<strong>active</strong>. Strongly consistent operations are not possible in this
+state. Once at least three nodes with strong consistency enabled are
+detected in the cluster, the system will be activated and ready for use.
+You can check on the status of the strong consistency subsystem using
+the <a href="/riak/kv/2.2.3/using/admin/riak-admin/#riak-admin-ensemble-status"><code class="language-plaintext highlighter-rouge">riak-admin ensemble-status</code></a> command.</p>
+
+<h2 id="fault-tolerance">Fault Tolerance</h2>
+
+<p>Strongly consistent operations in Riak are necessarily less highly
+available than <a href="/riak/kv/2.2.3/learn/concepts/eventual-consistency">eventually consistent</a> operations
+because strongly consistent operations can only succeed if a <strong>quorum</strong>
+of object replicas are currently reachable. A quorum can be expressed as
+N / 2 + 1 (or <code class="language-plaintext highlighter-rouge">n_val</code> / 2 + 1), meaning that 3 replicas constitutes a
+quorum if N=5, 4 replicas if N=7, etc. If N=7 and 4 replicas are
+unavailable, for example, no strongly consistent operations on that
+object can succeed.</p>
+
+<p>While Riak uses N=3 by default, bear in mind that <strong>higher values of N
+will allow for more fault tolerance</strong>. The table below shows the number
+of allowable missing replicas for assorted values of N:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Replicas</th>
+      <th style="text-align: left">Allowable missing replicas</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">3</td>
+      <td style="text-align: left">1</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">5</td>
+      <td style="text-align: left">2</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">7</td>
+      <td style="text-align: left">3</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">9</td>
+      <td style="text-align: left">4</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">15</td>
+      <td style="text-align: left">7</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Thus, we recommend setting <code class="language-plaintext highlighter-rouge">n_val</code> higher than the default of 3 for
+strongly consistent operations. More on <code class="language-plaintext highlighter-rouge">n_val</code> in the section below.</p>
+
+<h3 id="n_val-recommendations">n_val Recommendations</h3>
+
+<p>Due to the quorum requirements explained above, we recommend that you
+use <em>at least</em> N=5 for strongly consistent data. You can set the value
+of N, i.e. <code class="language-plaintext highlighter-rouge">n_val</code>, for buckets
+<a href="/riak/kv/2.2.3/using/cluster-operations/bucket-types">using bucket types</a>. For example, you
+can create and activate a bucket type with N set to 5 and strong
+consistency enabled—we’ll call the bucket type
+<code class="language-plaintext highlighter-rouge">consistent_and_fault_tolerant</code>—using the following series of
+<a href="/riak/kv/2.2.3/using/admin/riak-admin">commands</a>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create consistent_and_fault_tolerant <span class="se">\</span>
+  <span class="s1">'{"props": {"consistent":true,"n_val":5}}'</span>
+riak-admin bucket-type activate consistent_and_fault_tolerant
+</code></pre></div></div>
+
+<p>If the <code class="language-plaintext highlighter-rouge">activate</code> command outputs <code class="language-plaintext highlighter-rouge">consistent_and_fault_tolerant has
+been activated</code>, the bucket type is now ready to provide strong
+consistency guarantees.</p>
+
+<h4 id="setting-the-target_n_val-parameter">Setting the target_n_val parameter</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">target_n_val</code> parameter sets the highest <code class="language-plaintext highlighter-rouge">n_val</code> that you intend to
+use in an entire cluster. The purpose of this parameter is to ensure
+that so-called “hot spots” don’t occur, i.e. that data is never stored
+more than once on the same physical node. This can happen when:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">target_n_val</code> is greater than the number of physical nodes, or</li>
+  <li>the <code class="language-plaintext highlighter-rouge">n_val</code> for a bucket is greater than <code class="language-plaintext highlighter-rouge">target_n_val</code>.</li>
+</ul>
+
+<p>A problem to be aware of if you’re using strong consistency is that the
+default for <code class="language-plaintext highlighter-rouge">target_n_val</code> is 4, while our suggested minimum <code class="language-plaintext highlighter-rouge">n_val</code> for
+strongly consistent bucket types is 5. This means that you will need to
+raise <code class="language-plaintext highlighter-rouge">target_n_val</code> if you intend to use an <code class="language-plaintext highlighter-rouge">n_val</code> over 4 for <em>any</em>
+bucket type in your cluster. If you anticipate using an <code class="language-plaintext highlighter-rouge">n_val</code> of 7 as
+the largest <code class="language-plaintext highlighter-rouge">n_val</code> within your cluster, for example, you will need to
+set <code class="language-plaintext highlighter-rouge">target_n_val</code> to 7.</p>
+
+<p>This setting is not contained in <code class="language-plaintext highlighter-rouge">riak.conf</code>, and must instead be set in
+the <code class="language-plaintext highlighter-rouge">advanced.config</code> file. For more information, see our documentation
+on <a href="/riak/kv/2.2.3/configuring/reference/#advanced-configuration">advanced configuration</a>.</p>
+
+<p>If you are using strong consistency in a cluster that has already been
+created with a <code class="language-plaintext highlighter-rouge">target_n_val</code> that is too low (remember that the default
+is too low), you will need to raise it to the desired higher value and
+restart each node.</p>
+
+<h4 id="note-on-bucket-properties">Note on Bucket Properties</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">consistent</code> bucket property is one of two bucket properties,
+alongside <a href="/riak/kv/2.2.3/using/cluster-operations/bucket-types"><code class="language-plaintext highlighter-rouge">datatype</code></a>, that cannot be changed once a
+bucket type has been created.</p>
+
+<p>Furthermore, if <code class="language-plaintext highlighter-rouge">consistent</code> is set to <code class="language-plaintext highlighter-rouge">true</code> for a bucket type, you
+cannot change the <code class="language-plaintext highlighter-rouge">n_val</code> for the bucket type once it’s been created. If
+you attempt to do so, you’ll see the following error:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Error updating bucket &lt;bucket_type_name&gt;:
+n_val cannot be modified for existing consistent type
+</code></pre></div></div>
+
+<p>If you’ve created a bucket type with a specific <code class="language-plaintext highlighter-rouge">n_val</code> and wish to
+change it, you will need to create a new bucket type with the
+appropriate <code class="language-plaintext highlighter-rouge">n_val</code> and use the new bucket type instead.</p>
+
+<h3 id="fault-tolerance-and-cluster-size">Fault Tolerance and Cluster Size</h3>
+
+<p>From the standpoint of strongly consistent operations, larger clusters
+tend to be more fault tolerant. Spreading ensembles across more nodes will decrease the number of ensembles active on each node and thus decrease the number of quorums affected when a node goes down.</p>
+
+<p>Imagine a 3-node cluster in which all ensembles are N=3 ensembles. If
+two nodes go down, <em>all</em> ensembles will lose quorum and will be unable
+to function. Strongly consistent operations on the entire keyspace will
+fail until at least one node is brought back online. And even when that
+one node is brought back online, a significant portion of the keyspace
+will continue to be unavailable for strongly consistent operations.</p>
+
+<p>For the sake of contrast, imagine a 50-node cluster in which all
+ensembles are N=5 (i.e. all objects are replicated to five nodes).  In
+this cluster, each node is involved in only 10% of the total ensembles;
+if a single node fails, that failure will thus impact only 10% of
+ensembles. In addition, because N is set to 5, that will not impact
+quorum for <em>any</em> ensemble in the cluster; two additional node failures
+would need to occur for quorum to be lost for <em>any</em> ensemble.  And even
+in the case of three nodes failing, it is highly unlikely that that
+failure would impact the same ensembles; if it did, only those ensembles
+would become unavailable, affecting only 10% of the key space, as
+opposed to 100% in the example of a 3-node cluster consisting of N=3
+ensembles.</p>
+
+<p>These examples illustrate why we recommend higher values for N—again,
+at least N=5—as well as clusters with many nodes. The 50-node cluster
+example above is used only to illustrate why larger clusters are more
+fault tolerant. The definition of “many” nodes will vary according to your needs.
+For recommendations regarding cluster size, see <a href="/riak/kv/2.2.3/setup/planning/cluster-capacity">Cluster Capacity Planning</a>.</p>
+
+<h3 id="offline-node-recommendations">Offline Node Recommendations</h3>
+
+<p>In general, strongly consistent Riak is more sensitive to the number of
+nodes in the cluster than eventually consistent Riak, due to the quorum
+requirements described above. While Riak is designed to withstand a
+variety of failure scenarios that make nodes in the cluster unreachable,
+such as hardware or network failure, <strong>we nonetheless recommend that you
+limit the number of nodes that you intentionally down or reboot</strong>.
+Having multiple nodes leave the cluster at once can threaten quorum and
+thus affect the viability of some or all strongly consistent operations,
+depending on the size of the cluster.</p>
+
+<p>If you’re using strong consistency and you do need to reboot multiple
+nodes, we recommend rebooting them very carefully. Rebooting nodes too
+quickly in succession can force the cluster to lose quorum and thus be
+unable to service strongly consistent operations. The best strategy is
+to reboot nodes one at a time and wait for each node to rejoin existing
+<a href="/riak/kv/2.2.3/using/cluster-operations/strong-consistency">ensembles</a> before
+continuing to the next node. At any point in time, the state of
+currently existing ensembles can be checked using [<code class="language-plaintext highlighter-rouge">riak-admin ensemble-status</code>][admin riak-admin#ensemble].</p>
+
+<h2 id="performance">Performance</h2>
+
+<p>If you run into performance issues, bear in mind that the key space in a
+Riak cluster is spread across multiple <a href="/riak/kv/2.2.3/using/cluster-operations/strong-consistency">consensus groups</a>, each of which manages a portion of
+that key space. Larger [ring sizes][concept clusters] allow more
+independent consensus groups to exist in a cluster, which can provide
+for more concurrency and higher throughput, and thus better performance.
+The ideal ring size, however, will also depend on the number of nodes in
+the cluster. General recommendations can be found in <a href="/riak/kv/2.2.3/setup/planning/cluster-capacity">Cluster Capacity Planning</a>.</p>
+
+<p>Adding nodes to your cluster is another means of enhancing the
+performance of strongly consistent operations. Instructions on doing so
+can be found in <a href="/riak/kv/2.2.3/using/cluster-operations/adding-removing-nodes">Adding and Removing Nodes</a>.</p>
+
+<p>Your cluster’s configuration can also affect strong consistency
+performance. See the section on <a href="/riak/kv/2.2.3/configuring/reference/#strong-consistency">configuration</a> below.</p>
+
+<h2 id="riak-admin-ensemble-status">riak-admin ensemble-status</h2>
+
+<p>The <a href="/riak/kv/2.2.3/using/admin/riak-admin"><code class="language-plaintext highlighter-rouge">riak-admin</code></a> interface
+used for general node/cluster management has an <code class="language-plaintext highlighter-rouge">ensemble-status</code>
+command that provides insight into the current status of the consensus
+subsystem undergirding strong consistency.</p>
+
+<p>Running the command by itself will provide the current state of the
+subsystem:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin ensemble-status
+</code></pre></div></div>
+
+<p>If strong consistency is not currently enabled, you will see <code class="language-plaintext highlighter-rouge">Note: The
+consensus subsystem is not enabled.</code> in the output of the command; if
+strong consistency is enabled, you will see output like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>============================== Consensus System ===============================
+Enabled:     true
+Active:      true
+Ring Ready:  true
+Validation:  strong (trusted majority required)
+Metadata:    best-effort replication (asynchronous)
+
+================================== Ensembles ==================================
+ Ensemble     Quorum        Nodes      Leader
+-------------------------------------------------------------------------------
+   root       4 / 4         4 / 4      riak@riak1
+    2         3 / 3         3 / 3      riak@riak2
+    3         3 / 3         3 / 3      riak@riak4
+    4         3 / 3         3 / 3      riak@riak1
+    5         3 / 3         3 / 3      riak@riak2
+    6         3 / 3         3 / 3      riak@riak2
+    7         3 / 3         3 / 3      riak@riak4
+    8         3 / 3         3 / 3      riak@riak4
+</code></pre></div></div>
+
+<h3 id="interpreting-ensemble-status-output">Interpreting ensemble-status Output</h3>
+
+<p>The following table provides a guide to <code class="language-plaintext highlighter-rouge">ensemble-status</code> output:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Item</th>
+      <th style="text-align: left">Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Enabled</code></td>
+      <td style="text-align: left">Whether the consensus subsystem is enabled on the current node, i.e. whether the <code class="language-plaintext highlighter-rouge">strong_consistency</code> parameter in <a href="/riak/kv/2.2.3/configuring/reference/#strong-consistency"><code class="language-plaintext highlighter-rouge">riak.conf</code></a> has been set to <code class="language-plaintext highlighter-rouge">on</code>. If this reads <code class="language-plaintext highlighter-rouge">off</code> and you wish to enable strong consistency, see our documentation on <a href="http://docs.basho.com/riak/kv/2.2.3/configuring/reference/#strong-consistency">enabling strong consistency</a>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Active</code></td>
+      <td style="text-align: left">Whether the consensus subsystem is active, i.e. whether there are enough nodes in the cluster to use strong consistency, which requires at least three nodes.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Ring Ready</code></td>
+      <td style="text-align: left">If <code class="language-plaintext highlighter-rouge">true</code>, then all of the <a href="/riak/kv/2.2.3/learn/glossary/#vnode">vnodes</a> in the cluster have seen the current <a href="http://docs.basho.com/riak/kv/2.2.3/learn/concepts/clusters/#the-ring">ring</a>, which means that the strong consistency subsystem can be used; if <code class="language-plaintext highlighter-rouge">false</code>, then the system is not yet ready. If you have recently added or removed one or more nodes to/from the cluster, it may take some time for <code class="language-plaintext highlighter-rouge">Ring Ready</code> to change.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Validation</code></td>
+      <td style="text-align: left">This will display <code class="language-plaintext highlighter-rouge">strong</code> if the <code class="language-plaintext highlighter-rouge">tree_validation</code> setting in <code><a href="http://docs.basho.com/riak/kv/2.2.3/configuring/reference/#strong-consistency">riak.conf</a></code> has been set to <code class="language-plaintext highlighter-rouge">on</code> and <code class="language-plaintext highlighter-rouge">weak</code> if set to <code class="language-plaintext highlighter-rouge">off</code>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Metadata</code></td>
+      <td style="text-align: left">This depends on the value of the <code class="language-plaintext highlighter-rouge">synchronous_tree_updates</code> setting in <code><a href="http://docs.basho.com/riak/kv/2.2.3/configuring/reference/#strong-consistency">riak.conf</a></code>, which determines whether strong consistency-related Merkle trees are updated synchronously or asynchronously. If <code class="language-plaintext highlighter-rouge">best-effort replication (asynchronous)</code>, then <code class="language-plaintext highlighter-rouge">synchronous_tree_updates</code> is set to <code class="language-plaintext highlighter-rouge">false</code>; if <code class="language-plaintext highlighter-rouge">guaranteed replication (synchronous)</code> then <code class="language-plaintext highlighter-rouge">synchronous_tree_updates</code> is set to <code class="language-plaintext highlighter-rouge">true</code>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Ensembles</code></td>
+      <td style="text-align: left">This displays a list of all of the currently existing ensembles active in the cluster.<br />&lt;ul&gt;&lt;li&gt;<code>Ensemble</code> — The ID of the ensemble&lt;/li&gt;&lt;li&gt;<code>Quorum</code> — The number of ensemble peers that are either leading or following&lt;/li&gt;&lt;li&gt;<code>Nodes</code> — The number of nodes currently online&lt;/li&gt;&lt;li&gt;<code>Leader</code> — The current leader node for the ensemble&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Note</strong>: The <strong>root ensemble</strong>, designated by <code class="language-plaintext highlighter-rouge">root</code> in the sample
+output above, is a special ensemble that stores a list of nodes and
+ensembles in the cluster.</p>
+
+<p>More in-depth information on ensembles can be found in our <a href="https://github.com/basho/riak_ensemble/blob/develop/doc/Readme.md">internal
+documentation</a>.</p>
+
+<h3 id="inspecting-specific-ensembles">Inspecting Specific Ensembles</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">ensemble-status</code> command also enables you to directly inspect the
+status of specific ensembles in a cluster. The IDs for all current
+ensembles are displayed in the <code class="language-plaintext highlighter-rouge">Ensembles</code> section of the
+<code class="language-plaintext highlighter-rouge">ensemble-status</code> output described above.</p>
+
+<p>To inspect a specific ensemble, specify the ID:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin ensemble-status &lt;<span class="nb">id</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<p>The following would inspect ensemble 2:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin ensemble-status 2
+</code></pre></div></div>
+
+<p>Below is sample output for a single ensemble:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>================================= Ensemble #2 =================================
+Id:           {kv,0,3}
+Leader:       riak@riak2 (2)
+Leader ready: true
+
+==================================== Peers ====================================
+ Peer  Status     Trusted          Epoch         Node
+-------------------------------------------------------------------------------
+  1    following    yes             1            riak@riak1
+  2     leading     yes             1            riak@riak2
+  3    following    yes             1            riak@riak3
+</code></pre></div></div>
+
+<p>The table below provides a guide to the output:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Item</th>
+      <th style="text-align: left">Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td style="text-align: left">The ID for the ensemble used internally by Riak, expressed as a 3-tuple. All ensembles are <code class="language-plaintext highlighter-rouge">kv</code>; the second element names the ring partition for which the ensemble is responsible; and the third element is the <code class="language-plaintext highlighter-rouge">n_val</code> for the keys for which the ensemble is responsible.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Leader</code></td>
+      <td style="text-align: left">Identifies the ensemble’s leader. In this case, the leader is on node <code class="language-plaintext highlighter-rouge">riak@riak2</code> and is identified as peer <code class="language-plaintext highlighter-rouge">2</code> in the ensemble.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Leader ready</code></td>
+      <td style="text-align: left">States whether the ensemble’s leader is ready to respond to requests. If not, requests to the ensemble will fail.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Peers</code></td>
+      <td style="text-align: left">A list of peer <a href="/riak/kv/2.2.3/learn/glossary/#vnode">vnodes</a> associated with the ensemble.<br />&lt;ul&gt;&lt;li&gt;<code>Peer</code> — The ID of the peer&lt;/li&gt;&lt;li&gt;<code>Status</code> — Whether the peer is a leader or a follower&lt;/li&gt;&lt;li&gt;<code>Trusted</code> — Whether the peer’s Merkle tree is currently considered trusted or not&lt;/li&gt;&lt;li&gt;<code>Epoch</code> — The current consensus epoch for the peer. The epoch is incremented each time the leader changes.&lt;/li&gt;&lt;li&gt;<code>Node</code> — The node on which the peer resides.&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>More information on leaders, peers, Merkle trees, and other details can
+be found in <a href="#implementation-details">Implementation Details</a> below.</p>
+
+<h2 id="implementation-details">Implementation Details</h2>
+
+<p>Strong consistency in Riak is handled by a subsystem called
+<a href="https://github.com/basho/riak_ensemble/blob/develop/doc/Readme.md"><code class="language-plaintext highlighter-rouge">riak_ensemble</code></a>
+This system functions differently from other systems in Riak in a number
+of ways, and many of these differences are important to bear in mind for
+operators configuring their cluster’s usage of strong consistency.</p>
+
+<h3 id="basic-operations">Basic Operations</h3>
+
+<p>The first major difference is that strongly consistent Riak involves a
+different set of operations from <a href="/riak/kv/2.2.3/learn/concepts/eventual-consistency">eventually consistent</a> Riak KV. In strongly consistent buckets, there are four types
+of atomic operations on objects:</p>
+
+<ul>
+  <li><strong>Get</strong> operations work just as they do against
+non-strongly-consistent keys, but with two crucial differences:
+    <ol>
+      <li>Connecting clients are guaranteed to return the most recently
+written value (which makes those operations CP, i.e. consistent and
+partition tolerant)</li>
+      <li>Reads on strongly consistent keys <em>never</em> return siblings, hence
+there is no need to develop any sort of [conflict resolution][usage conflict resolution]
+strategy for those keys</li>
+    </ol>
+  </li>
+  <li><strong>Conditional put</strong> operations write an object only if no object
+currently exists in that key. The operation will fail if the key
+already exists; if the key was never written or has been deleted, the
+operation succeeds.</li>
+  <li><strong>Conditional modify</strong> operations are compare-and-swap (CAS)
+operations that succeed only if the value of a key has not changed
+since it was previously read.</li>
+  <li><strong>Delete</strong> operations work mostly like they do against
+non-strongly-consistent keys, with the exception that
+[tombstones][cluster ops obj deletion] are not harvested, which is
+the equivalent of having <code class="language-plaintext highlighter-rouge">delete_mode</code> set to <code class="language-plaintext highlighter-rouge">keep</code>.</li>
+</ul>
+
+<p><strong>From the standpoint of clients connecting to Riak, there is little
+difference between strongly and non-strongly consistent data</strong>. The
+operations performed on objects—reads, writes, deletes, etc.—are the
+same, which means that the client API for strong consistency is
+essentially the same as it is for eventually consistent operations, with
+the important exception of error handling.</p>
+
+<h3 id="ensembles">Ensembles</h3>
+
+<p>The main actors in Riak’s implementation of strong consistency are
+<strong>ensembles</strong>, which are independent groups that watch over a portion of
+a Riak cluster’s key space and coordinate strongly consistent operations
+across nodes. When watching over a given key space, ensembles must act
+upon multiple replicas of a given object, the number of which is
+specified by <code class="language-plaintext highlighter-rouge">n_val</code> (more on this in <a href="/riak/kv/2.2.3/developing/app-guide/replication-properties">Replication Properties</a>).</p>
+
+<p>Eventually consistent Riak can service requests even when only a single
+object replica is available, using mechanisms like <a href="/riak/kv/2.2.3/learn/concepts/causal-context">vector clocks</a> and <a href="/riak/kv/2.2.3/learn/concepts/causal-context">dotted version vectors</a>—or, in a different way, <a href="/riak/kv/2.2.3/developing/data-types">Riak Data Types</a>)—to ensure eventual consistency between replicas.  Strongly consistent Riak is different because it
+requires that a <strong>quorum</strong> of object replicas be online and reachable,
+where a quorum is defined as <code class="language-plaintext highlighter-rouge">n_val</code> / 2 + 1. <strong>If a quorum is not
+available for a key, all strongly consistent operations against that key
+will fail</strong>.</p>
+
+<p>More information can be found in the section on Fault Tolerance above.</p>
+
+<h3 id="peers-leaders-followers-and-workers">Peers, Leaders, Followers, and Workers</h3>
+
+<p>All ensembles in strongly consistent Riak consist of agents called
+<strong>peers</strong>. The number of peers in an ensemble is defined by the <code class="language-plaintext highlighter-rouge">n_val</code>
+of that ensemble, i.e. the number of object replicas that the
+ensemble watches over. Amongst the peers in the ensemble, there are two
+basic actors: <strong>leaders</strong> and <strong>followers</strong>.</p>
+
+<p>Leaders and followers coordinate with one another on most requests.
+While leaders and followers coordinate on all writes, i.e. all puts and
+deletes, you can enable leaders to respond to gets without the need to
+coordinate with followers. This is known as granting a <strong>leader lease</strong>.
+Leader leases are enabled by default, and are disabled (or re-enabled)
+at the cluster level. A more in-depth account of ensemble behavior can
+be found in our <a href="https://github.com/basho/riak_ensemble/tree/develop/doc">internal
+documentation</a>.</p>
+
+<p>In addition to leaders and followers, ensemble peers use lightweight
+Erlang processes called <strong>workers</strong> to perform long-running K/V
+operations, allowing peers to remain responsive to requests. The number
+of workers assigned to each peer depends on your configuration.</p>
+
+<p>These terms should be borne in mind in the sections on configuration
+below.</p>
+
+<h3 id="integrity-checking">Integrity Checking</h3>
+
+<p>An essential part of implementing a strong consistency subsystem in a
+distributed system is <strong>integrity checking</strong>, which is a process that
+guards against data corruption and inconsistency even in the face of
+network partitions and other adverse events that Riak was built to
+handle gracefully.</p>
+
+<p>Like Riak’s <a href="/riak/kv/2.2.3/learn/glossary/#active-anti-entropy-aae">active anti-entropy</a> subsystem, strong consistency
+integrity checking utilizes <a href="http://en.wikipedia.org/wiki/Merkle_tree">Merkle
+trees</a> that are persisted on
+disk. All peers in an ensemble, i.e. all leaders and followers, maintain
+their own Merkle trees and update those trees in the event of most
+strongly consistent operations. Those updates can occur synchronously or
+asynchronously from the standpoint of client operations, depending on
+the configuration that you specify.</p>
+
+<p>While integrity checking takes place automatically in Riak, there are
+important aspects of its behavior that you can configure. See the <a href="#merkle">Merkle Tree settings</a> section below for more
+information on configurable parameters.</p>
+
+<h2 id="configuring-strong-consistency">Configuring Strong Consistency</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak_ensemble</code> subsystem provides a wide variety of tunable
+parameters that you can adjust to fit the needs of your Riak cluster.
+All <code class="language-plaintext highlighter-rouge">riak_ensemble</code>-specific parameters, with the exception of the
+<code class="language-plaintext highlighter-rouge">strong_consistency</code> parameter used to <a href="#enabling-strong-consistency">enable strong consistency</a>,
+must be set in each node’s <code class="language-plaintext highlighter-rouge">advanced.config</code> file, <em>not</em> in <code class="language-plaintext highlighter-rouge">riak.conf</code>
+or <code class="language-plaintext highlighter-rouge">app.config</code>.</p>
+
+<p>Information on the syntax and usage of <code class="language-plaintext highlighter-rouge">advanced.config</code> can be found in
+our documentation on <a href="/riak/kv/2.2.3/configuring/reference/#advanced-configuration">advanced configuration</a>. That same document also contains a full
+listing of <a href="/riak/kv/2.2.3/configuring/reference/#strong-consistency">strong-consistency-related configuration parameters</a>.</p>
+
+<p>Please note that the sections below require a basic understanding of the
+following terms:</p>
+
+<ul>
+  <li>ensemble</li>
+  <li>peer</li>
+  <li>leader</li>
+  <li>follower</li>
+  <li>worker</li>
+  <li>integrity checking</li>
+  <li>Merkle tree</li>
+</ul>
+
+<p>For an explanation of these terms, see the <a href="#implementation-details">Implementation Details</a> section
+above.</p>
+
+<h4 id="leader-behavior">Leader Behavior</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">trust_lease</code> setting determines whether leader leases are used to
+optimize reads. When set to <code class="language-plaintext highlighter-rouge">true</code>, a leader with a valid lease can
+handle reads directly without needing to contact any followers. When
+<code class="language-plaintext highlighter-rouge">false</code>, the leader will always contact followers, which can lead to
+degraded read performance. The default is <code class="language-plaintext highlighter-rouge">true</code>. We recommend leaving
+leader leases enabled for performance reasons.</p>
+
+<p>All leaders have periodic duties that they perform, including refreshing
+the leader lease. You can determine how frequently this occurs, in
+milliseconds, using the <code class="language-plaintext highlighter-rouge">ensemble_tick</code> setting. The default is 500
+milliseconds. Please note that this setting must be lower than both
+the <code class="language-plaintext highlighter-rouge">lease_duration</code> and <code class="language-plaintext highlighter-rouge">follower_timeout</code> settings (both explained
+below).</p>
+
+<p>If you set <code class="language-plaintext highlighter-rouge">trust_lease</code> to <code class="language-plaintext highlighter-rouge">true</code>, you can also specify how long a
+leader lease remains valid without being refreshed using the
+<code class="language-plaintext highlighter-rouge">lease_duration</code> setting, which is specified in milliseconds. This
+setting should be higher than <code class="language-plaintext highlighter-rouge">ensemble_tick</code> to ensure that leaders
+have to time to refresh their leases before they time out, and it <em>must</em>
+be lower than <code class="language-plaintext highlighter-rouge">follower_timeout</code>, explained in the section below. The
+default is <code class="language-plaintext highlighter-rouge">ensemble_tick</code> * 3/2, i.e. if <code class="language-plaintext highlighter-rouge">ensemble_tick</code> is 400,
+<code class="language-plaintext highlighter-rouge">lease_duration</code> will default to 600.</p>
+
+<h4 id="worker-settings">Worker Settings</h4>
+
+<p>You can choose how many workers are assigned to each peer using the
+<code class="language-plaintext highlighter-rouge">peer_workers</code> setting. Workers are lightweight processes spawned by
+leaders and followers. While increasing the number of workers will make
+the strong consistency subsystem slightly more computationally
+expensive, more workers can mean improved performance in some cases,
+depending on the workload. The default is 1.</p>
+
+<h3 id="timeouts">Timeouts</h3>
+
+<p>You can establish timeouts for both reads and writes (puts and deletes)
+using the <code class="language-plaintext highlighter-rouge">peer_get_timeout</code> and <code class="language-plaintext highlighter-rouge">peer_put_timeout</code> settings,
+respectively. Both are expressed in milliseconds and default to 60000
+(1 minute).</p>
+
+<p>Longer timeouts will decrease the likelihood that read or write
+operations will fail due to long computation times; shorter timeouts
+entail shorter wait times for connecting clients, but at a higher risk
+of failed operations under heavy load.</p>
+
+<h3 id="merkle-tree-settings">Merkle Tree Settings</h3>
+<p><a name="merkle"></a></p>
+
+<p>Leaders and followers in Riak’s strong consistency system maintain
+persistent <a href="http://en.wikipedia.org/wiki/Merkle_tree">Merkle trees</a> for
+all data stored by that peer. More information can be found in the
+<strong>Integrity Checking</strong> section above. The two sections directly below
+describe Merkle-tree-related parameters.</p>
+
+<h4 id="tree-validation">Tree Validation</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">tree_validation</code> parameter determines whether Riak considers Merkle
+trees to be trusted after peers are restarted (for whatever reason).
+When enabled, i.e. when <code class="language-plaintext highlighter-rouge">tree_validation</code> is set to <code class="language-plaintext highlighter-rouge">true</code> (the
+default), Riak does not trust peer trees after a restart, instead
+requiring the peer to sync with a trusted quorum. While this is the
+safest mode because it protects Riak against silent corruption in Merkle
+trees, it carries the drawback that it can reduce Riak availability by
+requiring more than a simple majority of nodes to be online and
+reachable when peers restart.</p>
+
+<p>If you are using ensembles with N=3, we strongly recommend setting
+<code class="language-plaintext highlighter-rouge">tree_validation</code> to <code class="language-plaintext highlighter-rouge">false</code>.</p>
+
+<h4 id="synchronous-vs-asynchronous-tree-updates">Synchronous vs. Asynchronous Tree Updates</h4>
+
+<p>Merkle tree updates can happen synchronously or asynchronously. This is
+determined by the <code class="language-plaintext highlighter-rouge">synchronous_tree_updates</code> parameter. When set to
+<code class="language-plaintext highlighter-rouge">false</code>, which is the default, Riak responds to the client after the
+first roundtrip that updates the followers’ data but before the second
+roundtrip required to update the followers’ Merkle trees, allowing the
+Merkle tree update to happen asynchronously in the background; when set
+to <code class="language-plaintext highlighter-rouge">true</code>, Riak requires two quorum roundtrips to occur before replying
+back to the client, which can increase per-request latency.</p>
+
+<p>Please note that this setting applies only to Merkle tree updates sent
+to followers. Leaders <em>always</em> update their local Merkle trees before
+responding to the client. Asynchronous updates can be unsafe in certain
+scenarios. For example, if a leader crashes before sending metadata
+updates to followers <em>and</em> all followers that had acknowledged the write
+somehow revert the object value immediately prior to the write request,
+a future read could hypothetically return the immediately preceding
+value without realizing that the value was incorrect. Setting
+<code class="language-plaintext highlighter-rouge">synchronous_tree_updates</code> to <code class="language-plaintext highlighter-rouge">false</code> does bear this possibility, but it
+is highly unlikely.</p>
+
+<h2 id="strong-consistency-and-active-anti-entropy">Strong Consistency and Active Anti-Entropy</h2>
+
+<p>Riak’s <a href="/riak/kv/2.2.3/learn/glossary/#active-anti-entropy-aae">active anti-entropy</a> (AAE) feature <em>can</em> repair strongly
+consistent data. Although it is not necessary to use active anti-entropy
+if you are using strong consistency, we nonetheless recommend doing so.</p>
+
+<p>Without AAE, all object conflicts are repaired via read repair.
+Read repair, however, cannot repair conflicts in so-called “cold data,”
+i.e. data that may not be read for long periods of time. While using AAE
+does entail small performance losses, not using AAE can lead to problems
+with silent on-disk corruption.</p>
+
+<h2 id="strong-consistency-and-bitcask">Strong Consistency and Bitcask</h2>
+
+<p>One feature that is offered by Riak’s optional <a href="/riak/kv/2.2.3/setup/planning/backend/bitcask">Bitcask</a> backend is object expiry. If you are using strong consistency and Bitcask together, you should be aware that object metadata is often updated by the strong consistency subsystem during leader changes, which typically take place when nodes go down or during network partitions. When these metadata updates take place, the time to live (TTL) of the object is refreshed, which can lead to general unpredictably in objects’ TTL. Although leader changes will be rare in many clusters, we nonetheless recommend that you use object expiry in
+strongly consistent buckets only in situations when these occasional
+irregularities are acceptable.</p>
+
+<h2 id="important-caveats">Important Caveats</h2>
+
+<p>The following Riak features are not currently available in strongly
+consistent buckets:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/using/reference/secondary-indexes">Secondary indexes</a> — If you do attach
+secondary index metadata to objects in strongly consistent buckets,
+strongly consistent operations can still proceed, but that metadata
+will be silently ignored.</li>
+  <li><a href="/riak/kv/2.2.3/developing/data-types">Riak Data Types</a> — Data Types can currently be
+used only in an eventually consistent fashion</li>
+  <li><a href="/riak/kv/2.2.3/developing/usage/commit-hooks">Using commit hooks</a> — Neither pre- nor post-commit hooks are supported in strongly consistent buckets. If you do associate a
+strongly consistent bucket with one or more commit hooks, strongly
+consistent operations can proceed as normal in that bucket, but all
+commit hooks will be silently ignored.</li>
+</ul>
+
+<p>Furthermore, you should also be aware that strong consistency guarantees
+are applied only at the level of single keys. There is currently no
+support within Riak for strongly consistent operations against multiple
+keys, although it is always possible to incorporate client-side write
+and read locks in applications that use strong consistency.</p>
+
+<h2 id="known-issues">Known Issues</h2>
+
+<p>There are a few known issues that you should be aware of when using the
+latest version of strong consistency.</p>
+
+<ul>
+  <li><strong>Consistent reads of never-written keys create tombstones</strong> — A
+<a href="/riak/kv/2.2.3/using/reference/object-deletion">tombstone</a> will be written if you perform a read
+against a key that a majority of peers claims to not exist. This is
+necessary for certain corner cases in which offline or unreachable
+replicas containing partially written data need to be rolled back in
+the future.</li>
+  <li><strong>Consistent keys and key listing</strong> — In Riak, key listing
+operations, such as listing all the keys in a bucket, do not filter
+out tombstones. While this is rarely a problem for
+non-strongly-consistent keys, it does present an issue for strong
+consistency due to the tombstone issues mentioned above.</li>
+  <li><strong>Secondary indexes not supported</strong> — Strongly consistent
+operations do not support <a href="/riak/kv/2.2.3/using/reference/secondary-indexes">secondary indexes</a> (2i) at this time. Furthermore, any other metadata
+attached to objects, even if not related to 2i, will be silently
+ignored by Riak in strongly consistent buckets.</li>
+  <li><strong>Multi-Datacenter Replication not supported</strong> — At this time,
+consistent keys are <em>not</em> replicated across clusters using Multi-
+Datacenter Replication (MDC). This is because MDC Replication currently supports only eventually consistent replication across clusters. Mixing strongly
+consistent data within a cluster with eventually consistent data
+between clusters is difficult to reason about from the perspective of
+applications. In a future version of Riak, we will add support for
+strongly consistent replication across multiple datacenters/clusters.</li>
+  <li><strong>Client library exceptions</strong> — Basho’s official <a href="/riak/kv/2.2.3/developing/client-libraries">client
+libraries</a> convert errors returned by Riak into generic exceptions,
+with a message derived from the returned server-side error message.</li>
+</ul>

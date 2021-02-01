@@ -1,0 +1,113 @@
+
+<h3 id="creating-objects-in-riak-kv">Creating Objects In Riak KV</h3>
+
+<p>Pinging a Riak cluster sounds like a lot of fun, but eventually someone is going
+to want us to do productive work. Let’s create some data to save in Riak.</p>
+
+<p>The Riak Node.js Client makes use of a <code class="language-plaintext highlighter-rouge">RiakObject</code> class to encapsulate Riak
+key/value objects. At the most basic, a <code class="language-plaintext highlighter-rouge">RiakObject</code> is responsible for
+identifying your object and for translating it into a format that can be easily
+saved to Riak.</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="k">async</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">async</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">people</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="na">emailAddress</span><span class="p">:</span> <span class="dl">"</span><span class="s2">bashoman@basho.com</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">firstName</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Basho</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">lastName</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Man</span><span class="dl">"</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="na">emailAddress</span><span class="p">:</span> <span class="dl">"</span><span class="s2">johndoe@gmail.com</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">firstName</span><span class="p">:</span> <span class="dl">"</span><span class="s2">John</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">lastName</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Doe</span><span class="dl">"</span>
+    <span class="p">}</span>
+<span class="p">];</span>
+
+<span class="kd">var</span> <span class="nx">storeFuncs</span> <span class="o">=</span> <span class="p">[];</span>
+<span class="nx">people</span><span class="p">.</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span> <span class="p">(</span><span class="nx">person</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Create functions to execute in parallel to store people</span>
+    <span class="nx">storeFuncs</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span>
+                <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">contributors</span><span class="dl">'</span><span class="p">,</span>
+                <span class="na">key</span><span class="p">:</span> <span class="nx">person</span><span class="p">.</span><span class="nx">emailAddress</span><span class="p">,</span>
+                <span class="na">value</span><span class="p">:</span> <span class="nx">person</span>
+            <span class="p">},</span>
+            <span class="kd">function</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">async_cb</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">);</span>
+            <span class="p">}</span>
+        <span class="p">);</span>
+    <span class="p">});</span>
+<span class="p">});</span>
+
+<span class="k">async</span><span class="p">.</span><span class="nx">parallel</span><span class="p">(</span><span class="nx">storeFuncs</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslts</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>In this sample, we create a collection of <code class="language-plaintext highlighter-rouge">Person</code> objects and then save each
+<code class="language-plaintext highlighter-rouge">Person</code> to Riak. Once again, we check the response from Riak.</p>
+
+<h3 id="reading-from-riak">Reading from Riak</h3>
+
+<p>Let’s find a person!</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">logger</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">winston</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchValue</span><span class="p">({</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">contributors</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">bashoman@basho.com</span><span class="dl">'</span><span class="p">,</span> <span class="na">convertToJs</span><span class="p">:</span> <span class="kc">true</span> <span class="p">},</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">shift</span><span class="p">();</span>
+            <span class="kd">var</span> <span class="nx">bashoman</span> <span class="o">=</span> <span class="nx">riakObj</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+            <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">I found %s in 'contributors'</span><span class="dl">"</span><span class="p">,</span> <span class="nx">bashoman</span><span class="p">.</span><span class="nx">emailAddress</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<p>We use <code class="language-plaintext highlighter-rouge">client.fetchValue</code> to retrieve an object from Riak. This returns an
+array of <code class="language-plaintext highlighter-rouge">RiakObject</code> objects which helpfully encapsulates the communication
+with Riak.</p>
+
+<p>After verifying that we’ve been able to communicate with Riak <em>and</em> that we have
+a successful result, we use the <code class="language-plaintext highlighter-rouge">value</code> property to get the object, which has
+already been converted to a javascript object due to the use of <code class="language-plaintext highlighter-rouge">convertToJs:
+true</code> in the options.</p>
+
+<h3 id="modifying-existing-data">Modifying Existing Data</h3>
+
+<p>Let’s say that Basho Man has decided to be known as Riak Man:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">bashoman</span><span class="p">.</span><span class="nx">FirstName</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">Riak</span><span class="dl">"</span><span class="p">;</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="nx">bashoman</span><span class="p">);</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span> <span class="na">value</span><span class="p">:</span> <span class="nx">riakObj</span> <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>Updating an object involves modifying a <code class="language-plaintext highlighter-rouge">RiakObject</code> then using
+<code class="language-plaintext highlighter-rouge">client.storeValue</code> to save the existing object.</p>
+
+<h3 id="deleting-data">Deleting Data</h3>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">client</span><span class="p">.</span><span class="nx">deleteValue</span><span class="p">({</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">contributors</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">johndoe@gmail.com</span><span class="dl">'</span> <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>Just like other operations, we check the results that have come back from Riak
+to make sure the object was successfully deleted.</p>
+
+<p>The Riak Node.js Client has a lot of additional functionality that makes it easy
+to build rich, complex applications with Riak. Check out the
+<a href="https://github.com/basho/riak-nodejs-client/wiki">documentation</a> to learn more about working with the Riak Node.js
+Client and Riak.</p>

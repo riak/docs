@@ -1,0 +1,122 @@
+<p>The delete command follows a predictable pattern and looks like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>DELETE /types/TYPE/buckets/BUCKET/keys/KEY
+</code></pre></div></div>
+
+<p>The normal HTTP response codes for <code class="language-plaintext highlighter-rouge">DELETE</code> operations are <code class="language-plaintext highlighter-rouge">204 No
+Content</code> and <code class="language-plaintext highlighter-rouge">404 Not Found</code>. 404 responses are <em>normal</em>, in the sense
+that <code class="language-plaintext highlighter-rouge">DELETE</code> operations are idempotent and not finding the resource has
+the same effect as deleting it.</p>
+
+<p>Let’s try to delete the <code class="language-plaintext highlighter-rouge">genius</code> key from the <code class="language-plaintext highlighter-rouge">oscar_wilde</code> bucket
+(which bears the type <code class="language-plaintext highlighter-rouge">quotes</code>):</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">geniusQuote</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"quotes"</span><span class="o">,</span> <span class="s">"oscar_wilde"</span><span class="o">),</span> <span class="s">"genius"</span><span class="o">);</span>
+<span class="nc">DeleteValue</span> <span class="n">delete</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">DeleteValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">geniusQuote</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">delete</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'quotes'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'oscar_wilde'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="nf">delete</span><span class="p">(</span><span class="s1">'genius'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\DeleteObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildBucket</span><span class="p">(</span><span class="s1">'oscar_wilde'</span><span class="p">,</span> <span class="s1">'quotes'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'quotes'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'oscar_wilde'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="n">delete</span><span class="p">(</span><span class="s">'genius'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"users"</span><span class="p">,</span> <span class="s">"random_user_keys"</span><span class="p">,</span> <span class="k">null</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">@"{'user':'data'}"</span><span class="p">,</span>
+    <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">ApplicationJson</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+<span class="kt">string</span> <span class="n">key</span> <span class="p">=</span> <span class="n">rslt</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">Key</span><span class="p">;</span>
+<span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"users"</span><span class="p">,</span> <span class="s">"random_user_keys"</span><span class="p">,</span> <span class="n">key</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">del_rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// continuing from above example</span>
+<span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">users</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">random_user_keys</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="nx">generatedKey</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">deleteValue</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">delete</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"quotes"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"oscar_wilde"</span><span class="o">&gt;&gt;</span><span class="p">},</span> <span class="o">&lt;&lt;</span><span class="s">"genius"</span><span class="o">&gt;&gt;</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// Continuing from above example</span>
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewDeleteValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucketType</span><span class="p">(</span><span class="s">"users"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="s">"random_user_keys"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="n">rsp</span><span class="o">.</span><span class="n">GeneratedKey</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XDELETE http://localhost:8098/types/quotes/buckets/oscar_wilde/keys/genius
+</code></pre>
+
+<h2 id="client-library-examples">Client Library Examples</h2>
+
+<p>If you are updating an object that has been deleted—or if an update 
+might target a deleted object—we recommend that
+you first fetch the <a href="/riak/kv/2.2.1/learn/concepts/causal-context">causal context</a> of the object prior to updating.
+This can be done by setting the <code class="language-plaintext highlighter-rouge">deletedvclock</code> parameter to <code class="language-plaintext highlighter-rouge">true</code> as
+part of the <a href="/riak/kv/2.2.1/developing/api/protocol-buffers/fetch-object">fetch operation</a>. This can also be done
+with the official Riak clients for Ruby, Java, and Erlang, as in the
+example below:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">object</span><span class="p">.</span><span class="nf">delete</span>
+<span class="n">deleted_object</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'bucket'</span><span class="p">,</span> <span class="s1">'key'</span><span class="p">,</span> <span class="ss">deletedvclock: </span><span class="kp">true</span><span class="p">)</span>
+<span class="n">deleted_object</span><span class="p">.</span><span class="nf">vclock</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># It is not currently possible to fetch the causal context for a deleted
+# key in the Python client.
+</span></code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">loc</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="s">"&lt;bucket&gt;"</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">setBucketType</span><span class="o">(</span><span class="s">"&lt;bucket_type&gt;"</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">setKey</span><span class="o">(</span><span class="s">"&lt;key&gt;"</span><span class="o">);</span>
+<span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">loc</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">Option</span><span class="o">.</span><span class="na">DELETED_VCLOCK</span><span class="o">,</span> <span class="kc">true</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchValue</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">response</span><span class="o">.</span><span class="na">getVclock</span><span class="o">().</span><span class="na">asString</span><span class="o">());</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Obj</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                              <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"bucket_type"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"bucket"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                              <span class="o">&lt;&lt;</span><span class="s">"key"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                              <span class="p">[{</span><span class="n">deleted_vclock</span><span class="p">}]).</span>
+
+<span class="c">%% In the Erlang client, the vector clock is accessible using the Obj
+%% object obtained above.
+</span></code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'deleted_key'</span><span class="p">,</span> <span class="s1">'in_some_bucket'</span><span class="p">,</span> <span class="s1">'of_a_certain_type'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="k">echo</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getVclock</span><span class="p">();</span> <span class="c1">// a85hYGBgzGDKBVI8m9WOeb835ZRhYCg1zGBKZM5jZdhnceAcXxYA</span>
+</code></pre></div></div>

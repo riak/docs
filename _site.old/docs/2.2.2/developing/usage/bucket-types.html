@@ -1,0 +1,72 @@
+<p>If you ever need to turn off indexing for a bucket, set the
+<code class="language-plaintext highlighter-rouge">search_index</code> property to the <code class="language-plaintext highlighter-rouge">_dont_index_</code> sentinel value.</p>
+
+<h2 id="bucket-properties">Bucket Properties</h2>
+
+<p>Although we recommend that you use all new buckets under a bucket type,
+if you have existing data with a type-free bucket (i.e. under the
+<code class="language-plaintext highlighter-rouge">default</code> bucket type) you can set the <code class="language-plaintext highlighter-rouge">search_index</code> property for a
+specific bucket.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Namespace</span> <span class="n">catsBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"cats"</span><span class="o">);</span>
+<span class="nc">StoreBucketPropsOperation</span> <span class="n">storePropsOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreBucketPropsOperation</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">catsBucket</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withSearchIndex</span><span class="o">(</span><span class="s">"famous"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storePropsOp</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'cats'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="nf">properties</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'search_index'</span> <span class="o">=&gt;</span> <span class="s1">'famous'</span><span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\AssociateIndex</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">withName</span><span class="p">(</span><span class="s1">'famous'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildBucket</span><span class="p">(</span><span class="s1">'cats'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'cats'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="n">set_properties</span><span class="p">({</span><span class="s">'search_index'</span><span class="p">:</span> <span class="s">'famous'</span><span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">properties</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakBucketProperties</span><span class="p">();</span>
+<span class="n">properties</span><span class="p">.</span><span class="nf">SetSearchIndex</span><span class="p">(</span><span class="s">"famous"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">SetBucketProperties</span><span class="p">(</span><span class="s">"cats"</span><span class="p">,</span> <span class="n">properties</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">bucketProps_cb</span> <span class="o">=</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="c1">// success</span>
+<span class="p">};</span>
+
+<span class="kd">var</span> <span class="nx">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">StoreBucketProps</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withBucket</span><span class="p">(</span><span class="dl">"</span><span class="s2">cats</span><span class="dl">"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withSearchIndex</span><span class="p">(</span><span class="dl">"</span><span class="s2">famous</span><span class="dl">"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">bucketProps_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">store</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">set_search_index</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"cats"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"famous"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreBucketPropsCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucketType</span><span class="p">(</span><span class="s">"animals"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="s">"cats"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithSearchIndex</span><span class="p">(</span><span class="s">"famous"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">err</span>
+<span class="p">}</span>
+
+<span class="n">err</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/buckets/cats/props \
+     -H'content-type:application/json' \
+     -d'{"props":{"search_index":"famous"}}'
+</code></pre>

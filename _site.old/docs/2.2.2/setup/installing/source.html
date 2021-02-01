@@ -1,0 +1,76 @@
+
+<p>Riak should be installed from source if you are building on a platform
+for which a package does not exist or if you are interested in
+contributing to Riak.</p>
+
+<h2 id="dependencies">Dependencies</h2>
+
+<h3 id="erlang">Erlang</h3>
+
+<p>To install Riak, you will need to have <a href="http://www.erlang.org/">Erlang</a> installed. We strongly recommend using Basho’s patched version of Erlang to install Riak 2.0. All of the patches in this version have been incorporated into later versions of the official Erlang/OTP release.</p>
+
+<p>See <a href="/riak/kv/2.2.2/setup/installing/source/erlang">Installing Erlang</a> for instructions.</p>
+
+<h3 id="git">Git</h3>
+
+<p>Riak depends on source code located in multiple Git repositories. Install <a href="https://git-scm.com/">Git</a> on the target system before attempting the build.</p>
+
+<h3 id="gcc">GCC</h3>
+
+<p>Riak will not compile with Clang. Please make sure your default C/C++
+compiler is <a href="https://gcc.gnu.org/">GCC</a>.</p>
+
+<h2 id="installation">Installation</h2>
+
+<p>The following instructions generate a complete, self-contained build of
+Riak in <code class="language-plaintext highlighter-rouge">$RIAK/rel/riak</code> where <code class="language-plaintext highlighter-rouge">$RIAK</code> is the location of the unpacked
+or cloned source.</p>
+
+<h3 id="installing-from-source-package">Installing from source package</h3>
+
+<p>Download the Riak source package from the <a href="/riak/kv/2.2.2/downloads/">Download Center</a> and build:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-O</span> http://s3.amazonaws.com/downloads.basho.com/riak/2.0/2.2.2/riak-2.2.2.tar.gz
+<span class="nb">tar </span>zxvf riak-2.2.2.tar.gz
+<span class="nb">cd </span>riak-2.2.2
+make locked-deps
+make rel
+</code></pre></div></div>
+
+<h3 id="installing-from-github">Installing from GitHub</h3>
+
+<p>The <a href="http://github.com/basho/riak">Riak Github respository</a> has much
+more information on building and installing Riak from source. To clone
+and build Riak from source, follow the steps below.</p>
+
+<p>Clone the repository using <a href="http://git-scm.com">Git</a> and build:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git clone git://github.com/basho/riak.git
+<span class="nb">cd </span>riak
+make locked-deps
+make rel
+</code></pre></div></div>
+
+<h2 id="platform-specific-instructions">Platform-Specific Instructions</h2>
+
+<p>For instructions about specific platforms, see:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.2/setup/installing/debian-ubuntu/#installing-from-source">Debian &amp; Ubuntu</a></li>
+  <li><a href="/riak/kv/2.2.2/setup/installing/freebsd/#installing-from-source">FreeBSD</a></li>
+  <li><a href="/riak/kv/2.2.2/setup/installing/mac-osx/#installing-from-source">Mac OS X</a></li>
+  <li><a href="/riak/kv/2.2.2/setup/installing/rhel-centos/#installing-from-source">RHEL &amp; CentOS</a></li>
+</ul>
+
+<p>If you are running Riak on a platform not in the list above and need
+some help getting it up and running, join The Riak Mailing List and
+inquire about it there. We are happy to help you get up and running with
+Riak.</p>
+
+<h3 id="windows">Windows</h3>
+
+<p>Riak is not currently supported on Microsoft Windows.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Now that Riak is installed, check out <a href="/riak/kv/2.2.2/setup/installing/verify">Verifying a Riak Installation</a>.</p>

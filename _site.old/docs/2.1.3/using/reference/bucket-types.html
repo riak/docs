@@ -1,0 +1,784 @@
+<p>Bucket types allow groups of buckets to share configuration details and
+for Riak users to manage bucket properties more efficiently than in the
+older configuration system based on <a href="/riak/kv/2.1.3/developing/usage/bucket-types/#bucket-properties-and-operations">bucket properties</a>.</p>
+
+<p>If you upgrade a Riak to version 2.0 or later, you can still downgrade the
+cluster to a pre-2.0 version <em>as long as you have not created and activated a
+bucket type in the cluster</em>. Once any bucket type has been created and
+activated, you can no longer downgrade the cluster to a pre-2.0 version.</p>
+
+<h2 id="how-bucket-types-work">How Bucket Types Work</h2>
+
+<p>The older configuration system, based on bucket properties, involves
+setting bucket properties for specific buckets either through
+<a href="/riak/kv/2.1.3/developing/api/http/set-bucket-props">HTTP</a> or <a href="/riak/kv/2.1.3/developing/api/protocol-buffers/set-bucket-props">Protocol Buffers</a>. With this approach, you can take any given bucket and
+modify a wide range of properties, from <code class="language-plaintext highlighter-rouge">n_val</code> to <code class="language-plaintext highlighter-rouge">allow_mult</code> and far
+beyond.</p>
+
+<p>Using bucket <em>types</em> also involves dealing with bucket properties, but
+with a few crucial differences:</p>
+
+<ul>
+  <li>Bucket types enable you to create bucket configurations and assign
+those configurations to as many buckets as you wish, whereas the
+previous system required configuration to be set on a per-bucket basis</li>
+  <li>Nearly all bucket properties can be updated using bucket types, except the
+<code class="language-plaintext highlighter-rouge">datatype</code>, <code class="language-plaintext highlighter-rouge">consistent</code>, and <code class="language-plaintext highlighter-rouge">write_once</code> properties, related to
+<a href="/riak/kv/2.1.3/developing/data-types">Riak data types</a>, <a href="/riak/kv/2.1.3/developing/app-guide/strong-consistency">strong consistency</a>, and
+<a href="/riak/kv/2.1.3/developing/app-guide/write-once">write-once buckets</a> respectively</li>
+  <li>Bucket types are more performant than bucket properties because
+divergence from Riak’s defaults doesn’t have to be gossiped around the
+cluster for every bucket, which means less computational overhead</li>
+</ul>
+
+<p>It is important to note that buckets are not assigned types in the same
+way that they are configured when using <a href="/riak/kv/2.1.3/developing/usage/bucket-types/#bucket-properties-and-operations">bucket properties</a>. You cannot simply take a
+bucket <code class="language-plaintext highlighter-rouge">my_bucket</code> and assign it a type the way that you would, say,
+set <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code> or <code class="language-plaintext highlighter-rouge">n_val</code> to <code class="language-plaintext highlighter-rouge">5</code>, because there is no
+<code class="language-plaintext highlighter-rouge">type</code> parameter contained within the bucket’s properties (i.e.
+<code class="language-plaintext highlighter-rouge">props</code>).</p>
+
+<p>Instead, bucket types are applied to buckets <em>on the basis of how those
+buckets are queried</em>. Queries involving bucket types take the following
+form:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET/PUT/DELETE /types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre></div></div>
+
+<p>In the older system, only bucket and key are specified in queries:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET/PUT/DELETE /buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre></div></div>
+
+<h2 id="when-to-use-bucket-types">When to Use Bucket Types</h2>
+
+<p>In many respects, bucket types are a major improvement over the older
+system of bucket configuration, including the following:</p>
+
+<ul>
+  <li>Bucket types are more flexible because they enable you to define a
+bucket configuration and then change it if you need to.</li>
+  <li>Bucket types are more reliable because the buckets that bear a given
+type only have their properties changed when the type is changed.
+Previously, it was possible to change the properties of a bucket only
+through client requests.</li>
+  <li>Whereas bucket properties can only be altered by clients interacting
+with Riak, bucket types are more of an operational concept. The
+<code class="language-plaintext highlighter-rouge">riak-admin bucket-type</code> interface (discussed in depth below) enables
+you to manage bucket configurations on the operations side, without
+recourse to Riak clients.</li>
+  <li>Some special usecases – <a href="/riak/kv/2.1.3/configuring/strong-consistency">strong consistency</a>,
+<a href="/riak/kv/2.1.3/developing/data-types">data types</a>, and <a href="/riak/kv/2.1.3/developing/app-guide/write-once">write-once buckets</a> – are only
+available through bucket properties or bucket types.</li>
+</ul>
+
+<p>For these reasons, we recommend <em>always</em> using bucket types in versions
+of Riak 2.0 and later.</p>
+
+<h2 id="managing-bucket-types-through-the-command-line">Managing Bucket Types Through the Command Line</h2>
+
+<p>Bucket types are created, updated, activated, and more through the
+<code class="language-plaintext highlighter-rouge">riak-admin bucket-type</code> interface.</p>
+
+<p>Below is a full list of available sub-commands:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Command</th>
+      <th style="text-align: left">Action</th>
+      <th style="text-align: left">Form</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">create</code></td>
+      <td style="text-align: left">Create or modify a bucket type before activation</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">create &lt;type&gt; &lt;json&gt;</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">activate</code></td>
+      <td style="text-align: left">Activate a bucket type</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">activate &lt;type&gt;</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">list</code></td>
+      <td style="text-align: left">List all currently available bucket types and their activation status</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">list</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">status</code></td>
+      <td style="text-align: left">Display the status and properties of a specific bucket type</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">status &lt;type&gt;</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">update</code></td>
+      <td style="text-align: left">Update a bucket type after activation</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">update &lt;type&gt; &lt;json&gt;</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="creating-a-bucket-type">Creating a Bucket Type</h3>
+
+<p>Creating new bucket types involves using the <code class="language-plaintext highlighter-rouge">create &lt;type&gt; &lt;json&gt;</code>
+command, where <code class="language-plaintext highlighter-rouge">&lt;type&gt;</code> is the name of the type and <code class="language-plaintext highlighter-rouge">&lt;json&gt;</code> is a JSON
+object of the following form:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"props"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"prop1"</span><span class="p">:</span><span class="w"> </span><span class="s2">"val1"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"prop2"</span><span class="p">:</span><span class="w"> </span><span class="s2">"val2"</span><span class="p">,</span><span class="w">
+    </span><span class="err">...</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<blockquote>
+  <p><strong>Getting started with Riak clients</strong></p>
+
+  <p>If you are connecting to Riak using one of Basho’s official <a href="/riak/kv/2.1.3/developing/client-libraries">client libraries</a>, you can find more information about getting started with your client in our <a href="/riak/kv/2.1.3/developing/getting-started">Developing with Riak KV: Getting Started</a> section.</p>
+</blockquote>
+
+<p>If creation is successful, you should see the following output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>type_using_defaults created
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">create</code> command can be run multiple times prior to a bucket type being
+activated. Riak will persist only those properties contained in the final call
+of the command.</p>
+
+<p>Creating bucket types that assign properties <em>always</em> involves passing
+stringified JSON to the <code class="language-plaintext highlighter-rouge">create</code> command. One way to do that is to pass
+a JSON string directly. The following creates a bucket type
+<code class="language-plaintext highlighter-rouge">n_equals_1</code>, which sets <code class="language-plaintext highlighter-rouge">n_val</code> to 1:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create n_equals_1 <span class="s1">'{"props":{"n_val":1}}'</span>
+</code></pre></div></div>
+
+<p>If you wish, you can also pass in a JSON string through a file, such as
+a <code class="language-plaintext highlighter-rouge">.json</code> file:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create from_json_file <span class="s1">'`cat props.json`'</span>
+</code></pre></div></div>
+
+<p>Like all bucket types, this type needs to be activated to be usable
+within the cluster.</p>
+
+<h3 id="activating-a-bucket-type">Activating a Bucket Type</h3>
+
+<p>Activating a bucket type involves the <code class="language-plaintext highlighter-rouge">activate</code> command from the same
+<code class="language-plaintext highlighter-rouge">bucket-type</code> interface used before:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type activate my_bucket_type
+</code></pre></div></div>
+
+<p>When activation has succeeded, you should see the following output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>my_bucket_type has been activated
+</code></pre></div></div>
+
+<p>A bucket type can be activated only when the type has been propagated to
+all running nodes. You can check on the type’s readiness by running
+<code class="language-plaintext highlighter-rouge">riak-admin bucket-type status &lt;type_name&gt;</code>. The first line of output
+will indicate whether or not the type is ready.</p>
+
+<p>In a stable cluster, bucket types should propagate very quickly. If,
+however, a cluster is experiencing network partitions or other issues,
+you will need to resolve those issues before bucket types can be
+activated.</p>
+
+<h3 id="listing-bucket-types">Listing Bucket Types</h3>
+
+<p>You can list currently available bucket types using the <code class="language-plaintext highlighter-rouge">list</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type list
+</code></pre></div></div>
+
+<p>This will return a simple list of types along with their current status
+(either <code class="language-plaintext highlighter-rouge">active</code> or <code class="language-plaintext highlighter-rouge">not active</code>). Here is an example console output:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type list
+</code></pre></div></div>
+
+<p>An example response:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>type1 (active)
+type2 (not active)
+type3 (active)
+</code></pre></div></div>
+
+<h3 id="checking-a-types-status">Checking a Type’s Status</h3>
+
+<p>You can check on the status—i.e. the configuration details—of a
+bucket type using the <code class="language-plaintext highlighter-rouge">status &lt;type&gt;</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status my_bucket_type
+</code></pre></div></div>
+
+<p>The console will output two things if the type exists:</p>
+
+<ol>
+  <li>Whether or not the type is active</li>
+  <li>The bucket properties associated with the type</li>
+</ol>
+
+<p>If you check the status of a currently active type called
+<code class="language-plaintext highlighter-rouge">my_bucket_type</code> that simply bears a default bucket configuration, the
+output will be as follows:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>my_bucket_type is active
+
+active: <span class="nb">true
+</span>allow_mult: <span class="nb">true</span>
+
+... other properties ...
+
+w: quorum
+young_vclock:20
+</code></pre></div></div>
+
+<h3 id="updating-a-bucket-type">Updating a Bucket Type</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">bucket-type update</code> command functions much like the <code class="language-plaintext highlighter-rouge">bucket-type
+create</code> command. It simply involves specifying the name of the bucket
+type that you wish to modify and a JSON object containing the properties
+of the type:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type update type_to_update <span class="s1">'{"props":{ ... }}'</span>
+</code></pre></div></div>
+
+<p>Any bucket properties associated with a type can be modified after a bucket is
+created, with three important exceptions:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">consistent</code></li>
+  <li><code class="language-plaintext highlighter-rouge">datatype</code></li>
+  <li><code class="language-plaintext highlighter-rouge">write_once</code></li>
+</ul>
+
+<p>If a bucket type entails strong consistency (requiring that <code class="language-plaintext highlighter-rouge">consistent</code> be
+set to <code class="language-plaintext highlighter-rouge">true</code>), is set up as a <code class="language-plaintext highlighter-rouge">map</code>, <code class="language-plaintext highlighter-rouge">set</code>, or <code class="language-plaintext highlighter-rouge">counter</code>, or is defined as a
+write-once  bucket (requiring <code class="language-plaintext highlighter-rouge">write_once</code> be set to <code class="language-plaintext highlighter-rouge">true</code>), then this will
+be true of the bucket types.</p>
+
+<p>If you need to change one of these properties, we recommend that you simply
+create and activate a new bucket type.</p>
+
+<h2 id="buckets-as-namespaces">Buckets as Namespaces</h2>
+
+<p>In versions of Riak prior to 2.0, all queries are made to a bucket/key
+pair, as in the following example read request:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">myKey</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"my_bucket"</span><span class="o">),</span> <span class="s">"my_key"</span><span class="o">);</span>
+<span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">myKey</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$location</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">,</span> <span class="k">new</span> <span class="nc">Bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">));</span>
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'my_key'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"my_bucket"</span><span class="p">,</span> <span class="s">"my_key"</span><span class="p">);</span>
+<span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">client</span><span class="p">.</span><span class="nx">fetchValue</span><span class="p">({</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_bucket</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_key</span><span class="dl">'</span> <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Object</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                   <span class="o">&lt;&lt;</span><span class="s">"my_bucket"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                                   <span class="o">&lt;&lt;</span><span class="s">"my_key"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/buckets/my_bucket/keys/my_key
+</code></pre>
+
+<p>With the addition of bucket types in Riak 2.0, bucket types can be used
+as <em>an additional namespace</em> on top of buckets and keys. The same bucket
+name can be associated with completely different data if it used in
+accordance with a different type. Thus, the following two requests will
+be made to <em>completely different objects</em>, even though the bucket and key
+names are the same:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">key1</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"type1"</span><span class="o">,</span> <span class="s">"my_bucket"</span><span class="o">),</span> <span class="s">"my_key"</span><span class="o">);</span>
+<span class="nc">Location</span> <span class="n">key2</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"type2"</span><span class="o">,</span> <span class="s">"my_bucket"</span><span class="o">),</span> <span class="s">"my_key"</span><span class="o">);</span>
+<span class="nc">FetchValue</span> <span class="n">fetch1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">key1</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchValue</span> <span class="n">fetch2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">key2</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch1</span><span class="o">);</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch2</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket1</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'type1'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket2</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'type2'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket1</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">)</span>
+<span class="n">bucket2</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$location1</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Location</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">,</span> <span class="k">new</span> <span class="nc">Bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">,</span> <span class="s1">'type1'</span><span class="p">));</span>
+<span class="nv">$location2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">,</span> <span class="k">new</span> <span class="nc">Bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">,</span> <span class="s1">'type2'</span><span class="p">));</span>
+<span class="nv">$builder</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">);</span>
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location1</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location2</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket1</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'type1'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket2</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'type2'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket1</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'my_key'</span><span class="p">)</span>
+<span class="n">bucket2</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'my_key'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id1</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"type1"</span><span class="p">,</span> <span class="s">"my_bucket"</span><span class="p">,</span> <span class="s">"my_key"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">id2</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"type2"</span><span class="p">,</span> <span class="s">"my_bucket"</span><span class="p">,</span> <span class="s">"my_key"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt1</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id1</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt2</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id2</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">client</span><span class="p">.</span><span class="nx">fetchValue</span><span class="p">({</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">type1</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_bucket</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_key</span><span class="dl">'</span>
+<span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+<span class="p">});</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchValue</span><span class="p">({</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">type2</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_bucket</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_key</span><span class="dl">'</span>
+<span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Obj1</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                 <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"type1"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"my_bucket"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                                 <span class="o">&lt;&lt;</span><span class="s">"my_key"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Obj2</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                 <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"type2"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"my_bucket"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                                 <span class="o">&lt;&lt;</span><span class="s">"my_key"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/type1/buckets/my_bucket/keys/my_key
+curl http://localhost:8098/types/type2/buckets/my_bucket/keys/my_key
+</code></pre>
+
+<p>In Riak 2.x, <em>all requests</em> must be made to a location specified by a bucket
+type, bucket, and key rather than to a bucket/key pair, as in previous
+versions.</p>
+
+<p>If requests are made to a bucket/key pair without a specified bucket
+type, <code class="language-plaintext highlighter-rouge">default</code> will be used in place of a bucket type. The following
+queries are thus identical:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">withDefaultBucketType</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"default"</span><span class="o">,</span> <span class="s">"my_bucket"</span><span class="o">),</span> <span class="s">"my_key"</span><span class="o">);</span>
+<span class="nc">Location</span> <span class="n">noBucketType</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"my_bucket"</span><span class="o">),</span> <span class="s">"my_key"</span><span class="o">);</span>
+<span class="nc">FetchValue</span> <span class="n">fetch1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">withDefaultBucketType</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchValue</span> <span class="n">fetch2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">noBucketType</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch1</span><span class="o">);</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch2</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket1</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'default'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket2</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket1</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">)</span>
+<span class="n">bucket2</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$location1</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Location</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">,</span> <span class="k">new</span> <span class="nc">Bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">,</span> <span class="s1">'default'</span><span class="p">));</span>
+<span class="nv">$location2</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Location</span><span class="p">(</span><span class="s1">'my_key'</span><span class="p">,</span> <span class="k">new</span> <span class="nc">Bucket</span><span class="p">(</span><span class="s1">'my_bucket'</span><span class="p">));</span>
+<span class="nv">$builder</span> <span class="o">=</span> <span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">);</span>
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location1</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$location2</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket1</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'default'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket2</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_bucket'</span><span class="p">)</span>
+<span class="n">bucket1</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'my_key'</span><span class="p">)</span>
+<span class="n">bucket2</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'my_key'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id1</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"default"</span><span class="p">,</span> <span class="s">"my_bucket"</span><span class="p">,</span> <span class="s">"my_key"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj1</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id1</span><span class="p">,</span> <span class="s">"value"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+<span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj1</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">id2</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"my_bucket"</span><span class="p">,</span> <span class="s">"my_key"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">getRslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id2</span><span class="p">);</span>
+
+<span class="n">RiakObject</span> <span class="n">obj2</span> <span class="p">=</span> <span class="n">getRslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="c1">// Note: obj1.Value and obj2.Value are equal</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">obj1</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setBucketType</span><span class="p">(</span><span class="dl">'</span><span class="s1">default</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setBucket</span><span class="p">(</span><span class="dl">'</span><span class="s1">my_bucket</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setKey</span><span class="p">(</span><span class="dl">'</span><span class="s1">my_key</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">value</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span> <span class="na">value</span><span class="p">:</span> <span class="nx">obj1</span> <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="nx">client</span><span class="p">.</span><span class="nx">fetchValue</span><span class="p">({</span>
+        <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">default</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_bucket</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">my_key</span><span class="dl">'</span>
+    <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="kd">var</span> <span class="nx">obj2</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">shift</span><span class="p">();</span>
+        <span class="nx">assert</span><span class="p">(</span><span class="nx">obj1</span><span class="p">.</span><span class="nx">value</span> <span class="o">==</span> <span class="nx">obj2</span><span class="p">.</span><span class="nx">value</span><span class="p">);</span>
+    <span class="p">});</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Obj1</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                 <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"default"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"my_bucket"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                                 <span class="o">&lt;&lt;</span><span class="s">"my_key"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Obj2</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                 <span class="o">&lt;&lt;</span><span class="s">"my_bucket"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                                 <span class="o">&lt;&lt;</span><span class="s">"my_key"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/buckets/my_bucket/keys/my_key
+curl http://localhost:8098/types/default/my_bucket/keys/my_key
+</code></pre>
+
+<h2 id="default-bucket-properties">Default Bucket Properties</h2>
+
+<p>Below is a listing of the default bucket properties (i.e. <code class="language-plaintext highlighter-rouge">props</code>)
+associated with the <code class="language-plaintext highlighter-rouge">default</code> bucket type:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"props"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"allow_mult"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"basic_quorum"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"big_vclock"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"chash_keyfun"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"fun"</span><span class="p">:</span><span class="w"> </span><span class="s2">"chash_std_keyfun"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"mod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"riak_core_util"</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="nl">"dvv_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"dw"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quorum"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"last_write_wins"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"linkfun"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"fun"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mapreduce_linkfun"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"mod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"riak_kv_wm_link_walker"</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="nl">"n_val"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"notfound_ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"old_vclock"</span><span class="p">:</span><span class="w"> </span><span class="mi">86400</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"postcommit"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span><span class="w">
+    </span><span class="nl">"pr"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"precommit"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span><span class="w">
+    </span><span class="nl">"pw"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"r"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quorum"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"rw"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quorum"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"small_vclock"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"w"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quorum"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"young_vclock"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<h2 id="bucket-types-and-the-allow_mult-setting">Bucket Types and the <code class="language-plaintext highlighter-rouge">allow_mult</code> Setting</h2>
+
+<p>Prior to Riak 2.0, Riak created <a href="/riak/kv/2.1.3/learn/concepts/causal-context/#siblings">siblings</a> in the case of conflicting updates only when explicitly instructed to do so, i.e. when <code class="language-plaintext highlighter-rouge">allow_mult</code> is to <code class="language-plaintext highlighter-rouge">true</code>. The default <code class="language-plaintext highlighter-rouge">allow_mult</code> setting was <code class="language-plaintext highlighter-rouge">false</code>.</p>
+
+<p>In version 2.0, this is changing in a subtle way. Now, there are two
+different default settings for <code class="language-plaintext highlighter-rouge">allow_mult</code> in play:</p>
+
+<ul>
+  <li>For the <code class="language-plaintext highlighter-rouge">default</code> bucket type, <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">false</code> by
+default, as in previous versions of Riak</li>
+  <li>For all newly-created bucket types, the default is now <code class="language-plaintext highlighter-rouge">true</code>. It is
+possible to set <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code> if you wish to avoid resolving
+sibling conflicts, but this needs to be done explicitly.</li>
+</ul>
+
+<p>The consequence is that applications that have previously ignored
+conflict resolutions in certain buckets (or all buckets) can continue to
+do so. New applications, however, are encouraged to retain and <a href="/riak/kv/2.1.3/developing/usage/conflict-resolution">resolve siblings</a> with the appropriate application-side business logic.</p>
+
+<p>To give an example, let’s have a look at the properties associated with
+the <code class="language-plaintext highlighter-rouge">default</code> bucket type:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status default | <span class="nb">grep </span>allow_mult
+</code></pre></div></div>
+
+<p>The output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>allow_mult: false
+</code></pre></div></div>
+
+<p>Now, let’s create a new bucket type called <code class="language-plaintext highlighter-rouge">n_val_of_2</code>, which sets the
+<code class="language-plaintext highlighter-rouge">n_val</code> to 2 but doesn’t explicitly set <code class="language-plaintext highlighter-rouge">allow_mult</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create n_val_of_2 <span class="s1">'{"props":{"n_val":2}}'</span>
+</code></pre></div></div>
+
+<p>When specifying this bucket type’s properties as above, the <code class="language-plaintext highlighter-rouge">allow_mult</code>
+parameter was not changed. However, if we view the bucket type’s
+properties, we can see in the console output that <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to
+<code class="language-plaintext highlighter-rouge">true</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status n_val_of_2 | <span class="nb">grep </span>allow_mult
+</code></pre></div></div>
+
+<p>The output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>allow_mult: true
+</code></pre></div></div>
+
+<p>This is important to bear in mind when using versions of Riak 2.0 and
+later any time that you create, activate, and use your own bucket types.
+It is still possible to set <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code> in any given bucket
+type, but it must be done explicitly. If we wanted to set
+<code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code> in our <code class="language-plaintext highlighter-rouge">n_val_of_2</code> bucket type from above, we
+would need to create or modify the already existing type as follows:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type update n_val_of_2 <span class="s1">'{"props":{"allow_mult":false}}'</span>
+</code></pre></div></div>
+
+<h2 id="bucket-type-example">Bucket Type Example</h2>
+
+<p>Let’s say that you’d like to create a bucket type called
+<code class="language-plaintext highlighter-rouge">user_account_bucket</code> with a <a href="/riak/kv/2.1.3/developing/usage/commit-hooks/#pre-commit-hooks">pre-commit hook</a> called <code class="language-plaintext highlighter-rouge">syntax_check</code> and two <a href="/riak/kv/2.1.3/developing/usage/commit-hooks/#Post-Commit-Hooks">post-commit
+hooks</a> called <code class="language-plaintext highlighter-rouge">welcome_email</code> and <code class="language-plaintext highlighter-rouge">update_registry</code>. This would involve four steps:</p>
+
+<ol>
+  <li>
+    <p>Creating a JavaScript object containing the appropriate <code class="language-plaintext highlighter-rouge">props</code>
+settings:</p>
+
+    <div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="w"> </span><span class="p">{</span><span class="w">
+   </span><span class="nl">"props"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+     </span><span class="nl">"precommit"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"syntax_check"</span><span class="p">],</span><span class="w">
+     </span><span class="nl">"postcommit"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"welcome_email"</span><span class="p">,</span><span class="w"> </span><span class="s2">"update_registry"</span><span class="p">]</span><span class="w">
+   </span><span class="p">}</span><span class="w">
+ </span><span class="p">}</span><span class="w">
+</span></code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Passing that JSON to the <code class="language-plaintext highlighter-rouge">bucket-type create</code> command:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin bucket-type create user_account_bucket <span class="s1">'{"props":{"precommit": ["syntax_check"], ... }}'</span>
+</code></pre></div>    </div>
+
+    <p>If creation is successful, the console will return
+ <code class="language-plaintext highlighter-rouge">user_account_bucket created</code>.</p>
+  </li>
+  <li>
+    <p>Verifying that the type is ready to be activated:</p>
+
+    <p>Once the type is created, you can check whether your new type is
+ ready to be activated by running:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin bucket-type status user_account_bucket
+</code></pre></div>    </div>
+
+    <p>If the first line reads <code class="language-plaintext highlighter-rouge">user_account_bucket has been created and
+ may be activated</code>, then you can proceed to the next step. If it
+ reads <code class="language-plaintext highlighter-rouge">user_account_bucket has been created and is not ready to
+ activate</code>, then wait a moment and try again. If it still does not
+ work, then there may be network partition or other issues that need
+ to be addressed in your cluster.</p>
+  </li>
+  <li>
+    <p>Activating the new bucket type:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin bucket-type activate user_account_bucket
+</code></pre></div>    </div>
+
+    <p>If activation is successful, the console will return
+ <code class="language-plaintext highlighter-rouge">user_account_bucket has been activated</code>. The bucket type is now
+ ready to be used.</p>
+  </li>
+</ol>
+
+<h2 id="client-usage-example">Client Usage Example</h2>
+
+<p>If you have created the bucket type <code class="language-plaintext highlighter-rouge">no_siblings</code> (with the property
+<code class="language-plaintext highlighter-rouge">allow_mult</code> set to <code class="language-plaintext highlighter-rouge">false</code>) and would like that type to be applied to
+the bucket <code class="language-plaintext highlighter-rouge">sensitive_user_data</code>, you would need to run operations on
+that bucket in accordance with the format above. Here is an example
+write:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">key</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="s">"sensitive_user_data"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setBucketType</span><span class="o">(</span><span class="s">"no_siblings"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setKey</span><span class="o">(</span><span class="s">"user19735"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"application/json"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"{ ... user data ... }"</span><span class="o">));</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">obj</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'no_siblings'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'sensitive_user_data'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'user19735'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'application/json'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'{ ... user data ... }'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildJsonObject</span><span class="p">(</span><span class="s2">"{ ... user data ... }"</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'user19735'</span><span class="p">,</span> <span class="s1">'sensitive_user_data'</span><span class="p">,</span> <span class="s1">'no_siblings'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'no_siblings'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'sensitive_user_data'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'user19735'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'application/json'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'{ ... user data ... }'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"no_siblings"</span><span class="p">,</span> <span class="s">"sensitive_user_data"</span><span class="p">,</span> <span class="s">"user19735"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"{\"name\":\"Bob\"}"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">obj</span> <span class="o">=</span> <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Bob</span><span class="dl">'</span> <span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">no_siblings</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sensitive_user_data</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">user19735</span><span class="dl">'</span><span class="p">,</span> <span class="na">value</span><span class="p">:</span> <span class="nx">obj</span>
+<span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Object</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"no_siblings"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"sensitive_user_data"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"user19735"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"{ ... user data ... }"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"application/json"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Object</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT \
+  -H "Content-Type: application/json" \
+  -d "{ ... user data ... }" \
+  http://localhost:8098/types/no_siblings/buckets/sensitive_user_data/keys/user19735
+</code></pre>
+
+<p>In this example, the bucket <code class="language-plaintext highlighter-rouge">sensitive_user_data</code> bears the
+configuration established by the <code class="language-plaintext highlighter-rouge">no_siblings</code> bucket type, and it bears
+that configuration <em>on the basis of the query’s structure</em>. This is
+because buckets act as a <a href="#buckets-as-namespaces">separate namespace</a> in Riak, in addition to <a href="/riak/kv/2.1.3/learn/concepts/buckets">buckets</a> and <a href="/riak/kv/2.1.3/learn/concepts/keys-and-objects">keys</a>.</p>
+
+<p>Let’s say that we’re using Riak to store internet memes. We’ve been
+using a bucket called <code class="language-plaintext highlighter-rouge">current_memes</code> using the bucket type
+<code class="language-plaintext highlighter-rouge">no_siblings</code> (from above). At a certain point, we decide that our
+application needs to use a new bucket called <code class="language-plaintext highlighter-rouge">old_memes</code> to store memes
+that have gone woefully out of fashion, but that bucket also needs to
+bear the type <code class="language-plaintext highlighter-rouge">no_siblings</code>.</p>
+
+<p>The following request seeks to add the meme “all your base are belong to
+us” to the <code class="language-plaintext highlighter-rouge">old_memes</code> bucket. If the bucket type <code class="language-plaintext highlighter-rouge">no_siblings</code> has been
+created and activated, the request will ensure that the <code class="language-plaintext highlighter-rouge">old_memes</code>
+bucket inherits all of the properties from the type <code class="language-plaintext highlighter-rouge">no_siblings</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">allYourBaseKey</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"no_siblings"</span><span class="o">,</span> <span class="s">"old_memes"</span><span class="o">),</span> <span class="s">"all_your_base"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"all your base are belong to us"</span><span class="o">));</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">obj</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'no_siblings'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'old_memes'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'all_your_base'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'all your base are belong to us'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildObject</span><span class="p">(</span><span class="s2">"all your base are belong to us"</span><span class="p">,</span> <span class="p">[</span><span class="s1">'Content-Type'</span> <span class="o">=&gt;</span> <span class="s1">'text/plain'</span><span class="p">])</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'user19735'</span><span class="p">,</span> <span class="s1">'sensitive_user_data'</span><span class="p">,</span> <span class="s1">'no_siblings'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'no_siblings'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'old_memes'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'all_your_base'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'all your base are belong to us'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"no_siblings"</span><span class="p">,</span> <span class="s">"old_memes"</span><span class="p">,</span> <span class="s">"all_your_base"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"all your base are belong to us"</span><span class="p">,</span>
+    <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">obj</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj</span><span class="p">.</span><span class="nx">setBucketType</span><span class="p">(</span><span class="dl">'</span><span class="s1">no_siblings</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj</span><span class="p">.</span><span class="nx">setBucket</span><span class="p">(</span><span class="dl">'</span><span class="s1">old_memes</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj</span><span class="p">.</span><span class="nx">setKey</span><span class="p">(</span><span class="dl">'</span><span class="s1">all_your_base</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">all your base are belong to us</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span> <span class="na">value</span><span class="p">:</span> <span class="nx">obj</span> <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Object</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"no_siblings"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"old_memes"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"all_your_base"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"all your base are belong to us"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"text/plain"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Object</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT \
+  -H "Content-Type: text/plain" \
+  -d "all your base are belong to us" \
+  http://localhost:8098/types/no_siblings/buckets/old_memes/keys/all_your_base
+</code></pre>
+
+<p>This query would both create the bucket <code class="language-plaintext highlighter-rouge">old_memes</code> and ensure that the
+configuration contained in the <code class="language-plaintext highlighter-rouge">no_siblings</code> bucket type is applied to
+the bucket all at once.</p>
+
+<p>If we wished, we could also store both old and new memes in
+buckets with different types. We could use the <code class="language-plaintext highlighter-rouge">no_siblings</code> bucket from
+above if we didn’t want to deal with siblings, vclocks, and the like,
+and we could use a <code class="language-plaintext highlighter-rouge">siblings_allowed</code> bucket type (with all of the
+default properties except <code class="language-plaintext highlighter-rouge">allow_mult</code> set to <code class="language-plaintext highlighter-rouge">true</code>). This would give
+use four bucket type/bucket pairs:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">no_siblings</code> / <code class="language-plaintext highlighter-rouge">old_memes</code></li>
+  <li><code class="language-plaintext highlighter-rouge">no_siblings</code> / <code class="language-plaintext highlighter-rouge">new_memes</code></li>
+  <li><code class="language-plaintext highlighter-rouge">siblings_allowed</code> / <code class="language-plaintext highlighter-rouge">old_memes</code></li>
+  <li><code class="language-plaintext highlighter-rouge">siblings_allowed</code> / <code class="language-plaintext highlighter-rouge">new_memes</code></li>
+</ul>
+
+<p>All four of these pairs are isolated keyspaces. The key <code class="language-plaintext highlighter-rouge">favorite_meme</code>
+could hold different values in all four bucket type/bucket spaces.</p>

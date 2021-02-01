@@ -1,0 +1,50 @@
+
+<p>The <code class="language-plaintext highlighter-rouge">fullsync_interval</code> parameter can be configured in the <code class="language-plaintext highlighter-rouge">riak-repl</code>
+section of <a href="/riak/kv/2.1.3/configuring/reference/#advanced-configuration"><code class="language-plaintext highlighter-rouge">advanced.config</code></a> with either:</p>
+
+<ul>
+  <li>a single integer value representing the duration to wait, in minutes,
+between fullsyncs, <em>or</em></li>
+  <li>a list of pairs of the form <code class="language-plaintext highlighter-rouge">[{"clustername", time_in_minutes},
+{"clustername", time_in_minutes}, ...]</code> pairs for each sink
+participating in fullsync replication. Note the commas separating each
+pair, and <code class="language-plaintext highlighter-rouge">[ ]</code> surrounding the entire list.</li>
+</ul>
+
+<h2 id="examples">Examples</h2>
+
+<p>Sharing a fullsync time (in minutes) for all sinks:</p>
+
+<pre><code class="language-advancedconfig">{riak_repl, [
+    % ...
+    {data_root, "/configured/repl/data/root"},
+    {fullsync_interval, 90} %% fullsync runs every 90 minutes
+    % ...
+    ]}
+</code></pre>
+
+<p>List of multiple sinks with separate times in minutes:</p>
+
+<pre><code class="language-advancedconfig">{riak_repl, [
+    % ...
+    {data_root, "/configured/repl/data/root"},
+    % clusters sink_boston + sink_newyork have difference intervals (in minutes)
+    {fullsync_interval, [
+        {"sink_boston", 120},  %% fullsync to sink_boston with run every 120 minutes
+        {"sink_newyork", 90}]} %% fullsync to sink_newyork with run every 90 minutes
+  
+    ]}
+</code></pre>
+
+<h2 id="additional-fullsync-stats">Additional Fullsync Stats</h2>
+
+<p>Additional fullsync stats per sink have been added in Riak Enterprise.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">fullsyncs_completed</code> — The number of fullsyncs that have been
+completed to the specified sink cluster.</li>
+  <li><code class="language-plaintext highlighter-rouge">fullsync_start_time</code> — The time the current fullsink to the
+specified cluster began.</li>
+  <li><code class="language-plaintext highlighter-rouge">last_fullsync_duration</code> — The duration (in seconds) of the last
+completed fullsync.</li>
+</ul>

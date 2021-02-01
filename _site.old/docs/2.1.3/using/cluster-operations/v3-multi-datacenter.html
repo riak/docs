@@ -1,0 +1,459 @@
+
+<p>This document explains how to manage replication with the <code class="language-plaintext highlighter-rouge">riak-repl</code>
+command. Some of these commands can be set or behavior altered by
+setting appropriate <a href="/riak/kv/2.1.3/configuring/v3-multi-datacenter">configuration</a> values.</p>
+
+<p>All commands need to be run only once on a single node of a cluster for
+the changes to propagate to all other nodes. All changes will persist
+across node restarts and will automatically take effect when nodes are
+added to the cluster.</p>
+
+<h2 id="cluster-connectivity">Cluster Connectivity</h2>
+
+<h4 id="clustername">clustername</h4>
+
+<p>Set the <code class="language-plaintext highlighter-rouge">clustername</code> for all nodes in a Riak cluster.</p>
+
+<ul>
+  <li>Without a parameter, returns the current name of the cluster</li>
+  <li>With a parameter, names the current cluster</li>
+</ul>
+
+<p>To <strong>set</strong> the <code class="language-plaintext highlighter-rouge">clustername</code>:</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl clustername &lt;clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl clustername Boston</code></li>
+</ul>
+
+<p>To <strong>get</strong> the <code class="language-plaintext highlighter-rouge">clustername</code>:</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl clustername</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl clustername</code></li>
+</ul>
+
+<h4 id="connect">connect</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">connect</code> command establishes communications from a source cluster
+to a sink cluster of the same ring size. The <code class="language-plaintext highlighter-rouge">host:port</code> of the sink
+cluster is used for this. The IP and port to connect to can be found in
+the <code class="language-plaintext highlighter-rouge">advanced.config</code> of the remote cluster, under <code class="language-plaintext highlighter-rouge">riak_core</code> and
+<code class="language-plaintext highlighter-rouge">cluster_mgr</code>.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">host</code> can be either an IP address</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl connect &lt;ip&gt;:&lt;port&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl connect 192.168.2.1:9080</code></li>
+</ul>
+
+<p>…or a hostname that will resolve to an IP address.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl connect &lt;host&gt;:&lt;port&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl connect Austin:9080</code></li>
+</ul>
+
+<h4 id="disconnect">disconnect</h4>
+
+<p>Disconnecting a source cluster from a sink cluster.</p>
+
+<p>You may define a <code class="language-plaintext highlighter-rouge">host:port</code> combination</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl disconnect &lt;host&gt;:&lt;port&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl disconnect 192.168.2.1:9080</code></li>
+</ul>
+
+<p>…or use the <em>name</em> of the cluster.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl disconnect &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl disconnect Austin</code></li>
+</ul>
+
+<h4 id="connections">connections</h4>
+
+<p>Display a list of connections between source and sink clusters.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl connections</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl connections</code></li>
+</ul>
+
+<h4 id="clusterstats">clusterstats</h4>
+
+<p>Displays current cluster stats using an optional <code class="language-plaintext highlighter-rouge">ip:port</code> as well as an
+optional <code class="language-plaintext highlighter-rouge">protocol-id</code>.</p>
+
+<p><code class="language-plaintext highlighter-rouge">protocol-id</code> can be one of the following:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">cluster_mgr</code></li>
+  <li><code class="language-plaintext highlighter-rouge">rt_repl</code></li>
+  <li><code class="language-plaintext highlighter-rouge">fs_repl</code></li>
+</ul>
+
+<p>The <code class="language-plaintext highlighter-rouge">clusterstats</code> command in use:</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl clusterstats &lt;host&gt;:&lt;port&gt; &lt;protocol-id&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl clusterstats 192.168.2.1:9080</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl clusterstats 192.168.2.1:9080 fs_repl</code></li>
+</ul>
+
+<h2 id="realtime-replication-commands">Realtime Replication Commands</h2>
+
+<h4 id="realtime-enable">realtime enable</h4>
+
+<p>Enable realtime replication from a source cluster to sink clusters.</p>
+
+<p>This will start queuing updates for replication. The cluster will still
+require an invocation of <code class="language-plaintext highlighter-rouge">realtime start</code> for replication to occur.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl realtime enable &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl realtime enable Austin</code></li>
+</ul>
+
+<h4 id="realtime-disable">realtime disable</h4>
+
+<p>Disable realtime replication from a source cluster to sink clusters.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl realtime disable &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl realtime disable Austin</code></li>
+</ul>
+
+<h4 id="realtime-start">realtime start</h4>
+
+<p>Start realtime replication connections from a source cluster to sink
+clusters. See also <code class="language-plaintext highlighter-rouge">realtime enable</code> (above).</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl realtime start &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl realtime start Austin</code></li>
+</ul>
+
+<h4 id="realtime-stop">realtime stop</h4>
+
+<p>Stop realtime replication from a source cluster to sink clusters.</p>
+
+<ul>
+  <li>Syntax <code class="language-plaintext highlighter-rouge">riak-repl realtime stop &lt;sink_clustername&gt;</code></li>
+  <li>Example <code class="language-plaintext highlighter-rouge">riak-repl realtime stop Austin</code></li>
+</ul>
+
+<h2 id="fullsync-replication-commands">Fullsync Replication Commands</h2>
+
+<p>These behaviors can be altered by using the <code class="language-plaintext highlighter-rouge">advanced.config</code>
+<code class="language-plaintext highlighter-rouge">fullsync_on_connect</code> parameter. See the <a href="/riak/kv/2.1.3/configuring/v3-multi-datacenter">Configuration Guide</a> for more information.</p>
+
+<h4 id="fullsync-enable">fullsync enable</h4>
+
+<p>Enable fullsync replication from a source cluster to sink clusters. By
+default, a fullsync will begin as soon as a connection to the remote
+cluster is established.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl fullsync enable &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl fullsync enable Austin</code></li>
+</ul>
+
+<h4 id="fullsync-disable">fullsync disable</h4>
+
+<p>Disables fullsync for a cluster.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl fullsync disable &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl fullsync disable Austin</code></li>
+</ul>
+
+<h4 id="fullsync-start">fullsync start</h4>
+
+<p>Starts a fullsync. If the application configuration
+<code class="language-plaintext highlighter-rouge">fullsync_on_connect</code> is set to <code class="language-plaintext highlighter-rouge">false</code>, a fullsync needs to be started
+manually. This is also used to trigger a periodic fullsync using a cron
+job. While a fullsync is in progress, a <code class="language-plaintext highlighter-rouge">start</code> command is ignored and a
+message is logged.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl fullsync start &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl fullsync start Austin</code></li>
+</ul>
+
+<h4 id="fullsync-stop">fullsync stop</h4>
+
+<p>Stops a fullsync.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl fullsync stop &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl fullsync stop Austin</code></li>
+</ul>
+
+<h2 id="cascading-realtime-writes">Cascading Realtime Writes</h2>
+
+<h4 id="realtime-cascades">realtime cascades</h4>
+
+<p>Shows the current cascading realtime setting.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">realtime cascades</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl realtime cascades</code></li>
+</ul>
+
+<h4 id="realtime-cascades-always">realtime cascades always</h4>
+
+<p>Enable realtime cascading writes.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">realtime cascades always</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl realtime cascades always</code></li>
+</ul>
+
+<h4 id="realtime-cascades-never">realtime cascades never</h4>
+
+<p>Disable realtime cascading writes.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">realtime cascades never</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl realtime cascades never</code></li>
+</ul>
+
+<h2 id="nat">NAT</h2>
+
+<p><strong>Note</strong>: See the <a href="/riak/kv/2.1.3/configuring/v3-multi-datacenter/nat">V3 Multi Data Center Replication With NAT</a> for more information.</p>
+
+<h4 id="nat-map-show">nat-map show</h4>
+
+<p>Show the current NAT mapping table.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">nat-map show</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl nat-map show</code></li>
+</ul>
+
+<h4 id="nat-map-add">nat-map add</h4>
+
+<p>Adds a NAT map from the external IP, with an optional port, to an
+internal IP.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">nat-map add &lt;externalip&gt;[:port] &lt;internalip&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl nat-map add 128.205.106.1:5555 192.168.1.2</code></li>
+</ul>
+
+<h4 id="nat-map-del">nat-map del</h4>
+
+<p>Deletes a specific NAT map entry.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">nat-map del &lt;externalip&gt;[:port] &lt;internalip&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl nat-map del 128.205.106.1:5555 192.168.1.2</code></li>
+</ul>
+
+<p>NAT changes will be applied once fullsync and/or realtime replication
+has been stopped and started.</p>
+
+<h2 id="riak-cs-mdc-gets">Riak CS MDC Gets</h2>
+
+<h4 id="proxy-get-enable">proxy-get enable</h4>
+
+<p>Enable Riak CS <code class="language-plaintext highlighter-rouge">proxy_get</code> requests from a <strong>sink</strong> cluster (if
+<code class="language-plaintext highlighter-rouge">proxy_get</code> has been enabled in <code class="language-plaintext highlighter-rouge">advanced.config</code>).</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">proxy-get enable  &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl proxy-get enable  newyorkbackup</code></li>
+</ul>
+
+<h4 id="proxy-get-disable"><code class="language-plaintext highlighter-rouge">proxy-get disable</code></h4>
+
+<p>Disable Riak CS <code class="language-plaintext highlighter-rouge">proxy_get</code> requests from a <strong>sink</strong> cluster (if
+<code class="language-plaintext highlighter-rouge">proxy_get</code> has been enabled in <code class="language-plaintext highlighter-rouge">advanced.config</code>).</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">proxy-get disable &lt;sink_clustername&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl proxy-get disable newyorkbackup</code></li>
+</ul>
+
+<h4 id="add-block-provider-redirect"><code class="language-plaintext highlighter-rouge">add-block-provider-redirect</code></h4>
+
+<p>Provide a redirection to the <code class="language-plaintext highlighter-rouge">&lt;to-cluster-id&gt;</code> for <code class="language-plaintext highlighter-rouge">proxy_get</code> if the
+<code class="language-plaintext highlighter-rouge">&lt;from-cluster&gt;</code> is going to be decommissioned.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl add-block-provider-redirect &lt;from-cluster&gt; &lt;to-cluster&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl add-block-provider-redirect "{'dev1@127.0.0.1',{1391,544501,519016}}" "{'dev3@127.0.0.1',{1299,512501,511032}}"</code></li>
+</ul>
+
+<h4 id="show-block-provider-redirect"><code class="language-plaintext highlighter-rouge">show-block-provider-redirect</code></h4>
+<p>Show the mapping for a given cluster-id redirect.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl show-block-provider-redirect &lt;from-cluster&gt;</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl show-block-provider-redirect "{'dev1@127.0.0.1',{1391,544501,519016}}"</code></li>
+</ul>
+
+<h4 id="delete-block-provider-redirect"><code class="language-plaintext highlighter-rouge">delete-block-provider-redirect</code></h4>
+<p>Delete a existing redirect such that proxy_gets go again to the original
+provider cluster id.</p>
+
+<ul>
+  <li>Syntax:* <code class="language-plaintext highlighter-rouge">riak-repl delete-block-provider-redirect &lt;from-cluster&gt;</code></li>
+  <li>Example:* <code class="language-plaintext highlighter-rouge">riak-repl delete-block-provider-redirect "{'dev1@127.0.0.1', {1391,544501,519016}}"</code></li>
+</ul>
+
+<h4 id="show-local-cluster-id"><code class="language-plaintext highlighter-rouge">show-local-cluster-id</code></h4>
+
+<p>Display this cluster’s cluster-id tuple, for use with the
+<code class="language-plaintext highlighter-rouge">*-block-provider-redirect</code> commands.</p>
+
+<p><strong>Note</strong>: A cluster-id is surrounded by double quotes, which need to be
+included when passed to <code class="language-plaintext highlighter-rouge">*-block-provider-redirect</code>.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl show-local-cluster-id</code></li>
+  <li>
+    <p>Example:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  riak-repl show-local-cluster-id
+</code></pre></div>    </div>
+
+    <p>Possible output:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  local cluster id: "{'dev1@127.0.0.1',{1391,544501,519016}}"
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<h2 id="riak-repl-status-output"><code class="language-plaintext highlighter-rouge">riak-repl</code> Status Output</h2>
+
+<p>Details about the <code class="language-plaintext highlighter-rouge">riak-repl status</code> command can be found under
+<a href="/riak/kv/2.1.3/using/reference/multi-datacenter/statistics">Statistics</a>.</p>
+
+<h2 id="tuning">Tuning</h2>
+
+<p>These tuning values may also be set via the node’s <code class="language-plaintext highlighter-rouge">advanced.config</code> file.
+See the <a href="/riak/kv/2.1.3/configuring/v3-multi-datacenter">Configuration Guide</a> for more information.</p>
+
+<h4 id="fullsync-max_fssource_node"><code class="language-plaintext highlighter-rouge">fullsync max_fssource_node</code></h4>
+
+<p>This limits the number of fullsync workers that will be running on each
+individual node in a source cluster. This is a hard limit for <em>all</em>
+fullsyncs that are enabled. Additional fullsync configurations will
+<em>not</em> increase the number of fullsync workers allowed to run on any
+node. This only affects nodes on the source cluster on which this
+parameter is defined via the configuration file or command line.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl fullsync max_fssource_node &lt;value&gt;</code></li>
+  <li>Default: <code class="language-plaintext highlighter-rouge">1</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl fullsync max_fssource_node 2</code></li>
+</ul>
+
+<h4 id="fullsync-max_fssource_cluster"><code class="language-plaintext highlighter-rouge">fullsync max_fssource_cluster</code></h4>
+
+<p>This is the hard limit of fullsync workers that will be running on the
+source side of a cluster across all nodes on that cluster for a fullsync
+to a sink cluster. This means if one has configured fullsync for two
+different clusters, both with a max_fssource_cluster of 5, 10 fullsync
+workers can be in progress. Only affects nodes on the source cluster on
+which this parameter is defined via the configuration file or the
+command line.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl fullsync max_fssource_cluster &lt;value&gt;</code></li>
+  <li>Default: <code class="language-plaintext highlighter-rouge">5</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl fullsync max_fssource_cluster 5</code></li>
+</ul>
+
+<h4 id="fullsync-max_fssink_node"><code class="language-plaintext highlighter-rouge">fullsync max_fssink_node</code></h4>
+
+<p>This limits the number of fullsync workers allowed to run on each
+individual node in a sink cluster. This is a hard limit for each
+fullsync source node interacting with a sink node. Thus, multiple
+simultaneous source connections to a sink node will have to share the
+sink node’s number of maximum connections. Only affects nodes on the
+sink cluster on which this parameter is defined via the configuration
+file or command line.</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl fullsync max_fssink_node &lt;value&gt;</code></li>
+  <li>Default: <code class="language-plaintext highlighter-rouge">1</code></li>
+  <li>Example: <code class="language-plaintext highlighter-rouge">riak-repl fullsync max_fssink_node 5</code></li>
+</ul>
+
+<h2 id="mixing-version-2-replication-with-version-3-replication">Mixing Version 2 Replication with Version 3 Replication</h2>
+
+<p>Riak Version 2 Replication and Version 3 Replication can be safely used
+at the same time. If you choose to move to Version 3 Replication
+completely, we recommend disabling Version 2 realtime
+replication bucket hooks with the <code class="language-plaintext highlighter-rouge">riak-repl modes</code> command.</p>
+
+<h4 id="riak-repl-modes"><code class="language-plaintext highlighter-rouge">riak-repl modes</code></h4>
+
+<p><code class="language-plaintext highlighter-rouge">modelist</code> is one or both of <code class="language-plaintext highlighter-rouge">mode_repl12</code> (Version 2) or <code class="language-plaintext highlighter-rouge">mode_repl13</code>
+(Version 3) separated by spaces (without commas).</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl modes &lt;modelist&gt;</code></li>
+  <li>
+    <p>Example:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  riak-repl modes mode_repl12 mode_repl13
+</code></pre></div>    </div>
+
+    <p>Possible output:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  Current replication modes: [mode_repl12,mode_repl13]
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p>To check the current replication modes:</p>
+
+<ul>
+  <li>Syntax: <code class="language-plaintext highlighter-rouge">riak-repl modes</code></li>
+  <li>
+    <p>Example:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  riak-repl modes
+</code></pre></div>    </div>
+
+    <p>Possible output:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  Current replication modes: [mode_repl12,mode_repl13]
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<h2 id="configurations-and-metadata-in-replication">Configurations and Metadata in Replication</h2>
+
+<p>Fullsync and Realtime replication replicates data from source clusters to sink clusters,
+but some configurations and metadata (such as search indices and bucket properties) will
+not be replicated.</p>
+
+<p>Non-replication of certain configurations and metadata supports
+heterogenous cluster configurations in Replication, but there operational things you can
+do when you want homogeneous cluster configurations.</p>
+
+<h3 id="search-indices-in-replication">Search Indices in Replication</h3>
+
+<p>Any search index that is created on a source cluster will <em>not</em> be
+created on sink clusters as part of replication.</p>
+
+<p>If you want search indices on a source cluster to be present on the
+sink clusters, you should update this data for each
+cluster at the same time you would change the source cluster.</p>
+
+<h3 id="buckets-and-bucket-types-in-replication">Buckets and Bucket Types in Replication</h3>
+
+<p>Buckets and Bucket Type properties on the source cluster
+will <em>not</em> be replicated from source clusters to sink clusters.</p>
+
+<p>If you want the properties for Buckets or Bucket Types
+present on the source cluster to be propagated to sink clusters
+you should update this data for each cluster at the same
+time you would change the source cluster.</p>

@@ -1,0 +1,74 @@
+
+<p>If you haven’t set up a Riak Node and started it, please visit <a href="/riak/kv/2.1.3/using/running-a-cluster">Running A Cluster</a> first.</p>
+
+<p>To try this flavor of Riak, a working installation of Node.js 0.12 or later is
+required.</p>
+
+<p>Code for these examples is available <a href="https://github.com/basho/riak-nodejs-client-examples/blob/master/dev/taste-of-riak/introduction.js">here</a>. To run, follow
+these directions:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git clone git://github.com/basho/riak-nodejs-client-examples
+<span class="nb">cd </span>riak-nodejs-client-examples
+npm <span class="nb">install
+</span>node ./app.js
+</code></pre></div></div>
+
+<h3 id="client-setup">Client Setup</h3>
+
+<p>Install <a href="https://github.com/basho/riak-nodejs-client/wiki/Installation">the Riak Node.js Client</a> through <a href="https://www.npmjs.com/package/basho-riak-client">NPM</a>.</p>
+
+<h3 id="connecting-to-riak">Connecting to Riak</h3>
+
+<p>Connecting to Riak with the Riak Node.js Client requires creating a new client
+object and using the callback argument to know when the client is fully
+initialized:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">Riak</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">basho-riak-client</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">var</span> <span class="nx">nodes</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="dl">'</span><span class="s1">riak-test:10017</span><span class="dl">'</span><span class="p">,</span>
+    <span class="dl">'</span><span class="s1">riak-test:10027</span><span class="dl">'</span><span class="p">,</span>
+    <span class="dl">'</span><span class="s1">riak-test:10037</span><span class="dl">'</span><span class="p">,</span>
+    <span class="dl">'</span><span class="s1">riak-test:10047</span><span class="dl">'</span>
+<span class="p">];</span>
+<span class="kd">var</span> <span class="nx">client</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Client</span><span class="p">(</span><span class="nx">nodes</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// NB: at this point the client is fully initialized, and</span>
+    <span class="c1">// 'client' and 'c' are the same object</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>This creates a new <code class="language-plaintext highlighter-rouge">Riak.Client</code> object which handles all the details of
+tracking active nodes and also provides load balancing. The <code class="language-plaintext highlighter-rouge">Riak.Client</code> object
+is used to send commands to Riak. When your application is completely done with
+Riak communications, the following method can be used to gracefully shut the
+client down and exit Node.js:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">client</span><span class="p">.</span><span class="nx">stop</span><span class="p">(</span><span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// NB: you may wish to check err</span>
+    <span class="nx">process</span><span class="p">.</span><span class="nx">exit</span><span class="p">();</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>Let’s make sure the cluster is online with a <code class="language-plaintext highlighter-rouge">Ping</code> request:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">assert</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">assert</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">ping</span><span class="p">(</span><span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="c1">// On success, ping returns true</span>
+        <span class="nx">assert</span><span class="p">(</span><span class="nx">rslt</span> <span class="o">===</span> <span class="kc">true</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>This is some simple code to test that a node in a Riak cluster is online - we
+send a simple ping message. Even if the cluster isn’t present, the Riak Node.js
+Client will return a response message. In the callback it is important to check
+that your activity was successful by checking the <code class="language-plaintext highlighter-rouge">err</code> variable.</p>
+
+<p>We are now ready to start interacting with Riak.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p><a href="/riak/kv/2.1.3/developing/getting-started/nodejs/crud-operations">CRUD Operations</a></p>

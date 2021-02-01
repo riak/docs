@@ -1,0 +1,513 @@
+<p>Riak provides data related to current operating status, which includes
+statistics in the form of counters and histograms. These statistics
+are made available through the HTTP API via the <a href="/riak/kv/2.1.1/developing/api/http/status"><code class="language-plaintext highlighter-rouge">/stats</code></a> endpoint, or through the <a href="/riak/kv/2.1.1/using/admin/riak-admin/"><code class="language-plaintext highlighter-rouge">riak-admin</code></a> interface, in particular the <code class="language-plaintext highlighter-rouge">stat</code> and <code class="language-plaintext highlighter-rouge">status</code> commands.</p>
+
+<p>This page presents the most commonly monitored and gathered
+statistics, as well as numerous solutions for monitoring and gathering
+statistics that our customers and community report using successfully
+in Riak cluster environments. You can learn more about the specific
+Riak statistics provided in the <a href="/riak/kv/2.1.1/using/cluster-operations/inspecting-node">Inspecting a Node</a> and <a href="/riak/kv/2.1.1/developing/api/http/status">HTTP Status</a> documentation.</p>
+
+<h2 id="system-metrics-to-graph">System Metrics To Graph</h2>
+
+<p>Graphing general system metrics of Riak nodes will help with
+diagnostics and early warnings of potential problems, as well as help
+guide provisioning and scaling decisions.</p>
+
+<ul>
+  <li>CPU (user/system/wait/idle)</li>
+  <li>Processor Load</li>
+  <li>Available Memory</li>
+  <li>Available disk space</li>
+  <li>Used file descriptors</li>
+  <li>Swap Usage</li>
+  <li>IOWait</li>
+  <li>Read operations</li>
+  <li>Write operations</li>
+  <li>Network throughput</li>
+  <li>Network errors</li>
+</ul>
+
+<p>We also recommend tracking your system’s virtual and
+writebacks. Things like massive flushes of dirty pages or steadily
+climbing writeback volumes can indicate poor virtual memory tuning.
+More information can be found <a href="https://www.kernel.org/doc/Documentation/sysctl/vm.txt">here</a> and in our
+documentation on <a href="/riak/kv/2.1.1/using/performance/#storage-and-file-system-tuning">system tuning</a>.</p>
+
+<h2 id="riak-metrics-to-graph">Riak Metrics to Graph</h2>
+<p>Riak metrics fall into several general categories:</p>
+
+<ol>
+  <li>Throughput metrics</li>
+  <li>Latency metrics</li>
+  <li>Erlang resource usage metrics</li>
+  <li>General Riak load/health metrics</li>
+</ol>
+
+<p>If graphing all of the <a href="/riak/kv/2.1.1/using/cluster-operations/inspecting-node">available Riak metrics</a> is
+not practical, you should pick a minimum relevant subset from these
+categories. Some of the most helpful metrics are discussed below.</p>
+
+<h3 id="throughput-metrics">Throughput Metrics</h3>
+
+<p>Graphing the throughput stats relevant to your use case is often
+helpful for capacity planning and usage trend analysis. In addition,
+it helps you establish an expected baseline – that way, you can
+investigate unexpected spikes or dips in the throughput.  The
+following stats are recorded for operations that happened <em>during the
+last minute</em>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Metric</th>
+      <th style="text-align: left">Relevance</th>
+      <th style="text-align: left">Operations (for the last minute)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_gets</code></td>
+      <td style="text-align: left">K/V</td>
+      <td style="text-align: left">Reads coordinated by this node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_puts</code></td>
+      <td style="text-align: left">K/V</td>
+      <td style="text-align: left">Writes coordinated by this node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">vnode_counter_update</code></td>
+      <td style="text-align: left">Data Types</td>
+      <td style="text-align: left">Update <a href="http://docs.basho.com/riak/latest/dev/using/data-types/#Counters">Counters</a> operations coordinated by local vnodes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">vnode_set_update</code></td>
+      <td style="text-align: left">Data Types</td>
+      <td style="text-align: left">Update <a href="http://docs.basho.com/riak/latest/dev/using/data-types/#Sets">Sets</a> operations coordinated by local vnodes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">vnode_map_update</code></td>
+      <td style="text-align: left">Data Types</td>
+      <td style="text-align: left">Update <a href="http://docs.basho.com/riak/latest/dev/using/data-types/#Maps">Maps</a> operations coordinated by local vnodes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search_query_throughput_one</code></td>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left">Search queries on the node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search_index_throughtput_one</code></td>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left">Documents indexed by Search</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_gets</code></td>
+      <td style="text-align: left">Strong Consistency</td>
+      <td style="text-align: left">Consistent reads on this node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_puts</code></td>
+      <td style="text-align: left">Strong Consistency</td>
+      <td style="text-align: left">Consistent writes on this node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">vnode_index_reads</code></td>
+      <td style="text-align: left">Secondary Indexes</td>
+      <td style="text-align: left">Number of local replicas participating in secondary index reads</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Note that there are no separate stats for updates to Flags or
+Registers, as these are included in <code class="language-plaintext highlighter-rouge">vnode_map_update</code>.</p>
+
+<h3 id="latency-metrics">Latency Metrics</h3>
+
+<p>As with the throughput metrics, keeping an eye on average (and max)
+latency times will help detect usage patterns, and provide advanced
+warnings for potential problems.</p>
+
+<p>FSM Time Stats represent the amount of time in microseconds required to
+traverse the GET or PUT Finite State Machine code, offering a picture of
+general node health. From your application’s perspective, FSM Time effectively
+represents experienced latency. Mean, Median, and 95th-, 99th-, and
+100th-percentile (Max) counters are displayed. These are one-minute stats.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Metric</th>
+      <th style="text-align: left">Also</th>
+      <th style="text-align: left">Relevance</th>
+      <th style="text-align: left">Latency (in microseconds)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_get_fsm_time_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">K/V</td>
+      <td style="text-align: left">Time between reception of client read request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_put_fsm_time_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">K/V</td>
+      <td style="text-align: left">Time between reception of client write request and subsequent response to client</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">object_counter_merge_time_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Data Types</td>
+      <td style="text-align: left">Time it takes to perform an Update Counter operation</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">object_set_merge_time_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Data Types</td>
+      <td style="text-align: left">Time it takes to perform an Update Set operation</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">object_map_merge_time_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Data Types</td>
+      <td style="text-align: left">Time it takes to perform an Update Map operation</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search_query_latency_median</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_min</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_999</code>, <code class="language-plaintext highlighter-rouge">_max</code></td>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left">Search query latency</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search_index_latency_median</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_min</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_999</code>, <code class="language-plaintext highlighter-rouge">_max</code></td>
+      <td style="text-align: left">Search</td>
+      <td style="text-align: left">Time it takes Search to index a new document</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_get_time_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Strong Consistency</td>
+      <td style="text-align: left">Strongly consistent read latency</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">consistent_put_time_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Strong Consistency</td>
+      <td style="text-align: left">Strongly consistent write latency</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="erlang-resource-usage-metrics">Erlang Resource Usage Metrics</h3>
+
+<p>These are system metrics from the perspective of the Erlang VM,
+measuring resources allocated and used by Erlang.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Metric</th>
+      <th style="text-align: left">Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">sys_process_count</code></td>
+      <td style="text-align: left">Number of processes currently running in the Erlang VM</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">memory_processes</code></td>
+      <td style="text-align: left">Total amount of memory allocated for Erlang processes (in bytes)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">memory_processes_used</code></td>
+      <td style="text-align: left">Total amount of memory used by Erlang processes (in bytes)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="general-riak-loadhealth-metrics">General Riak Load/Health Metrics</h3>
+
+<p>These various stats give a picture of the general level of activity or
+load on the Riak node at any given moment.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Metric</th>
+      <th style="text-align: left">Also</th>
+      <th style="text-align: left">Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_get_fsm_siblings_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Number of siblings encountered during all GET operations by this node within the last minute. Watch for abnormally high sibling counts, especially max ones.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_get_fsm_objsize_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Object size encountered by this node within the last minute. Abnormally large objects (especially paired with high sibling counts) can indicate sibling explosion.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">riak_search_vnodeq_mean</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">_median</code>, <code class="language-plaintext highlighter-rouge">_95</code>, <code class="language-plaintext highlighter-rouge">_99</code>, <code class="language-plaintext highlighter-rouge">_100</code></td>
+      <td style="text-align: left">Number of unprocessed messages in the vnode message queues of the Riak Search subsystem on this node in the last minute. The queues give you an idea of how backed up Solr is getting.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search_index_fail_one</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Number of “Failed to index document” errors Search encountered for the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pbc_active</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Number of currently active protocol buffer connections</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pbc_connects</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Number of new protocol buffer connections established during the last minute</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">read_repairs</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Number of read repair operations this node has coordinated in the last minute (determine baseline, watch for abnormal spikes)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">list_fsm_active</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Number of List Keys FSMs currently active (should be 0)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_get_fsm_rejected</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Number of GET FSMs actively being rejected by Sidejob’s overload protection</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node_put_fsm_rejected</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left">Number of PUT FSMs actively being rejected by Sidejob’s overload protection</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="command-line-interface">Command-line Interface</h2>
+
+<p>The <a href="/riak/kv/2.1.1/using/admin/riak-admin/"><code class="language-plaintext highlighter-rouge">riak-admin</code></a> tool provides two
+interfaces for retrieving statistics and other information: <code class="language-plaintext highlighter-rouge">status</code>
+and <code class="language-plaintext highlighter-rouge">stat</code>.</p>
+
+<h3 id="status">status</h3>
+
+<p>Running the <code class="language-plaintext highlighter-rouge">riak-admin status</code> command will return all of the
+currently available information from a running node.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin status
+</code></pre></div></div>
+
+<p>This will return a list of over 300 key/value pairs, like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>1-minute stats for 'dev1@127.0.0.1'
+-------------------------------------------
+connected_nodes : ['dev2@127.0.0.1','dev3@127.0.0.1']
+consistent_get_objsize_100 : 0
+consistent_get_objsize_195 : 0
+... etc ...
+</code></pre></div></div>
+
+<p>A comprehensive list of available stats can be found in the
+<a href="/riak/kv/2.1.1/using/cluster-operations/inspecting-node/#riak-admin-status">Inspecting a Node</a> document.</p>
+
+<h3 id="stat">stat</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak-admin stat</code> command is related to the <code class="language-plaintext highlighter-rouge">riak-admin status</code>
+command but provides a more fine-grained interface for interacting with
+stats and information. Full documentation of this command can be found
+in the <a href="/riak/kv/2.1.1/using/cluster-operations/inspecting-node/#riak-admin-stat">Inspecting a Node</a> document.</p>
+
+<h2 id="statistics-and-monitoring-tools">Statistics and Monitoring Tools</h2>
+
+<p>There are many open source, self-hosted, and service-based solutions for
+aggregating and analyzing statistics and log data for the purposes of
+monitoring, alerting, and trend analysis on a Riak cluster. Some
+solutions provide Riak-specific modules or plugins as noted.</p>
+
+<p>The following are solutions which customers and community members have
+reported success with when used for monitoring the operational status of
+their Riak clusters. Community and open source projects are presented
+along with commercial and hosted services.</p>
+
+<p>Many of the below tools were either created by third-parties or Basho
+engineers for general usage, and have been passed to the community for further
+updates. As such, many of the below only aggregate the statistics and messages
+that were output by Riak 1.4.x.</p>
+
+<p>Like all code under <a href="https://github.com/basho-labs/">Basho Labs</a>, the below
+tools are “best effort” and have no dedicated Basho support. We both
+appreciate and need your contribution to keep these tools stable and up to
+date. Please open up a GitHub issue on the repository if you’d like to be a
+maintainer.</p>
+
+<p>Look for banners calling out the tools we’ve verified that support the latest
+Riak 2.x statistics!</p>
+
+<h3 id="self-hosted-monitoring-tools">Self-Hosted Monitoring Tools</h3>
+
+<h4 id="riaknostic">Riaknostic</h4>
+
+<p><a href="http://riaknostic.basho.com">Riaknostic</a> is a growing suite of
+diagnostic checks that can be run against your Riak node to discover
+common problems and recommend how to resolve them. These checks are
+derived from the experience of the Basho Client Services Team as well as
+numerous public discussions on the mailing list, IRC room, and other
+online media.</p>
+
+<p>Riaknostic integrates into the <code class="language-plaintext highlighter-rouge">riak-admin</code> command via a <code class="language-plaintext highlighter-rouge">diag</code>
+subcommand, and is a great first step in the process of diagnosing and
+troubleshooting issues on Riak nodes.</p>
+
+<h4 id="riak-control">Riak Control</h4>
+
+<p><a href="/riak/kv/2.1.1/using/admin/riak-control/">Riak Control</a> is Basho’s REST-driven user-interface for managing Riak
+clusters. It is designed to give you quick insight into the health of
+your cluster and allow for easy management of nodes.</p>
+
+<p>While Riak Control does not currently offer specific monitoring and
+statistics aggregation or analysis functionality, it does offer features
+which provide immediate insight into overall cluster health, node
+status, and handoff operations.</p>
+
+<h4 id="collectd">collectd</h4>
+
+<p><a href="http://collectd.org">collectd</a> gathers statistics about the system it
+is running on and stores them. The statistics are then typically graphed
+to find current performance bottlenecks, predict system load, and
+analyze trends.</p>
+
+<h4 id="ganglia">Ganglia</h4>
+
+<p><a href="http://ganglia.info">Ganglia</a> is a monitoring system specifically
+designed for large, high-performance groups of computers, such as
+clusters and grids. Customers and community members using Riak have
+reported success in using Ganglia to monitor Riak clusters.</p>
+
+<p>A <a href="https://github.com/jnewland/gmond_python_modules/tree/master/riak/">Riak Ganglia module</a> for collecting statistics from
+the Riak HTTP <a href="/riak/kv/2.1.1/developing/api/http/status"><code class="language-plaintext highlighter-rouge">/stats</code></a> endpoint is also available.</p>
+
+<h4 id="nagios">Nagios</h4>
+
+<p><strong>Tested and Verified Support for Riak 2.x.</strong></p>
+
+<p><a href="http://www.nagios.org">Nagios</a> is a monitoring and alerting solution
+that can provide information on the status of Riak cluster nodes, in
+addition to various types of alerting when particular events occur.
+Nagios also offers logging and reporting of events and can be used for
+identifying trends and capacity planning.</p>
+
+<p>A collection of <a href="https://github.com/basho/riak_nagios">reusable Riak-specific scripts</a> are
+available to the community for use with Nagios.</p>
+
+<h4 id="opentsdb">OpenTSDB</h4>
+
+<p><a href="http://opentsdb.net">OpenTSDB</a> is a distributed, scalable Time Series Database
+(TSDB) used to store, index, and serve metrics from various sources. It can
+collect data at a large scale and graph these metrics on the fly.</p>
+
+<p>A <a href="https://github.com/stumbleupon/tcollector/blob/master/collectors/0/riak.py">Riak collector for OpenTSDB</a> is available as part of
+the <a href="https://github.com/stumbleupon/tcollector">tcollector framework</a>.</p>
+
+<h4 id="riemann">Riemann</h4>
+
+<p><a href="http://github.com/riemann/riemann/">Riemann</a> uses a powerful stream
+processing language to aggregate events from client agents running on
+Riak nodes, and can help track trends or report on events as they occur.
+Statistics can be gathered from your nodes and forwarded to a solution
+such as Graphite for producing related graphs.</p>
+
+<p>A <a href="https://github.com/aphyr/riemann.git">Riemann Tools</a> project
+consisting of small programs for sending data to Riemann provides a
+module specifically designed to read Riak statistics.</p>
+
+<h4 id="zabbix">Zabbix</h4>
+
+<p><strong>Tested and Verified Support for Riak 2.x Stats.</strong></p>
+
+<p><a href="http://www.zabbix.com">Zabbix</a> is an open-source performance monitoring,
+alerting, and graphing solution that can provide information on the state of
+Riak cluster nodes.</p>
+
+<p>A <a href="https://github.com/basho/riak-zabbix">Zabbix plugin for Riak</a> is available to get you started
+monitoring Riak using Zabbix.</p>
+
+<h3 id="hosted-service-monitoring-tools">Hosted Service Monitoring Tools</h3>
+
+<p>The following are some commercial tools which Basho customers have
+reported successfully using for statistics gathering and monitoring
+within their Riak clusters.</p>
+
+<h4 id="circonus">Circonus</h4>
+<p><a href="http://circonus.com">Circonus</a> provides organization-wide monitoring,
+trend analysis, alerting, notifications, and dashboards. It can been
+used to provide trend analysis and help with troubleshooting and
+capacity planning in a Riak cluster environment.</p>
+
+<h4 id="new-relic">New Relic</h4>
+
+<p><strong>Tested and Verified Support for Riak 2.x Stats.</strong></p>
+
+<p><a href="http://newrelic.com">New Relic</a> is a data analytics and visualization platform
+that can provide information on the current and past states of Riak nodes and
+visualizations of machine generated data such as log files.</p>
+
+<p>A <a href="https://github.com/basho/riak_newrelic">Riak New Relic Agent</a> for collecting statistics from the Riak HTTP <a href="/riak/kv/2.1.1/developing/api/http/status"><code class="language-plaintext highlighter-rouge">/stats</code></a> endpoint is also available.</p>
+
+<h4 id="splunk">Splunk</h4>
+
+<p><a href="http://www.splunk.com">Splunk</a> is available as downloadable software or
+as a service, and provides tools for visualization of machine generated
+data such as log files. It can be connected to Riak’s HTTP statistics
+<a href="/riak/kv/2.1.1/developing/api/http/status"><code class="language-plaintext highlighter-rouge">/stats</code></a> endpoint.</p>
+
+<p>Splunk can be used to aggregate all Riak cluster node operational log
+files, including operating system and Riak-specific logs and Riak
+statistics data. These data are then available for real time graphing,
+search, and other visualization ideal for troubleshooting complex issues
+and spotting trends.</p>
+
+<h2 id="summary">Summary</h2>
+
+<p>Riak exposes numerous forms of vital statistic information which can be
+aggregated, monitored, analyzed, graphed, and reported on in a variety
+of ways using numerous open source and commercial solutions.</p>
+
+<p>If you use a solution not listed here with Riak and would like to
+include it (or would otherwise like to update the information on this
+page), feel free to fork the docs, add it in the appropriate section,
+and send a pull request to the <a href="https://github.com/basho/basho_docs">Riak
+Docs</a>.</p>
+
+<h2 id="references">References</h2>
+
+<ul>
+  <li><a href="/riak/kv/2.1.1/using/cluster-operations/inspecting-node">Inspecting a Node</a></li>
+  <li><a href="http://riaknostic.basho.com">Riaknostic</a></li>
+  <li><a href="/riak/kv/2.1.1/using/admin/riak-control/">Riak Control</a></li>
+  <li><a href="http://collectd.org">collectd</a></li>
+  <li><a href="http://ganglia.info">Ganglia</a></li>
+  <li><a href="http://www.nagios.org">Nagios</a></li>
+  <li><a href="http://opentsdb.net">OpenTSDB</a></li>
+  <li><a href="https://github.com/stumbleupon/tcollector">tcollector framework</a></li>
+  <li><a href="http://github.com/riemann/riemann/">Riemann</a></li>
+  <li><a href="https://github.com/aphyr/riemann">Riemann Github</a></li>
+  <li><a href="http://www.zabbix.com">Zabbix</a></li>
+  <li><a href="http://circonus.com">Circonus</a></li>
+  <li><a href="http://newrelic.com">New Relic</a></li>
+  <li><a href="http://www.splunk.com">Splunk</a></li>
+  <li><a href="https://github.com/basho/basho_docs">Riak Docs on Github</a></li>
+</ul>
+

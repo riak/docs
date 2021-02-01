@@ -1,0 +1,13 @@
+<p>An operation to update a <a href="/riak/kv/2.1.4/developing/data-types">counter</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">CounterOp</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="kt">sint64</span> <span class="na">increment</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">increment</code> value specifies how much the counter will be incremented
+or decremented, depending on whether the <code class="language-plaintext highlighter-rouge">increment</code> value is positive
+or negative. This operation can be used to update counters that are
+stored on their own in a key or <a href="/riak/kv/2.1.4/developing/api/protocol-buffers/dt-map-store">within a map</a>.</p>

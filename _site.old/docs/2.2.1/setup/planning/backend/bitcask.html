@@ -1,0 +1,974 @@
+
+<p><a href="https://github.com/basho/bitcask">Bitcask</a> is an Erlang application that provides an API for storing and retrieving key/value data using log-structured hash tables that provide very fast access. The <a href="http://basho.com/assets/bitcask-intro.pdf">design</a> of Bitcask was inspired, in part, by log-structured filesystems and log file merging.</p>
+
+<h2 id="bitcasks-strengths">Bitcask’s Strengths</h2>
+
+<ul>
+  <li>
+    <p><strong>Low latency per item read or written</strong></p>
+
+    <p>This is due to the write-once, append-only nature of Bitcask
+  database files.</p>
+  </li>
+  <li>
+    <p><strong>High throughput, especially when writing an incoming stream of
+  random items</strong></p>
+
+    <p>Write operations to Bitcask generally saturate I/O and disk
+  bandwidth, which is a good thing from a performance perspective.
+  This saturation occurs for two reasons: because (1) data that is
+  written to Bitcask doesn’t need to be ordered on disk, and (2) the
+  log-structured design of Bitcask allows for minimal disk head
+  movement during writes.</p>
+  </li>
+  <li>
+    <p><strong>Ability to handle datasets larger than RAM without degradation</strong></p>
+
+    <p>Access to data in Bitcask involves direct lookup from an in-memory
+  hash table. This makes finding data very efficient, even when
+  datasets are very large.</p>
+  </li>
+  <li>
+    <p><strong>Single seek to retrieve any value</strong></p>
+
+    <p>Bitcask’s in-memory hash table of keys points directly to locations
+  on disk where the data lives. Bitcask never uses more than one disk
+  seek to read a value and sometimes even that isn’t necessary due to
+  filesystem caching done by the operating system.</p>
+  </li>
+  <li>
+    <p><strong>Predictable lookup <em>and</em> insert performance</strong></p>
+
+    <p>For the reasons listed above, read operations from Bitcask have
+  fixed, predictable behavior. This is also true of writes to Bitcask
+  because write operations require, at most, one seek to the end of
+  the current open file followed by and append to that file.</p>
+  </li>
+  <li>
+    <p><strong>Fast, bounded crash recovery</strong></p>
+
+    <p>Crash recovery is easy and fast with Bitcask because Bitcask files
+  are append only and write once. The only items that may be lost are
+  partially written records at the tail of the last file that was
+  opened for writes. Recovery operations need to review only the last
+  record or two written and verify CRC data to ensure that the data is
+  consistent.</p>
+  </li>
+  <li>
+    <p><strong>Easy Backup</strong></p>
+
+    <p>In most systems, backup can be very complicated. Bitcask simplifies
+  this process due to its append-only, write-once disk format. Any
+  utility that archives or copies files in disk-block order will
+  properly back up or copy a Bitcask database.</p>
+  </li>
+</ul>
+
+<h2 id="weaknesses">Weaknesses</h2>
+
+<ul>
+  <li>
+    <p>Keys must fit in memory</p>
+
+    <p>Bitcask keeps all keys in memory at all times, which means that your
+  system must have enough memory to contain your entire keyspace, plus
+  additional space for other operational components and operating-
+  system-resident filesystem buffer space.</p>
+  </li>
+</ul>
+
+<h2 id="installing-bitcask">Installing Bitcask</h2>
+
+<p>Bitcask is the default storage engine for Riak. You can verify that
+Bitcask is currently being used as the storage backend with the
+<a href="/riak/kv/2.2.1/using/admin/riak-cli"><code class="language-plaintext highlighter-rouge">riak</code></a> command interface:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak config effective | <span class="nb">grep </span>backend
+</code></pre></div></div>
+
+<p>If this operation returns anything other than <code class="language-plaintext highlighter-rouge">bitcask</code>, read
+the following section for instructions on switching the backend to Bitcask.</p>
+
+<h2 id="enabling-bitcask">Enabling Bitcask</h2>
+
+<p>You can set Bitcask as the storage engine using each node’s
+<a href="/riak/kv/2.2.1/configuring/reference">configuration files</a>:</p>
+
+<pre><code class="language-riakconf">storage_backend = bitcask
+</code></pre>
+
+<pre><code class="language-appconfig">{riak_kv, [
+  {storage_backend, riak_kv_bitcask_backend},
+  %% Other riak_kv settings...
+
+    ]},
+</code></pre>
+
+<h2 id="configuring-bitcask">Configuring Bitcask</h2>
+
+<p>Bitcask enables you to configure a wide variety of its behaviors, from
+filesystem sync strategy to merge settings and more.</p>
+
+<blockquote>
+  <p><strong>Note on configuration systems</strong></p>
+
+  <p>Riak 2.0 enables you to use either the newer <a href="/riak/kv/2.2.1/configuring/reference">configuration system</a> based on a single <code class="language-plaintext highlighter-rouge">riak.conf</code> file or the older system, based on an <code class="language-plaintext highlighter-rouge">app.config</code> configuration file.
+Instructions for both systems will be included below. Narrative
+descriptions of the various settings will be tailored to the newer
+configuration system, whereas instructions for the older system will
+largely be contained in the code tabs.</p>
+</blockquote>
+
+<p>The default configuration values for Bitcask are as follows:</p>
+
+<pre><code class="language-riakconf">bitcask.data_root = ./data/bitcask
+bitcask.io_mode = erlang
+</code></pre>
+
+<pre><code class="language-appconfig">{bitcask, [
+    {data_root, "/var/lib/riak/bitcask"},
+    {io_mode, erlang},
+
+    %% Other Bitcask-specific settings
+    ]}
+</code></pre>
+
+<p>All of the other available settings listed below can be added to your
+configuration files.</p>
+
+<h3 id="open-timeout">Open Timeout</h3>
+
+<p>The open timeout setting specifies the maximum time Bitcask will block
+on startup while attempting to create or open the Bitcask data
+directory. The default is 4 seconds.</p>
+
+<p>In general, you will not need to adjust this setting. If, however, you
+begin to receive log messages of the form <code class="language-plaintext highlighter-rouge">Failed to start bitcask
+backend: ...</code>, you may want to consider using a longer timeout.</p>
+
+<p>Open timeout is specified using the <code class="language-plaintext highlighter-rouge">bitcask.sync.open_timeout</code>
+parameter, and can be set in terms of seconds, minutes, hours, etc.
+The following example sets the parameter to 10 seconds:</p>
+
+<pre><code class="language-riakconf">bitcask.sync.open_timeout = 10s
+</code></pre>
+
+<pre><code class="language-appconfig">{bitcask, [
+    ...,
+    {open_timeout, 10} %% This value must be expressed in seconds
+    ...
+    ]}
+</code></pre>
+
+<h3 id="sync-strategy">Sync Strategy</h3>
+
+<p>Bitcask enables you to configure the durability of writes by specifying
+when to synchronize data to disk, i.e. by choosing a sync strategy. The
+default setting (<code class="language-plaintext highlighter-rouge">none</code>) writes data into operating system buffers that
+will be written to disk when those buffers are flushed by the operating
+system. If the system fails before those buffers are flushed, e.g. due
+to power loss, that data is lost. This possibility holds for any
+database in which values are asynchronously flushed to disk.</p>
+
+<p>Thus, using the default setting of <code class="language-plaintext highlighter-rouge">none</code> protects against data loss in
+the event of application failure, i.e. process death, but leaves open a
+small window in which data could be lost in the event of a complete
+system failure, e.g. hardware or OS failure.</p>
+
+<p>This possibility can be prevented by choosing the <code class="language-plaintext highlighter-rouge">o_sync</code> sync
+strategy, which forces the operating system to flush to stable storage
+at write time for every write. The effect of flushing each write is
+better durability, although it should be noted that write throughput
+will suffer because each write will have to wait for the write to
+complete.</p>
+
+<p>The following sync strategies are available:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">none</code> — lets the operating system manage syncing writes
+(default)</li>
+  <li><code class="language-plaintext highlighter-rouge">o_sync</code> — uses the <code class="language-plaintext highlighter-rouge">O_SYNC</code> flag, which forces syncs on every
+write</li>
+  <li>Time interval — Riak will force Bitcask to sync at specified
+intervals</li>
+</ul>
+
+<p>The following are possible configurations:</p>
+
+<pre><code class="language-riakconf">bitcask.sync.strategy = none
+bitcask.sync.strategy = o_sync
+
+bitcask.sync.strategy = interval
+bitcask.sync.interval = 65s
+</code></pre>
+
+<pre><code class="language-appconfig">{bitcask, [
+    ...,
+        {sync_strategy, none},
+        {sync_strategy, o_sync},
+        {sync_strategy, {seconds, 10}}, %% The time interval must be specified in seconds
+    ...
+    ]}
+</code></pre>
+
+<blockquote>
+  <p><strong>Sync strategy interval limitations</strong></p>
+
+  <p>Setting the sync interval to a value lower or equal to
+  <code class="language-plaintext highlighter-rouge">riak_core.vnode_inactivity_timeout</code> (default: 60 seconds), will
+  prevent Riak from performing handoffs.</p>
+
+  <p>A vnode must be inactive (not receive any messages) for a certain amount of time before the handoff process can start. The sync mechanism causes a message to be sent to the vnode for every sync, thus preventing the vnode from ever becoming inactive.</p>
+</blockquote>
+
+<h3 id="max-file-size">Max File Size</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">max_file_size</code> setting describes the maximum permitted size for any
+single data file in the Bitcask directory. If a write causes the current
+file to exceed this size threshold then that file is closed, and a new
+file is opened for writes. The default is 2 GB.</p>
+
+<p>Increasing <code class="language-plaintext highlighter-rouge">max_file_size</code> will cause Bitcask to create fewer, larger
+files that are merged less frequently, while decreasing it will cause
+Bitcask to create more numerous, smaller files that are merged more
+frequently.</p>
+
+<p>To give an example, if your ring size is 16, your servers could see as
+much as 32 GB of data in the bitcask directories before the first merge
+is triggered, irrespective of your working set size. You should plan
+storage accordingly and be aware that it is possible to see disk data
+sizes that are larger than the working set.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">max_file_size</code> setting can be specified using kilobytes, megabytes,
+etc. The following example sets the max file size to 1 GB:</p>
+
+<pre><code class="language-riakconf">bitcask.max_file_size = 1GB
+</code></pre>
+
+<pre><code class="language-appconfig">%% The max_file_size setting must be expressed in bytes, as in the
+%% example below
+
+{bitcask, [
+    ...,
+    {max_file_size, 16#40000000}, %% 1 GB expressed in bytes
+    ...
+    ]}
+</code></pre>
+
+<h3 id="hint-file-crc-check">Hint File CRC Check</h3>
+
+<p>During startup, Bitcask will read from <code class="language-plaintext highlighter-rouge">.hint</code> files in order to build
+its in-memory representation of the key space, falling back to <code class="language-plaintext highlighter-rouge">.data</code>
+files if necessary. This reduces the amount of data that must be read
+from the disk during startup, thereby also reducing the time required to
+start up. You can configure Bitcask to either disregard <code class="language-plaintext highlighter-rouge">.hint</code> files
+that don’t contain a CRC value or to use them anyway.</p>
+
+<p>If you are using the newer, <code class="language-plaintext highlighter-rouge">riak.conf</code>-based configuration system, you
+can instruct Bitcask to disregard <code class="language-plaintext highlighter-rouge">.hint</code> files that do not contain a
+CRC value by setting the <code class="language-plaintext highlighter-rouge">hintfile_checksums</code> setting to <code class="language-plaintext highlighter-rouge">strict</code> (the
+default). To use Bitcask in a backward-compatible mode that allows for
+<code class="language-plaintext highlighter-rouge">.hint</code> files without CRC signatures, change the setting to
+<code class="language-plaintext highlighter-rouge">allow_missing</code>.</p>
+
+<p>The following example sets the parameter to <code class="language-plaintext highlighter-rouge">strict</code>:</p>
+
+<pre><code class="language-riakconf">bitcask.hintfile_checksums = strict
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, substitute "require_hint_crc" for
+%% "hintfile_checksums", "true" for "strict", and "false" for
+%% "allow_missing"
+
+{bitcask, [
+    ...,
+    {require_hint_crc, true},
+    ...
+    ]}
+</code></pre>
+
+<h3 id="io-mode">I/O Mode</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">io_mode</code> setting specifies which code module Bitcask should use for 
+file access. The available settings are:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">erlang</code> (default) — Writes are made via Erlang’s built-in file API</li>
+  <li><code class="language-plaintext highlighter-rouge">nif</code> — Writes are made via direct calls to the POSIX C API</li>
+</ul>
+
+<p>The following example sets <code class="language-plaintext highlighter-rouge">io_mode</code> to <code class="language-plaintext highlighter-rouge">erlang</code>:</p>
+
+<pre><code class="language-riakconf">bitcask.io_mode = erlang
+</code></pre>
+
+<pre><code class="language-appconfig">{bitcask, [
+    ...,
+    {io_mode, erlang},
+    ...
+    ]}
+</code></pre>
+
+<p>In general, the <code class="language-plaintext highlighter-rouge">nif</code> IO mode provides higher throughput for certain
+workloads, but it has the potential to negatively impact the Erlang VM,
+leading to higher worst-case latencies and possible throughput collapse.</p>
+
+<h3 id="o_sync-on-linux"><code class="language-plaintext highlighter-rouge">O_SYNC</code> on Linux</h3>
+
+<p>Synchronous file I/O via
+<a href="http://linux.about.com/od/commands/l/blcmdl2_open.htm"><code class="language-plaintext highlighter-rouge">o_sync</code></a> is
+supported in Bitcask if <code class="language-plaintext highlighter-rouge">io_mode</code> is set to <code class="language-plaintext highlighter-rouge">nif</code> and is not supported
+in the <code class="language-plaintext highlighter-rouge">erlang</code> mode.</p>
+
+<p>If you enable <code class="language-plaintext highlighter-rouge">o_sync</code> by setting <code class="language-plaintext highlighter-rouge">io_mode</code> to <code class="language-plaintext highlighter-rouge">nif</code>, however, you will
+still get an incorrect warning along the following lines:</p>
+
+<pre><code class="language-log">[warning] &lt;0.445.0&gt;@riak_kv_bitcask_backend:check_fcntl:429 {sync_strategy,o_sync} not implemented on Linux
+</code></pre>
+
+<p>If you are using the older, <code class="language-plaintext highlighter-rouge">app.config</code>-based configuration system, you
+can disable the check that generates this warning by adding the
+following to the <code class="language-plaintext highlighter-rouge">riak_kv</code> section of your <code class="language-plaintext highlighter-rouge">app.config</code>:</p>
+
+<pre><code class="language-appconfig">{riak_kv, [
+    ...,
+    {o_sync_warning_logged, false},
+    ...
+    ]}
+</code></pre>
+
+<h3 id="disk-usage-and-merging-settings">Disk Usage and Merging Settings</h3>
+
+<p>Riak KV stores each <a href="/riak/kv/2.2.1/learn/glossary/#vnode">vnode</a> of the
+<a href="/riak/kv/2.2.1/learn/concepts/clusters">ring</a> as a separate Bitcask directory within the
+configured Bitcask data directory.</p>
+
+<p>Each of these directories will contain multiple files with key/value
+data, one or more “hint” files that record where the various keys exist
+within the data files, and a write lock file. The design of Bitcask
+allows for recovery even when data isn’t fully synchronized to disk
+(partial writes). This is accomplished by maintaining data files that
+are append-only (i.e. never modified in-place) and are never reopened
+for modification (i.e. they are only for reading).</p>
+
+<p>This data management strategy trades disk space for operational
+efficiency. There can be a significant storage overhead that is
+unrelated to your working data set but can be tuned in a way that best
+fits your use case. In short, disk space is used until a threshold is
+met at which point unused space is reclaimed through a process of
+merging. The merge process traverses data files and reclaims space by
+eliminating out-of-date of deleted key/value pairs, writing only the
+current key/value pairs to a new set of files within the directory.</p>
+
+<p>The merge process is affected by all of the settings described in the
+sections below. In those sections, “dead” refers to keys that no longer
+contain the most up-to-date values, while “live” refers to keys that do
+contain the most up-to-date value and have not been deleted.</p>
+
+<h3 id="merge-policy">Merge Policy</h3>
+
+<p>Bitcask enables you to select a merge policy, i.e. when during the day
+merge operations are allowed to be triggered. The valid options are:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">always</code> — No restrictions on when merge operations can occur
+(default)</li>
+  <li><code class="language-plaintext highlighter-rouge">never</code> — Merge will never be attempted</li>
+  <li><code class="language-plaintext highlighter-rouge">window</code> — Merge operations occur during specified hours</li>
+</ul>
+
+<p>If you are using the newer, <code class="language-plaintext highlighter-rouge">riak.conf</code>-based configuration system, you
+can select a merge policy using the <code class="language-plaintext highlighter-rouge">merge.policy</code> setting. The
+following example sets the merge policy to <code class="language-plaintext highlighter-rouge">never</code>:</p>
+
+<pre><code class="language-riakconf">bitcask.merge.policy = never
+</code></pre>
+
+<pre><code class="language-appconfig">{bitcask, [
+    ...,
+    {merge_window, never},
+    ...
+    ]}
+</code></pre>
+
+<p>If you opt to specify start and end hours for merge operations, you can
+do so with the <code class="language-plaintext highlighter-rouge">merge.window.start</code> and <code class="language-plaintext highlighter-rouge">merge.window.end</code>
+settings in addition to setting the merge policy to <code class="language-plaintext highlighter-rouge">window</code>.
+Each setting is an integer between 0 and 23 for hours on a 24h clock,
+with 0 meaning midnight and 23 standing for 11 pm.
+The merge window runs from the first minute of the <code class="language-plaintext highlighter-rouge">merge.window.start</code> hour
+to the last minute of the <code class="language-plaintext highlighter-rouge">merge.window.end</code> hour.
+The following example enables merging between 3 am and 4:59 pm:</p>
+
+<pre><code class="language-riakconf">bitcask.merge.policy = window
+bitcask.merge.window.start = 3
+bitcask.merge.window.end = 17
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, you specify the merge window using
+%% a tuple, as in the following example:
+
+{bitcask, [
+    ...,
+    {merge_window, {3, 17}},
+    ...
+    ]}
+</code></pre>
+
+<blockquote>
+  <p><strong><code class="language-plaintext highlighter-rouge">merge_window</code> and the Multi backend</strong></p>
+
+  <p>If you are using the older configuration system and using Bitcask with
+the <a href="/riak/kv/2.2.1/setup/planning/backend/multi">Multi</a> backend, please note that if you
+wish to use a merge window, you <em>must</em> set it in the global <code class="language-plaintext highlighter-rouge">bitcask</code>
+section of your configuration file. <code class="language-plaintext highlighter-rouge">merge_window</code> settings
+in per-backend sections are ignored.</p>
+</blockquote>
+
+<p>If merging has a significant impact on performance of your cluster, or
+if your cluster has quiet periods in which little storage activity
+occurs, you may want to change this setting from the default.</p>
+
+<p>A common way to limit the impact of merging is to create separate merge
+windows  for each node in the cluster and ensure that these windows do
+not overlap. This ensures that at most one node at a time can be
+affected by merging, leaving the remaining nodes to handle requests.
+The main drawback of this approach is that merges will occur less
+frequently, leading to increased disk space usage.</p>
+
+<h3 id="merge-triggers">Merge Triggers</h3>
+
+<p>Merge triggers determine the conditions under which merging will be
+invoked. These conditions fall into two basic categories:</p>
+
+<ul>
+  <li>
+    <p><strong>Fragmentation</strong> — This describes the ratio of dead keys to total
+keys in a file that will trigger merging. The value of this setting is
+an integer percentage (0-100). For example, if a data file contains 6
+dead keys and 4 live keys, a merge will be triggered by the default
+setting (60%). Increasing this value will cause merging to occur less
+often, whereas decreasing the value will cause merging to happen more
+often.</p>
+  </li>
+  <li>
+    <p><strong>Dead Bytes</strong> — This setting describes how much data stored for
+dead keys in a single file will trigger merging. If a file meets or
+exceeds the trigger value for dead bytes, a merge will be triggered.
+Increasing the value will cause merging to occur less often, whereas
+decreasing the value will cause merging to happen more often. The
+default is 512 MB.</p>
+
+    <p>When either of these constraints are met by any file in the directory,
+Bitcask will attempt to merge files.</p>
+  </li>
+</ul>
+
+<p>You can set the triggers described above using
+<code class="language-plaintext highlighter-rouge">merge.triggers.fragmentation</code> and <code class="language-plaintext highlighter-rouge">merge.triggers.dead_bytes</code>,
+respectively. The former is expressed as an integer between 0 and 100,
+whereas the latter can be expressed in terms of kilobytes, megabytes,
+gigabytes, etc. The following example sets the dead bytes threshold to
+55% and the fragmentation threshold to 1 GB:</p>
+
+<pre><code class="language-riakconf">bitcask.merge.triggers.fragmentation = 55
+bitcask.merge.triggers.dead_bytes = 1GB
+</code></pre>
+
+<pre><code class="language-appconfig">%% The equivalent settings in the app.config-based system are
+%% frag_merge_trigger and dead_bytes_merge_trigger, respectively. The
+%% latter must be expressed in bytes.
+
+{bitcask, [
+    ...,
+    {frag_merge_trigger, 55},
+    {dead_bytes_merge_trigger, 1073741824},
+    ...
+    ]}
+</code></pre>
+
+<h3 id="merge-thresholds">Merge Thresholds</h3>
+
+<p>Merge thresholds determine which files will be chosen for inclusion in
+a merge operation.</p>
+
+<ul>
+  <li>
+    <p><strong>Fragmentation</strong> — This setting describes which ratio of dead keys
+to total keys in a file will cause it to be included in the merge. The
+value of this setting is a percentage (0-100). For example, if a data
+file contains 4 dead keys and 6 live keys, it will be included in the
+merge at the default ratio (40%). Increasing the value will cause
+fewer files to be merged, while decreasing the value will cause more
+files to be merged.</p>
+  </li>
+  <li>
+    <p><strong>Dead Bytes</strong> — This setting describes which ratio the minimum
+amount of data occupied by dead keys in a file to cause it to be
+included in the merge. Increasing this value will cause fewer files to
+be merged, while decreasing this value will cause more files to be
+merged. The default is 128 MB.</p>
+  </li>
+  <li>
+    <p><strong>Small File</strong> — This setting describes the minimum size a file must
+be to be <em>excluded</em> from the merge. Files smaller than the threshold
+will be included. Increasing the value will cause more files to be
+merged, while decreasing the value will case fewer files to be merged.
+The default is 10 MB.</p>
+  </li>
+</ul>
+
+<p>You can set the thresholds described above using the
+<code class="language-plaintext highlighter-rouge">merge.thresholds.fragmentation</code>, <code class="language-plaintext highlighter-rouge">merge.thresholds.dead_bytes</code>, and
+<code class="language-plaintext highlighter-rouge">merge.threshold.small_file</code> settings, respectively.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">fragmentation</code> setting is expressed as an integer
+between 0 and 100, and the <code class="language-plaintext highlighter-rouge">dead_bytes</code> and <code class="language-plaintext highlighter-rouge">small_file</code> settings can be
+expressed in terms of kilobytes, megabytes, gigabytes, etc. The
+following example sets the fragmentation threshold to 45%, the
+dead bytes threshold to 200 MB, and the small file threshold to 25 MB:</p>
+
+<pre><code class="language-riakconf">bitcask.merge.thresholds.fragmentation = 45
+bitcask.merge.thresholds.dead_bytes = 200MB
+bitcask.merge.thresholds.small_file = 25MB
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, the settings corresponding to those
+%% listed above are frag_threshold, dead_bytes_threshold, and
+%% small_files threshold, respectively. The latter two settings must be
+%% expressed in bytes:
+
+{bitcask, [
+    ...,
+    {frag_threshold, 45},
+    {dead_bytes_threshold, 209715200},
+    {small_file_threshold, 26214400},
+    ...
+    ]}
+</code></pre>
+<blockquote>
+  <p><strong>Note on choosing threshold values</strong></p>
+
+  <p>The values for the fragmentation and dead bytes thresholds <em>must be
+equal to or less than their corresponding trigger values</em>. If they are
+set higher, Bitcask will trigger merges in cases where no files meet the
+threshold, which means that Bitcask will never resolve the conditions
+that triggered merging in the first place.</p>
+</blockquote>
+
+<h3 id="merge-interval">Merge Interval</h3>
+
+<p>Bitcask periodically runs checks to determine whether merges are
+necessary. You can determine how often those checks take place using
+the <code class="language-plaintext highlighter-rouge">bitcask.merge_check_interval</code> parameter. The default is 3 minutes.</p>
+
+<pre><code class="language-riakconf">bitcask.merge_check_interval = 3m
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, this setting is expressed in
+%% milliseconds and found in the riak_kv section rather than the bitcask
+%% section:
+
+{riak_kv, [
+    %% Other configs
+
+    {bitcask_merge_check_interval, 180000},
+
+    %% Other configs
+    ]}
+</code></pre>
+
+<p>If merge check operations happen at the same time on different
+<a href="/riak/kv/2.2.1/learn/glossary/#vnode">vnodes</a> on the same node, this can produce spikes
+in I/O usage and undue latency. Bitcask makes it less likely that merge
+check operations will occur at the same time on different vnodes by
+applying a <strong>jitter</strong> to those operations. A jitter is a random
+variation applied to merge times that you can alter using the
+<code class="language-plaintext highlighter-rouge">bitcask.merge_check_jitter</code> parameter. This parameter is expressed as a
+percentage of <code class="language-plaintext highlighter-rouge">bitcask.merge_check_interval</code>. The default is 30%.</p>
+
+<pre><code class="language-riakconf">bitcask.merge_check_jitter = 30%
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, this setting is expressed as a float
+%% and found in the riak_kv section rather than the bitcask section:
+
+{riak_kv, [
+    %% Other configs
+
+    {bitcask_merge_check_jitter, 0.3},
+
+    %% Other configs
+    ]}
+</code></pre>
+
+<p>For example, if you set the merge check interval to 4 minutes and the
+jitter to 25%, merge checks will occur at intervals between 3 and 5
+minutes. With the default of 3 minutes and 30%, checks will occur at
+intervals between roughly 2 and 4 minutes.</p>
+
+<h3 id="log-needs-merge">Log Needs Merge</h3>
+
+<p>If you are using the older, <code class="language-plaintext highlighter-rouge">app.config</code>-based configuration system, you
+can use the <code class="language-plaintext highlighter-rouge">log_needs_merge</code> setting to tune and troubleshoot Bitcask
+merge settings. When set to <code class="language-plaintext highlighter-rouge">true</code> (as in the example below), each time
+a merge trigger is met, the partition/vnode ID and mergeable files will
+be logged.</p>
+
+<pre><code class="language-appconfig">{bitcask, [
+    ...,
+    {log_needs_merge, true},
+    ...
+    ]}
+</code></pre>
+
+<blockquote>
+  <p><strong>Note on <code class="language-plaintext highlighter-rouge">log_needs_merge</code> and the Multi backend</strong></p>
+
+  <p>If you are using Bitcask with the <a href="/riak/kv/2.2.1/setup/planning/backend/multi">Multi</a> backend in conjunction with the older, <code class="language-plaintext highlighter-rouge">app.config</code>-based configuration system, please
+note that <code class="language-plaintext highlighter-rouge">log_needs_merge</code> <em>must</em> be set in the global <code class="language-plaintext highlighter-rouge">bitcask</code> section of your <code class="language-plaintext highlighter-rouge">app.config</code>. All <code class="language-plaintext highlighter-rouge">log_needs_merge</code> settings in per-backend sections are ignored.</p>
+</blockquote>
+
+<h3 id="fold-keys-threshold">Fold Keys Threshold</h3>
+
+<p>Fold keys thresholds will reuse the keydir (a) if another fold was
+started less than a specified time interval ago and (b) there were fewer
+than a specified number of updates. Otherwise, Bitcask will wait until
+all current fold keys complete and then start. The default time interval
+is 0, while the default number of updates is unlimited. Both thresholds
+can be disabled.</p>
+
+<p>The conditions described above can be set using the <code class="language-plaintext highlighter-rouge">fold.max_age</code> and
+<code class="language-plaintext highlighter-rouge">fold.max_puts</code> parameters, respectively. The former can be expressed in
+terms of minutes, hours, days, etc., while the latter is expressed as an
+integer. Each threshold can be disabled by setting the value to
+<code class="language-plaintext highlighter-rouge">unlimited</code>. The following example sets the <code class="language-plaintext highlighter-rouge">max_age</code> to 1/2 second and
+the <code class="language-plaintext highlighter-rouge">max_puts</code> to 1000:</p>
+
+<pre><code class="language-riakconf">bitcask.max_age = 0.5s
+bitcask.max_puts = 1000
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, the corresponding parameters are
+%% max_fold_age and max_fold_puts, respectively. The former must be
+%% expressed in milliseconds, while the latter must be an integer:
+
+{bitcask, [
+    ...,
+    {max_fold_age, 500},
+    {max_fold_puts, 1000},
+    ...
+    ]}
+
+%% Each of these thresholds can be disabled by setting the value to -1
+</code></pre>
+
+<p><a name="Automatic-Expiration"></a></p>
+<h3 id="automatic-expiration">Automatic Expiration</h3>
+
+<p>By default, Bitcask keeps all of your data. But if your data has limited
+time value or if you need to purge data for space reasons, you can
+configure object expiration, aka expiry. This feature is disabled by
+default.</p>
+
+<p>You can enable and configure object expiry using the <code class="language-plaintext highlighter-rouge">expiry</code> setting
+and either specifying a time interval in seconds, minutes, hours, etc.,
+or turning expiry off (<code class="language-plaintext highlighter-rouge">off</code>). The following example configures objects
+to expire after 1 day:</p>
+
+<pre><code class="language-riakconf">bitcask.expiry = 1d
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, expiry is expressed in terms of
+%% seconds:
+
+{bitcask, [
+    ...,
+    {expiry_secs, 86400}, %% Sets the duration to 1 day
+    ...
+    ]}
+
+%% Expiry can be turned off by setting this value to -1
+</code></pre>
+
+<blockquote>
+  <p><strong>Note on stale data</strong></p>
+
+  <p>Space occupied by stale data <em>may not be reclaimed immediately</em>,
+but the data will become immediately inaccessible to client requests.
+Writing to a key will set a new modification timestamp on the value
+and prevent it from being expired.</p>
+</blockquote>
+
+<p>By default, Bitcask will trigger a merge whenever a data file contains
+an expired key. This may result in excessive merging under some usage
+patterns. You can prevent this by configuring an expiry grace time.
+Bitcask will defer trigger a merge solely for key expiry by the
+configured amount of time. The default is 0, signifying no grace time.</p>
+
+<p>If you are using the newer, <code class="language-plaintext highlighter-rouge">riak.conf</code>-based configuration system, you
+can set an expiry grace time using the <code class="language-plaintext highlighter-rouge">expiry.grace_time</code> setting and
+in terms of minutes, hours, days, etc. The following example sets the
+grace period to 1 hour:</p>
+
+<pre><code class="language-riakconf">bitcask.expiry.grace_time = 1h
+</code></pre>
+
+<pre><code class="language-appconfig">%% The equivalent setting in the app.config-based system is
+%% expiry_grace_time. This must be expressed in seconds:
+
+{bitcask, [
+    ...,
+    {expiry_grace_time, 3600}, %% Sets the grace period to 1 hour
+    ...
+    ]}
+</code></pre>
+
+<h4 id="automatic-expiration-and-riak-search">Automatic expiration and Riak Search</h4>
+
+<p>If you are using <a href="/riak/kv/2.2.1/developing/usage/search">Riak Search</a> in conjunction with
+Bitcask, please be aware that automatic expiry does not apply to <a href="../../../../developing/usage/search">Search Indexes</a>. If objects are indexed using Search,
+those objects can be expired by Bitcask yet still registered in Search
+indexes, which means that Search queries may return keys that no longer
+exist. Riak’s <a href="/riak/kv/2.2.1/learn/glossary/#active-anti-entropy-aae">active anti-entropy (AAE)</a> subsystem will eventually
+catch this discrepancy, but this depends on AAE being enabled (which is
+the default) and could take some time. If search queries returning
+expired keys is a problem for your use case, then we would recommend not
+using automatic expiration.</p>
+
+<h2 id="tuning-bitcask">Tuning Bitcask</h2>
+
+<p>When tuning your environment, there are a number of things to bear in
+mind that can assist you in making Bitcask as stable and reliable as
+possible and to minimize latency and maximize throughput.</p>
+
+<h3 id="tips--tricks">Tips &amp; Tricks</h3>
+
+<ul>
+  <li>
+    <p><strong>Bitcask depends on filesystem caches</strong></p>
+
+    <p>Some data storage layers implement their own page/block buffer cache
+in-memory, but Bitcask does not. Instead, it depends on the
+filesystem’s cache. Adjusting the caching characteristics of your
+filesystem can impact performance.</p>
+  </li>
+  <li>
+    <p><strong>Be aware of file handle limits</strong></p>
+
+    <p>Review the documentation on <a href="/riak/kv/2.2.1/using/performance/open-files-limit">open files limit</a>.</p>
+  </li>
+  <li>
+    <p><strong>Avoid the overhead of updating file metadata (such as last access
+time) on every read or write operation</strong></p>
+
+    <p>You can achieve a substantial speed boost by adding the <code class="language-plaintext highlighter-rouge">noatime</code>
+mounting option to Linux’s <code class="language-plaintext highlighter-rouge">/etc/fstab</code>. This will disable the
+recording of the last accessed time for all files, which results
+in fewer disk head seeks. If you need last access times but you’d
+like some of the benefits of this optimization, you can try
+<code class="language-plaintext highlighter-rouge">relatime</code>.</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/dev/sda5    /data           ext3    noatime  1 1
+/dev/sdb1    /data/inno-log  ext3    noatime  1 2
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p><strong>Small number of frequently changed keys</strong></p>
+
+    <p>When keys are changed frequently, fragmentation rapidly increases.
+To counteract this, you should lower the fragmentation trigger and
+threshold.</p>
+  </li>
+  <li>
+    <p><strong>Limited disk space</strong></p>
+
+    <p>When disk space is limited, limiting the space occupied by dead keys
+is of paramount importance. Lower the dead bytes threshold and
+trigger to counteract wasted space.</p>
+  </li>
+  <li>
+    <p><strong>Purging stale entries after a fixed period</strong></p>
+
+    <p>To automatically purge stale values, set the object expiry value to
+the desired cutoff time. Keys that are not modified for a period
+equal to or greater than this time interval will become
+inaccessible.</p>
+  </li>
+  <li>
+    <p><strong>High number of partitions per node</strong></p>
+
+    <p>Because each cluster has many partitions running, Bitcask will have
+many <a href="/riak/kv/2.2.1/using/performance/open-files-limit">open files</a>. To reduce the number of open
+files, we suggest increasing the max file size so that larger files
+will be written. You could also decrease the fragmentation and
+dead-bytes settings and increase the small file threshold so that
+merging will keep the number of open files small in number.</p>
+  </li>
+  <li>
+    <p><strong>High daytime traffic, low nighttime traffic</strong></p>
+
+    <p>In order to cope with a high volume of writes without performance
+degradation during the day, you might want to limit merging to
+in non-peak periods. Setting the merge window to hours of the day
+when traffic is low will help.</p>
+  </li>
+  <li>
+    <p><strong>Multi-cluster replication (Riak Enterprise)</strong></p>
+
+    <p>If you are using <a href="http://basho.com/riak-enterprise/">Riak Enterprise</a>
+with the replication feature enabled, your clusters might experience
+higher production of fragmentation and dead bytes. Additionally,
+because the fullsync feature operates across entire partitions, it
+will be made more efficient by accessing data as sequentially as
+possible (across fewer files). Lowering both the fragmentation and
+dead-bytes settings will improve performance.</p>
+  </li>
+</ul>
+
+<h2 id="faq">FAQ</h2>
+
+<ul>
+  <li>[[Why does it seem that Bitcask merging is only triggered when a
+Riak node is restarted?|Developing on Riak
+FAQs#why-does-it-seem-that-bitc]]</li>
+  <li>[[If the size of key index exceeds the amount of memory, how does
+Bitcask handle it?|Operating Riak FAQs#if-the-size-of-key-index-e]]</li>
+  <li><a href="/riak/kv/2.2.1/setup/planning/bitcask-capacity-calc">Bitcask Capacity Planning</a></li>
+</ul>
+
+<h2 id="bitcask-implementation-details">Bitcask Implementation Details</h2>
+
+<p>Riak will create a Bitcask database directory for each <a href="/riak/kv/2.2.1/learn/glossary/#vnode">vnode</a>
+in a <a href="/riak/kv/2.2.1/learn/concepts/clusters">cluster</a>. In each of those directories, at most one
+database file will be open for writing at any given time. The file being
+written to will grow until it exceeds a specified size threshold, at
+which time it is closed and a new file is created for additional writes.
+Once a file is closed, whether purposely or due to server exit, it is
+considered immutable and will never again be opened for writing.</p>
+
+<p>The file currently open for writes is only written by appending, which
+means that sequential writes do not require disk seeking, which can
+dramatically speed up disk I/O. Note that this effect can be hampered if
+you have <code class="language-plaintext highlighter-rouge">atime</code> enabled on your filesystem, because the disk head will
+have to move to update both the data blocks <em>and</em> the file and directory
+metadata blocks. The primary speed advantage from a log-based database
+stems of its ability to minimize disk head seeks.</p>
+
+<p>Deleting a value from Bitcask is a two-step process: first, a
+<a href="/riak/kv/2.2.1/developing/usage/deleting-objects">tombstone</a> is recorded in the open file for writes,
+which indicates that a value was marked for deletion at that time, while
+references to that key are removed from the in-memory “keydir”
+information; later, during a merge operation, non-active data files are
+scanned, and only  those values without tombstones are merged into the
+active data file. This effectively removes the obsolete data and
+reclaims disk space associated with it. This data management strategy
+may use up a lot of space over time, since Bitcask writes new values
+without touching the old ones.</p>
+
+<p>The compaction process referred to as “merging” solves this
+problem. The merge process iterates over all non-active (i.e. immutable)
+files in a Bitcask database and produces as output a set of data files
+containing only the “live” or latest versions of each present key.</p>
+
+<h3 id="bitcask-database-files">Bitcask Database Files</h3>
+
+<p>Below are two directory listings showing what you should expect to find
+on disk when using Bitcask. In this example, we use a 64-partition
+<a href="/riak/kv/2.2.1/learn/concepts/clusters">ring</a>, which results in 64 separate directories,
+each holding its own Bitcask database.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">ls</span> ./data/bitcask
+</code></pre></div></div>
+
+<p>The result:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>0
+1004782375664995756265033322492444576013453623296
+1027618338748291114361965898003636498195577569280
+
+... etc ...
+
+981946412581700398168100746981252653831329677312
+</code></pre></div></div>
+
+<p>Note that when starting up the directories are created for each
+<a href="/riak/kv/2.2.1/learn/glossary/#vnode">vnode</a> partition’s data. At this point, however, there are not
+yet any Bitcask-specific files.</p>
+
+<p>After performing one PUT (write) into the Riak cluster running Bitcask:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-XPUT</span> http://localhost:8098/types/default/buckets/test/keys/test <span class="se">\</span>
+  <span class="nt">-H</span> <span class="s2">"Content-Type: text/plain"</span> <span class="se">\</span>
+  <span class="nt">-d</span> <span class="s2">"hello"</span>
+</code></pre></div></div>
+
+<p>The “N” value for this cluster is 3 (the default), so you’ll see that
+the three vnode partitions responsible for this data now have Bitcask
+database files:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bitcask/
+
+... etc ...
+
+|-- 1118962191081472546749696200048404186924073353216-1316787078245894
+|   |-- 1316787252.bitcask.data
+|   |-- 1316787252.bitcask.hint
+|   `-- bitcask.write.lock
+
+... etc ...
+
+
+|-- 1141798154164767904846628775559596109106197299200-1316787078249065
+|   |-- 1316787252.bitcask.data
+|   |-- 1316787252.bitcask.hint
+|   `-- bitcask.write.lock
+
+... etc ...
+
+
+|-- 1164634117248063262943561351070788031288321245184-1316787078254833
+|   |-- 1316787252.bitcask.data
+|   |-- 1316787252.bitcask.hint
+|   `-- bitcask.write.lock
+
+... etc ...
+
+</code></pre></div></div>
+
+<p>As more data is written to the cluster, more Bitcask files are created
+until merges are triggered.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bitcask/
+|-- 0-1317147619996589
+|   |-- 1317147974.bitcask.data
+|   |-- 1317147974.bitcask.hint
+|   |-- 1317221578.bitcask.data
+|   |-- 1317221578.bitcask.hint
+|   |-- 1317221869.bitcask.data
+|   |-- 1317221869.bitcask.hint
+|   |-- 1317222847.bitcask.data
+|   |-- 1317222847.bitcask.hint
+|   |-- 1317222868.bitcask.data
+|   |-- 1317222868.bitcask.hint
+|   |-- 1317223014.bitcask.data
+|   `-- 1317223014.bitcask.hint
+|-- 1004782375664995756265033322492444576013453623296-1317147628760580
+|   |-- 1317147693.bitcask.data
+|   |-- 1317147693.bitcask.hint
+|   |-- 1317222035.bitcask.data
+|   |-- 1317222035.bitcask.hint
+|   |-- 1317222514.bitcask.data
+|   |-- 1317222514.bitcask.hint
+|   |-- 1317223035.bitcask.data
+|   |-- 1317223035.bitcask.hint
+|   |-- 1317223411.bitcask.data
+|   `-- 1317223411.bitcask.hint
+|-- 1027618338748291114361965898003636498195577569280-1317223690337865
+|-- 1050454301831586472458898473514828420377701515264-1317223690151365
+
+... etc ...
+
+</code></pre></div></div>
+
+<p>This is normal operational behavior for Bitcask.</p>

@@ -1,0 +1,342 @@
+<h2 id="creating-objects">Creating Objects</h2>
+
+<p>First let’s create a few objects and a bucket to keep them in:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="n">val1</span> <span class="o">:=</span> <span class="kt">uint32</span><span class="p">(</span><span class="m">1</span><span class="p">)</span>
+  <span class="n">val1buf</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span> <span class="m">4</span><span class="p">)</span>
+  <span class="n">binary</span><span class="o">.</span><span class="n">LittleEndian</span><span class="o">.</span><span class="n">PutUint32</span><span class="p">(</span><span class="n">val1buf</span><span class="p">,</span> <span class="n">val1</span><span class="p">)</span>
+
+  <span class="n">val2</span> <span class="o">:=</span> <span class="s">"two"</span>
+
+  <span class="n">val3</span> <span class="o">:=</span> <span class="k">struct</span><span class="p">{</span> <span class="n">MyValue</span> <span class="kt">int</span> <span class="p">}{</span><span class="m">3</span><span class="p">}</span> <span class="c">// NB: ensure that members are exported (i.e. capitalized)</span>
+  <span class="k">var</span> <span class="n">val3json</span> <span class="p">[]</span><span class="kt">byte</span>
+  <span class="n">val3json</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">Marshal</span><span class="p">(</span><span class="n">val3</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="n">bucket</span> <span class="o">:=</span> <span class="s">"test"</span>
+
+  <span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Creating Objects In Riak..."</span><span class="p">)</span>
+
+  <span class="n">objs</span> <span class="o">:=</span> <span class="p">[]</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="p">{</span>
+      <span class="n">Bucket</span><span class="o">:</span>      <span class="n">bucket</span><span class="p">,</span>
+      <span class="n">Key</span><span class="o">:</span>         <span class="s">"one"</span><span class="p">,</span>
+      <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/octet-stream"</span><span class="p">,</span>
+      <span class="n">Value</span><span class="o">:</span>       <span class="n">val1buf</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="n">Bucket</span><span class="o">:</span>      <span class="n">bucket</span><span class="p">,</span>
+      <span class="n">Key</span><span class="o">:</span>         <span class="s">"two"</span><span class="p">,</span>
+      <span class="n">ContentType</span><span class="o">:</span> <span class="s">"text/plain"</span><span class="p">,</span>
+      <span class="n">Value</span><span class="o">:</span>       <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="n">val2</span><span class="p">),</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+      <span class="n">Bucket</span><span class="o">:</span>      <span class="n">bucket</span><span class="p">,</span>
+      <span class="n">Key</span><span class="o">:</span>         <span class="s">"three"</span><span class="p">,</span>
+      <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/json"</span><span class="p">,</span>
+      <span class="n">Value</span><span class="o">:</span>       <span class="n">val3json</span><span class="p">,</span>
+    <span class="p">},</span>
+  <span class="p">}</span>
+
+  <span class="k">var</span> <span class="n">cmd</span> <span class="n">riak</span><span class="o">.</span><span class="n">Command</span>
+  <span class="n">wg</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">sync</span><span class="o">.</span><span class="n">WaitGroup</span><span class="p">{}</span>
+
+  <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">o</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">objs</span> <span class="p">{</span>
+    <span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+      <span class="n">WithContent</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="o">.</span>
+      <span class="n">Build</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+      <span class="k">continue</span>
+    <span class="p">}</span>
+    <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+      <span class="n">Command</span><span class="o">:</span> <span class="n">cmd</span><span class="p">,</span>
+      <span class="n">Wait</span><span class="o">:</span>    <span class="n">wg</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="n">wg</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>In our first object, we have stored the integer 1 with the lookup key
+of <code class="language-plaintext highlighter-rouge">one</code>:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span>
+  <span class="n">Bucket</span><span class="o">:</span>      <span class="n">bucket</span><span class="p">,</span>
+  <span class="n">Key</span><span class="o">:</span>         <span class="s">"one"</span><span class="p">,</span>
+  <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/octet-stream"</span><span class="p">,</span>
+  <span class="n">Value</span><span class="o">:</span>       <span class="n">val1buf</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>For our second object, we stored a simple string value of <code class="language-plaintext highlighter-rouge">two</code> with a
+matching key:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span>
+  <span class="n">Bucket</span><span class="o">:</span>      <span class="n">bucket</span><span class="p">,</span>
+  <span class="n">Key</span><span class="o">:</span>         <span class="s">"two"</span><span class="p">,</span>
+  <span class="n">ContentType</span><span class="o">:</span> <span class="s">"text/plain"</span><span class="p">,</span>
+  <span class="n">Value</span><span class="o">:</span>       <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="n">val2</span><span class="p">),</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Finally, the third object we stored was a bit of JSON:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span>
+  <span class="n">Bucket</span><span class="o">:</span>      <span class="n">bucket</span><span class="p">,</span>
+  <span class="n">Key</span><span class="o">:</span>         <span class="s">"three"</span><span class="p">,</span>
+  <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/json"</span><span class="p">,</span>
+  <span class="n">Value</span><span class="o">:</span>       <span class="n">val3json</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="reading-objects">Reading Objects</h2>
+
+<p>Now that we have a few objects stored, let’s retrieve them and make sure
+they contain the values we expect.</p>
+
+<p>Requesting the objects by key:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">var</span> <span class="n">cmd</span> <span class="n">riak</span><span class="o">.</span><span class="n">Command</span>
+<span class="n">wg</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">sync</span><span class="o">.</span><span class="n">WaitGroup</span><span class="p">{}</span>
+
+<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">o</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">objs</span> <span class="p">{</span>
+  <span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="k">continue</span>
+  <span class="p">}</span>
+  <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+    <span class="n">Command</span><span class="o">:</span> <span class="n">cmd</span><span class="p">,</span>
+    <span class="n">Wait</span><span class="o">:</span>    <span class="n">wg</span><span class="p">,</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">wg</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+
+<span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Reading Objects From Riak..."</span><span class="p">)</span>
+
+<span class="n">d</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="k">chan</span> <span class="n">riak</span><span class="o">.</span><span class="n">Command</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">objs</span><span class="p">))</span>
+
+<span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">o</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">objs</span> <span class="p">{</span>
+  <span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewFetchValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="n">bucket</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">Key</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="k">continue</span>
+  <span class="p">}</span>
+  <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+    <span class="n">Command</span><span class="o">:</span> <span class="n">cmd</span><span class="p">,</span>
+    <span class="n">Wait</span><span class="o">:</span>    <span class="n">wg</span><span class="p">,</span>
+    <span class="n">Done</span><span class="o">:</span>    <span class="n">d</span><span class="p">,</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">wg</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+<span class="nb">close</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Converting to JSON to compare a string key to a symbol
+key:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for</span> <span class="n">done</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">d</span> <span class="p">{</span>
+  <span class="n">f</span> <span class="o">:=</span> <span class="n">done</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchValueCommand</span><span class="p">)</span>
+  <span class="c">/* un-comment to dump fetched object as JSON
+  if json, jerr := json.MarshalIndent(f.Response, "", "  "); err != nil {
+    util.ErrLog.Println(jerr)
+  } else {
+    util.Log.Println("fetched value: ", string(json))
+  }
+  */</span>
+  <span class="n">obj</span> <span class="o">:=</span> <span class="n">f</span><span class="o">.</span><span class="n">Response</span><span class="o">.</span><span class="n">Values</span><span class="p">[</span><span class="m">0</span><span class="p">]</span>
+  <span class="k">switch</span> <span class="n">obj</span><span class="o">.</span><span class="n">Key</span> <span class="p">{</span>
+  <span class="k">case</span> <span class="s">"one"</span><span class="o">:</span>
+    <span class="k">if</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span> <span class="o">:=</span> <span class="n">binary</span><span class="o">.</span><span class="n">LittleEndian</span><span class="o">.</span><span class="n">Uint32</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">Value</span><span class="p">),</span> <span class="n">val1</span><span class="p">;</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">expected</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"key: %s, actual %v, expected %v"</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="k">case</span> <span class="s">"two"</span><span class="o">:</span>
+    <span class="k">if</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span> <span class="o">:=</span> <span class="kt">string</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">Value</span><span class="p">),</span> <span class="n">val2</span><span class="p">;</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">expected</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"key: %s, actual %v, expected %v"</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="k">case</span> <span class="s">"three"</span><span class="o">:</span>
+    <span class="n">obj3</span> <span class="o">=</span> <span class="n">obj</span>
+    <span class="n">val3</span><span class="o">.</span><span class="n">MyValue</span> <span class="o">=</span> <span class="m">0</span>
+    <span class="k">if</span> <span class="n">jerr</span> <span class="o">:=</span> <span class="n">json</span><span class="o">.</span><span class="n">Unmarshal</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">Value</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">val3</span><span class="p">);</span> <span class="n">jerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">jerr</span><span class="p">)</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="k">if</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span> <span class="o">:=</span> <span class="n">val3</span><span class="o">.</span><span class="n">MyValue</span><span class="p">,</span> <span class="kt">int</span><span class="p">(</span><span class="m">3</span><span class="p">);</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">expected</span> <span class="p">{</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"key: %s, actual %v, expected %v"</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span><span class="p">)</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="k">default</span><span class="o">:</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"unrecognized key: %s"</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">Key</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="updating-objects">Updating Objects</h2>
+
+<p>While some data may be static, other forms of data need to be
+updated.</p>
+
+<p>Let’s update some values:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Updating Object Three In Riak..."</span><span class="p">)</span>
+
+<span class="n">val3</span><span class="o">.</span><span class="n">MyValue</span> <span class="o">=</span> <span class="m">42</span>
+<span class="n">obj3</span><span class="o">.</span><span class="n">Value</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">Marshal</span><span class="p">(</span><span class="n">val3</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+  <span class="n">WithContent</span><span class="p">(</span><span class="n">obj3</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithReturnBody</span><span class="p">(</span><span class="no">true</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">svcmd</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">StoreValueCommand</span><span class="p">)</span>
+<span class="n">svrsp</span> <span class="o">:=</span> <span class="n">svcmd</span><span class="o">.</span><span class="n">Response</span>
+<span class="n">obj3</span> <span class="o">=</span> <span class="n">svrsp</span><span class="o">.</span><span class="n">Values</span><span class="p">[</span><span class="m">0</span><span class="p">]</span>
+<span class="n">val3</span><span class="o">.</span><span class="n">MyValue</span> <span class="o">=</span> <span class="m">0</span>
+<span class="k">if</span> <span class="n">jerr</span> <span class="o">:=</span> <span class="n">json</span><span class="o">.</span><span class="n">Unmarshal</span><span class="p">(</span><span class="n">obj3</span><span class="o">.</span><span class="n">Value</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">val3</span><span class="p">);</span> <span class="n">jerr</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">jerr</span><span class="p">)</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span> <span class="o">:=</span> <span class="n">val3</span><span class="o">.</span><span class="n">MyValue</span><span class="p">,</span> <span class="kt">int</span><span class="p">(</span><span class="m">42</span><span class="p">);</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">expected</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"key: %s, actual %v, expected %v"</span><span class="p">,</span> <span class="n">obj3</span><span class="o">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">actual</span><span class="p">,</span> <span class="n">expected</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+<span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"updated object key: "</span><span class="p">,</span> <span class="n">obj3</span><span class="o">.</span><span class="n">Key</span><span class="p">)</span>
+<span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"updated object value: "</span><span class="p">,</span> <span class="n">val3</span><span class="o">.</span><span class="n">MyValue</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="deleting-objects">Deleting Objects</h2>
+
+<p>As a last step, we’ll demonstrate how to delete data. You’ll see that
+the delete message can be called against either the bucket or the
+object.</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">o</span> <span class="o">:=</span> <span class="k">range</span> <span class="n">objs</span> <span class="p">{</span>
+  <span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewDeleteValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">Bucket</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">Key</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="k">continue</span>
+  <span class="p">}</span>
+  <span class="n">a</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Async</span><span class="p">{</span>
+    <span class="n">Command</span><span class="o">:</span> <span class="n">cmd</span><span class="p">,</span>
+    <span class="n">Wait</span><span class="o">:</span>    <span class="n">wg</span><span class="p">,</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">ExecuteAsync</span><span class="p">(</span><span class="n">a</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">wg</span><span class="o">.</span><span class="n">Wait</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h2 id="working-with-complex-objects">Working With Complex Objects</h2>
+
+<p>Since the world is a little more complicated than simple integers and
+bits of strings, let’s see how we can work with more complex objects.</p>
+
+<p>For example, this <code class="language-plaintext highlighter-rouge">struct</code> that represents some information about
+a book:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">type</span> <span class="n">Book</span> <span class="k">struct</span> <span class="p">{</span>
+  <span class="n">ISBN</span>        <span class="kt">string</span>
+  <span class="n">Title</span>       <span class="kt">string</span>
+  <span class="n">Author</span>      <span class="kt">string</span>
+  <span class="n">Body</span>        <span class="kt">string</span>
+  <span class="n">CopiesOwned</span> <span class="kt">uint16</span>
+<span class="p">}</span>
+
+<span class="n">book</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">Book</span><span class="p">{</span>
+    <span class="n">ISBN</span><span class="o">:</span>        <span class="s">"1111979723"</span><span class="p">,</span>
+    <span class="n">Title</span><span class="o">:</span>       <span class="s">"Moby Dick"</span><span class="p">,</span>
+    <span class="n">Author</span><span class="o">:</span>      <span class="s">"Herman Melville"</span><span class="p">,</span>
+    <span class="n">Body</span><span class="o">:</span>        <span class="s">"Call me Ishmael. Some years ago..."</span><span class="p">,</span>
+    <span class="n">CopiesOwned</span><span class="o">:</span> <span class="m">3</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>We now have some information about our Moby Dick collection
+that we want to save. Storing this to Riak should look familiar by now:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">var</span> <span class="n">jbook</span> <span class="p">[]</span><span class="kt">byte</span>
+<span class="n">jbook</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">Marshal</span><span class="p">(</span><span class="n">book</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">bookObj</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+  <span class="n">Bucket</span><span class="o">:</span>      <span class="s">"books"</span><span class="p">,</span>
+  <span class="n">Key</span><span class="o">:</span>         <span class="n">book</span><span class="o">.</span><span class="n">ISBN</span><span class="p">,</span>
+  <span class="n">ContentType</span><span class="o">:</span> <span class="s">"application/json"</span><span class="p">,</span>
+  <span class="n">Value</span><span class="o">:</span>       <span class="n">jbook</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+  <span class="n">WithContent</span><span class="p">(</span><span class="n">bookObj</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithReturnBody</span><span class="p">(</span><span class="no">false</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>If we fetch our book back and print the data:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewFetchValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="s">"books"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithKey</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">ISBN</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="n">util</span><span class="o">.</span><span class="n">ErrLog</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">fcmd</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchValueCommand</span><span class="p">)</span>
+<span class="n">bookObj</span> <span class="o">=</span> <span class="n">fcmd</span><span class="o">.</span><span class="n">Response</span><span class="o">.</span><span class="n">Values</span><span class="p">[</span><span class="m">0</span><span class="p">]</span>
+<span class="n">util</span><span class="o">.</span><span class="n">Log</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="kt">string</span><span class="p">(</span><span class="n">bookObj</span><span class="o">.</span><span class="n">Value</span><span class="p">))</span>
+</code></pre></div></div>
+
+<p>The result is:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="nl">"isbn"</span><span class="p">:</span><span class="s2">"1111979723"</span><span class="p">,</span><span class="nl">"title"</span><span class="p">:</span><span class="s2">"Moby Dick"</span><span class="p">,</span><span class="nl">"author"</span><span class="p">:</span><span class="s2">"Herman Melville"</span><span class="p">,</span><span class="w">
+</span><span class="nl">"body"</span><span class="p">:</span><span class="s2">"Call me Ishmael. Some years ago..."</span><span class="p">,</span><span class="nl">"copies_owned"</span><span class="p">:</span><span class="mi">3</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Now, let’s delete the book:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">...</span>
+</code></pre></div></div>

@@ -1,0 +1,144 @@
+<p><em>NOTE: Riak 2.1.1 has replaced Riak 2.1.0</em></p>
+
+<h2 id="fixes">Fixes</h2>
+<p>Riak 2.1.0 introduced a bug that has been fixed in Riak 2.1.1. The default configuration for handoff.ip caused vnodes marked for transfer during handoff to be removed without transferring data to their new destination nodes. A mandatory change to configuration (riak.conf) mitigates this issue for 2.1.0 users. While not all users were impacted by this issue, we recommend that all 2.1.0 users upgrade to 2.1.1.</p>
+
+<p>Detailed information on the issue is available in the Basho Documentation <a href="http://docs.basho.com/community/productadvisories/210-dataloss/">Product Advisories</a>.</p>
+
+<ul>
+  <li>Make default <code class="language-plaintext highlighter-rouge">handoff_ip</code> value 0.0.0.0 in vars.config.
+    <ul>
+      <li><a href="https://github.com/basho/riak/pull/734">riak/pull/734</a></li>
+    </ul>
+  </li>
+</ul>
+
+<h1 id="riak-210-release-notes">Riak 2.1.0 Release Notes</h1>
+
+<h2 id="new-features">New Features</h2>
+
+<h3 id="performance-improvements">Performance Improvements</h3>
+
+<p>The introduction of write-once buckets allows users to experience up to a 2x performance improvement for write-heavy, write-once workloads.  More details on implementing write-once buckets are available below.</p>
+
+<h3 id="write-once-bucket-type">Write-Once Bucket Type</h3>
+
+<p>Riak 2.1.0 introduces the concept of write-once buckets, buckets whose entries are intended to be written exactly once and never updated or overwritten. Since objects are intended to only be written once, Riak does not perform the usual “get, merge, update” cycle which reduces IOPs and improves throughput and latency.</p>
+
+<p>It is still possible for multiple entries to be written to a single key – through mis-use of the API, network partitions, simultaneous writes, etc.. In these cases, Riak will always resolve siblings using an algorithm based on the SHA-1 hashes of the conflicting objects. While this algorithm is repeatable and deterministic at the database level, it will have the appearance to the user of “random write wins”.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">write_once</code> property is a boolean value applied to a bucket type and may only be set at bucket creation time. Once a bucket type has been set and activated with the <code class="language-plaintext highlighter-rouge">write_once</code> property, the property may not be modified</p>
+
+<p>Limitations:</p>
+
+<ul>
+  <li>Pre/Post-commit hooks are not supported.</li>
+  <li>Large object warnings and limits are not enforced.</li>
+  <li>All nodes must be upgraded before enabling <code class="language-plaintext highlighter-rouge">write_once</code> - usage in mixed clusters will crash vnodes.</li>
+</ul>
+
+<h2 id="changes">Changes</h2>
+
+<ul>
+  <li><a href="https://github.com/basho/riak_kv/issues/679">Issue kv679</a> - Applies fix to most causes of data loss from repeated causal history. A monotonic counter is fsynced to disk when the vnode starts. Thus starting/re-starting a vnode has a cost associated that was not there before.
+    <ul>
+      <li><a href="https://github.com/basho/riak_kv/pull/1070">riak_kv/pull/1070</a></li>
+    </ul>
+  </li>
+  <li>Update API to retrieve active preflist based on particular bucket/key.
+Updates the Riak API with an operation to GET, e.g. <code class="language-plaintext highlighter-rouge">/types/Type/buckets/Bucket/keys/Key/preflist</code>, an annotated (nodes being primary or fallback) preflist of which nodes host a particular bucket/key combination is returned.
+    <ul>
+      <li><a href="https://github.com/basho/riak-erlang-http-client/pull/50">riak-erlang-http-client/pull/50</a></li>
+      <li><a href="https://github.com/basho/riak_core/pull/705">riak_core/pull/705</a></li>
+      <li><a href="https://github.com/basho/riak_pb/pull/105">riak_pb/pull/105</a></li>
+      <li><a href="https://github.com/basho/riak-erlang-client/pull/204">riak-erlang-client/pull/204</a></li>
+      <li><a href="https://github.com/basho/riak_kv/pull/1083">riak_kv/pull/1083</a></li>
+      <li><a href="https://github.com/basho/riak_api/pull/81">riak_api/pull/81</a></li>
+      <li><a href="https://github.com/basho/riak_api/pull/75">riak_api/pull/75</a></li>
+    </ul>
+  </li>
+  <li>Add a JSON writer for several riak-admin commands, including cluster status, cluster partition[s], cluster partition-count, any of the riak-admin handoff commands, and riak-admin set/show/describe.
+    <ul>
+      <li><a href="https://github.com/basho/clique/pull/47">clique/pull/47</a></li>
+    </ul>
+  </li>
+  <li>Integrate performance patches into Erlang R16 VM used by Riak.
+    <ul>
+      <li><a href="https://github.com/basho/otp/pull/10">opt/pull/10</a></li>
+    </ul>
+  </li>
+  <li>Add riak_core_ring_manager:is_stable_ring/0 to public API. Allows clients to ensure that the ring has not changed in X seconds (currently 90).
+    <ul>
+      <li><a href="https://github.com/basho/riak_core/pull/716">riak_core/pull/716</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/468">yokozuna/issues/468</a> - Add <code class="language-plaintext highlighter-rouge">search_query_latency_mean</code> and <code class="language-plaintext highlighter-rouge">search_index_latency_mean</code> metrics.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/473">yokozuna/pull/473</a></li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="fixes-1">Fixes</h2>
+
+<ul>
+  <li><a href="https://github.com/basho/yokozuna/issues/437">yokozuna/issues/437</a>: Timeouts during bulk data load, possible tie in to yz_events crash and a bad state on core create.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/458">yokozuna/pull/458</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/452">yokozuna/issues/452</a>:  Don’t delete siblings in YZ when using SC or CRDTs.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/457">yokozuna/pull/457</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/402">yokozuna/issues/402</a>: Creating a new search index via HTTP responds before the index is available.
+    <ul>
+      <li><a href="https://github.com/basho/riak_test/pull/745">riak_test/pull/745</a></li>
+      <li><a href="https://github.com/basho/riak_pb/pull/112">riak_pb/pull/112</a></li>
+      <li><a href="https://github.com/basho/riak_pb/pull/111">riak_pb/pull/111</a></li>
+      <li><a href="https://github.com/basho/riak-erlang-client/pull/207">riak-erlang-client/pull/207</a></li>
+      <li><a href="https://github.com/basho/yokozuna/pull/463">yokozuna/pull/463</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/450">yokozuna/issues/450</a>: AAE Failing hourly, with exit value {badarg,46}, [{base64,decode_binary[{base64.erl…
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/459">yokozuna/pull/459</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/437">yokozuna/issues/437</a>: yz_events:handle_info called with bad arguments.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/458">yokozuna/pull/458</a></li>
+      <li><a href="https://github.com/basho/yokozuna/pull/42">yokozuna/pull/42</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/yokozuna/issues/469">yokozuna/issues/469</a>: Fix YZ stats name typo from throughput to throughput.
+    <ul>
+      <li><a href="https://github.com/basho/yokozuna/pull/470">yokozuna/pull/470</a></li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/basho/riak_core/issues/698">riak_core/issues/698</a>: SSL connections from peers with matching wildcard name are always rejected.
+    <ul>
+      <li><a href="https://github.com/basho/riak_core/pull/718">riak_core/pull/718</a></li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="known-issues">Known Issues</h2>
+
+<ul>
+  <li><a href="https://github.com/basho/yokozuna/issues/481">yokozuna/issues/481</a> - Search loses entries when Search AAE trees expire. We are currently investigating this issue.</li>
+  <li><a href="https://github.com/basho/riak/issues/727">riak/issues/727</a> - Users upgrading from 1.4.x to 2.1.x that choose to use the traditional <code class="language-plaintext highlighter-rouge">app.config</code> for configuration should be aware that the default settings for <code class="language-plaintext highlighter-rouge">allow_mult</code> and <code class="language-plaintext highlighter-rouge">dvv_enabled</code> have changed from <code class="language-plaintext highlighter-rouge">false</code> to <code class="language-plaintext highlighter-rouge">true</code> between these versions.  If your application depends on these being set to ‘false’, you must explicitly define this by adding <code class="language-plaintext highlighter-rouge">{default_bucket_props, [{allow_mult, false}, {dvv_enabled, false}]},</code> to the <code class="language-plaintext highlighter-rouge">riak_core</code> section of your <code class="language-plaintext highlighter-rouge">app.config</code> file to maintain backwards compatibility.</li>
+</ul>
+
+<h2 id="notes-on-upgrading">Notes on upgrading</h2>
+
+<ul>
+  <li>Write-Once Buckets
+    <ul>
+      <li>If you make use of write-once buckets, you must upgrade all of your Riak nodes in a cluster to 2.1.0.  There is no support for write-once buckets in a cluster with mixed Riak versions.</li>
+      <li>Pre/Post-commit hooks are not supported.</li>
+      <li>Large object warnings and limits are not enforced</li>
+    </ul>
+  </li>
+</ul>

@@ -1,0 +1,63 @@
+
+<p>v2 Multi-Datacenter Replication is deprecated and will be removed in a future version. Please use <a href="/riak/kv/2.2.3/configuring/v3-multi-datacenter/nat/">v3</a> instead.</p>
+
+<p>Riak Enterprise supports replication of data on networks that use static
+NAT. This capability can be used for replicating data over the internet
+where servers have both internal and public IP addresses (see <a href="/riak/kv/2.2.3/configuring/v2-multi-datacenter/ssl">Riak
+REPL SSL</a> if you replicate data over a public network).</p>
+
+<h2 id="requirements">Requirements</h2>
+
+<p>In order for Multi-Datacenter Replication to work on a server configured
+with NAT, the NAT addresses must be configured statically.</p>
+
+<h2 id="example">Example</h2>
+
+<p>Imagine the following scenario:</p>
+
+<ul>
+  <li>Server A is the source of replicated data</li>
+  <li>Servers B and C would like to be clients of the replicated data</li>
+</ul>
+
+<p>Server A is set up with static NAT, configured for IP addresses:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">192.168.1.10</code> (internal) and <code class="language-plaintext highlighter-rouge">50.16.238.123</code> (public)</li>
+</ul>
+
+<p>Server A replication will listen on:</p>
+
+<ul>
+  <li>the internal IP address <code class="language-plaintext highlighter-rouge">192.168.1.10</code>, port <code class="language-plaintext highlighter-rouge">9010</code></li>
+  <li>the public IP address <code class="language-plaintext highlighter-rouge">50.16.238.123</code>, port <code class="language-plaintext highlighter-rouge">9011</code></li>
+</ul>
+
+<p>Server B is set up with a single public IP address: <code class="language-plaintext highlighter-rouge">50.16.238.200</code></p>
+
+<ul>
+  <li>Server B replication will connect as a client to the public IP
+address <code class="language-plaintext highlighter-rouge">50.16.238.123</code>, port <code class="language-plaintext highlighter-rouge">9011</code></li>
+</ul>
+
+<p>Server C is set up with a single internal IP address: <code class="language-plaintext highlighter-rouge">192.168.1.20</code></p>
+
+<ul>
+  <li>Server C replication will connect as a client to the internal IP
+address of <code class="language-plaintext highlighter-rouge">192.168.1.10</code>, port <code class="language-plaintext highlighter-rouge">9010</code></li>
+</ul>
+
+<p>Configure a listener on Server A:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-nat-listener riak@192.168.1.10 192.168.1.10 9010 50.16.238.123 9011
+</code></pre></div></div>
+
+<p>Configure a site (client) on Server B:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-site 50.16.238.123 9011 server_a_to_b
+</code></pre></div></div>
+
+<p>Configure a site (client) on Server C:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-site 192.168.1.10 9010 server_a_to_c
+</code></pre></div></div>

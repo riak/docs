@@ -1,0 +1,231 @@
+<p>If you’re looking for more general information on Riak Security, it may
+be best to start with our general guide to <a href="/riak/kv/2.1.3/using/security/basics">authentication and authorization</a>.</p>
+
+<p>This document provides more granular information on the four available
+authentication sources in Riak Security: trusted networks, password,
+pluggable authentication modules (PAM), and certificates. These sources
+correspond to <code class="language-plaintext highlighter-rouge">trust</code>, <code class="language-plaintext highlighter-rouge">password</code>, <code class="language-plaintext highlighter-rouge">pam</code>, and <code class="language-plaintext highlighter-rouge">certificate</code>,
+respectively, in the <code class="language-plaintext highlighter-rouge">riak-admin security</code> interface.</p>
+
+<p>The examples below will assume that the network in question is
+<code class="language-plaintext highlighter-rouge">127.0.0.1/32</code> and that a Riak user named <code class="language-plaintext highlighter-rouge">riakuser</code> has been
+<a href="/riak/kv/2.1.3/using/security/basics/#user-management">created</a> and that
+security has been <a href="/riak/kv/2.1.3/using/security/basics/#the-basics">enabled</a>.</p>
+
+<p>If you use <em>any</em> of the aforementioned security sources, even <code class="language-plaintext highlighter-rouge">trust</code>, you
+will need to do so via a secure SSL connection.</p>
+
+<h2 id="trust-based-authentication">Trust-based Authentication</h2>
+
+<p>This form of authentication enables you to specify trusted
+<a href="http://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing">CIDRs</a>
+from which all clients will be authenticated by default.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-source all 127.0.0.1/32 trust
+</code></pre></div></div>
+
+<p>Here, we have specified that anyone connecting to Riak from the
+designated CIDR (in this case <code class="language-plaintext highlighter-rouge">localhost</code>) will be successfully
+authenticated:</p>
+
+<pre><code class="language-curl">curl https://localhost:8098/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre>
+
+<p>If this request returns <code class="language-plaintext highlighter-rouge">not found</code> or a Riak object, then things have
+been set up appropriately. You can specify any number of trusted
+networks in the same fashion.</p>
+
+<p>You can also specify users as trusted users, as in the following
+example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-source riakuser 127.0.0.1/32 trust
+</code></pre></div></div>
+
+<p>Now, <code class="language-plaintext highlighter-rouge">riakuser</code> can interact with Riak without providing credentials.
+Here’s an example in which only the username is passed to Riak:</p>
+
+<pre><code class="language-curl">curl -u riakuser: \
+  https://localhost:8098/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre>
+
+<h2 id="password-based-authentication">Password-based Authentication</h2>
+
+<p>Authenticating via the <code class="language-plaintext highlighter-rouge">password</code> source requires that our <code class="language-plaintext highlighter-rouge">riakuser</code> be
+given a password. <code class="language-plaintext highlighter-rouge">riakuser</code> can be assigned a password upon creation,
+as in this example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-user riakuser <span class="nv">password</span><span class="o">=</span>captheorem4life
+</code></pre></div></div>
+
+<p>Or a password can be assigned to an already existing user by modifying
+that user’s characteristics:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security alter-user riakuser <span class="nv">password</span><span class="o">=</span>captheorem4life
+</code></pre></div></div>
+
+<p>You can specify that <em>all</em> users must authenticate themselves via
+password when connecting to Riak from <code class="language-plaintext highlighter-rouge">localhost</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-source all 127.0.0.1/32 password
+</code></pre></div></div>
+
+<p>Or you can specify that any number of specific users must do so:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-source riakuser 127.0.0.1/32 password
+riak-admin security add-source otheruser 127.0.0.1/32 password
+
+<span class="c"># etc</span>
+</code></pre></div></div>
+
+<p>Now, our <code class="language-plaintext highlighter-rouge">riakuser</code> must enter a username and password to have any
+access to Riak whatsoever:</p>
+
+<pre><code class="language-curl">curl -u riakuser:captheorem4life \
+  https://localhost:8098/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre>
+
+<h2 id="certificate-based-authentication">Certificate-based Authentication</h2>
+
+<p>This form of authentication (<code class="language-plaintext highlighter-rouge">certificate</code>) requires that Riak and a
+specified client—or clients—interacting with Riak bear certificates
+signed by the same <a href="http://en.wikipedia.org/wiki/Root_certificate">Root Certificate
+Authority</a>.</p>
+
+<blockquote>
+  <p><strong>Note</strong></p>
+
+  <p>At this time, client certificates are not supported in Riak’s HTTP
+interface, and can be used only through the <a href="/riak/kv/2.1.3/developing/api/protocol-buffers/">protocol buffers interface</a>.</p>
+</blockquote>
+
+<p>Let’s specify that our user <code class="language-plaintext highlighter-rouge">riakuser</code> is going to be authenticated
+using a certificate on <code class="language-plaintext highlighter-rouge">localhost</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-source riakuser 127.0.0.1/32 certificate
+</code></pre></div></div>
+
+<p>When the <code class="language-plaintext highlighter-rouge">certificate</code> source is used, <code class="language-plaintext highlighter-rouge">riakuser</code> must also be entered
+as the common name, aka <code class="language-plaintext highlighter-rouge">CN</code>, that you specified when you generated your
+certificate, as in the following OpenSSL example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-new</span> ... <span class="s1">'/CN=riakuser'</span>
+</code></pre></div></div>
+
+<p>You can add a <code class="language-plaintext highlighter-rouge">certificate</code> source to any number of clients, as long as
+their <code class="language-plaintext highlighter-rouge">CN</code> and Riak username match.</p>
+
+<p>On the server side, you need to configure Riak by specifying a path to
+your certificates. First, copy all relevant files to your Riak cluster.
+The default directory for certificates is <code class="language-plaintext highlighter-rouge">/etc</code>, though you can specify
+a different directory in your <a href="/riak/kv/2.1.3/configuring/reference/"><code class="language-plaintext highlighter-rouge">riak.conf</code></a> by either uncommenting those lines if you choose to use the defaults or setting the paths yourself:</p>
+
+<pre><code class="language-riakconf">ssl.certfile = /path/to/cert.pem
+ssl.keyfile = /path/to/key.pem
+ssl.cacertfile = /path/to/cacert.pem
+</code></pre>
+
+<p>In the client-side example above, the client’s <code class="language-plaintext highlighter-rouge">CN</code> and Riak username
+needed to match. On the server (i.e. Riak) side, the <code class="language-plaintext highlighter-rouge">CN</code> specified <em>on
+each node</em> must match the node’s name as registered by Riak. You can
+find the node’s name in <a href="/riak/kv/2.1.3/configuring/reference/"><code class="language-plaintext highlighter-rouge">riak.conf</code></a> under the parameter <code class="language-plaintext highlighter-rouge">nodename</code>. And so if the <code class="language-plaintext highlighter-rouge">nodename</code> for a cluster is
+<code class="language-plaintext highlighter-rouge">riak-node-1</code>, you would need to generate your certificate with that in
+mind, as in this OpenSSL example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-new</span> ... <span class="s1">'/CN=riak-node-1'</span>
+</code></pre></div></div>
+
+<p>Once certificates have been properly generated and configured on all of
+the nodes in your Riak cluster, you need to perform a <a href="/riak/kv/2.1.3/using/repair-recovery/rolling-restart/">rolling restart</a>. Once that process is complete, you can use the client
+certificate that you generated for the user <code class="language-plaintext highlighter-rouge">riakuser</code>.</p>
+
+<p>How to use Riak clients in conjunction with OpenSSL and other
+certificates varies from client library to client library. We strongly
+recommend checking the documentation of your client library for further
+information.</p>
+
+<h2 id="pam-based-authentication">PAM-based Authentication</h2>
+
+<p>This section assumes that you have set up a PAM service bearing the name
+<code class="language-plaintext highlighter-rouge">riak_pam</code>, e.g. by creating a <code class="language-plaintext highlighter-rouge">pam.d/riak_pam</code> service definition
+specifying <code class="language-plaintext highlighter-rouge">auth</code> and/or other PAM services set up to authenticate a
+user named <code class="language-plaintext highlighter-rouge">riakuser</code>. As in the certificate-based authentication
+example above, the user’s name must be the same in both your
+authentication module and in Riak Security.</p>
+
+<p>If we want the user <code class="language-plaintext highlighter-rouge">riakuser</code> to use this PAM service on <code class="language-plaintext highlighter-rouge">localhost</code>,
+we need to add a <code class="language-plaintext highlighter-rouge">pam</code> security source in Riak and specify the name of
+the service:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-source all 127.0.0.1/32 pam <span class="nv">service</span><span class="o">=</span>riak_pam
+</code></pre></div></div>
+
+<p><strong>Note</strong>: If you do not specify a name for your PAM service, Riak will
+use the default, which is <code class="language-plaintext highlighter-rouge">riak</code>.</p>
+
+<p>To verify that the source has been properly specified:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security print-sources
+</code></pre></div></div>
+
+<p>That command should output the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+--------------------+------------+----------+------------------------+
+|       users        |    cidr    |  source  |        options         |
++--------------------+------------+----------+------------------------+
+|      riakuser      |127.0.0.1/32|   pam    |[{"service","riak_pam"}]|
++--------------------+------------+----------+------------------------+
+</code></pre></div></div>
+
+<p>You can test that setup most easily by using <code class="language-plaintext highlighter-rouge">curl</code>. A normal request to
+Riak without specifying a user will return an <code class="language-plaintext highlighter-rouge">Unauthorized</code> message:</p>
+
+<pre><code class="language-curl">curl -u riakuser: \
+  https://localhost:8098/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre>
+
+<p>Response:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;html&gt;&lt;head&gt;&lt;title&gt;401 Unauthorized&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Unauthorized&lt;/h1&gt;Unauthorized&lt;p&gt;&lt;hr&gt;&lt;address&gt;mochiweb+webmachine web server&lt;/address&gt;&lt;/body&gt;&lt;/html&gt;
+</code></pre></div></div>
+
+<p>If you identify yourself as <code class="language-plaintext highlighter-rouge">riakuser</code> and are successfully
+authenticated by your PAM service, you should get either <code class="language-plaintext highlighter-rouge">not found</code> or
+a Riak object if one is stored in the specified bucket type/bucket/key
+path:</p>
+
+<pre><code class="language-curl">curl -u riakuser:&lt;pam_password&gt; \
+  https://localhost:8098/types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+</code></pre>
+
+<h2 id="how-sources-are-applied">How Sources Are Applied</h2>
+
+<p>When managing security sources—any of the sources explained
+above—you always have the option of applying a source to either a
+single user, multiple users, or all users (<code class="language-plaintext highlighter-rouge">all</code>). If specific users and
+<code class="language-plaintext highlighter-rouge">all</code> have no sources in common, this presents no difficulty. But what
+happens if one source is applied to <code class="language-plaintext highlighter-rouge">all</code> and a different source is
+applied to a specific user?</p>
+
+<p>The short answer is that the more specifically assigned source—i.e. to
+the user—will be consider a user’s security source. We’ll illustrate
+that with the following example, in which the <code class="language-plaintext highlighter-rouge">certificate</code> source is
+assigned to <code class="language-plaintext highlighter-rouge">all</code>, but the <code class="language-plaintext highlighter-rouge">password</code> source is assigned to <code class="language-plaintext highlighter-rouge">riakuser</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security add-source all 127.0.0.1/32 certificate
+riak-admin security add-source riakuser 127.0.0.1/32 password
+</code></pre></div></div>
+
+<p>If we run <code class="language-plaintext highlighter-rouge">riak-admin security print-sources</code>, we’ll get the following
+output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+--------------------+------------+-----------+----------+
+|       users        |    cidr    |  source   | options  |
++--------------------+------------+-----------+----------+
+|      riakuser      |127.0.0.1/32| password  |    []    |
+|                    |127.0.0.1/32|certificate|    []    |
+|        all         |127.0.0.1/32|certificate|    []    |
++--------------------+------------+-----------+----------+
+</code></pre></div></div>
+
+<p>As we can see, <code class="language-plaintext highlighter-rouge">password</code> is set as the security source for <code class="language-plaintext highlighter-rouge">riakuser</code>,
+whereas everyone else will authenticate using <code class="language-plaintext highlighter-rouge">certificate</code>.</p>

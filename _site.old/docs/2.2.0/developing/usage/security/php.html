@@ -1,0 +1,97 @@
+<p>This tutorial shows you how to set up a Riak PHP client to authenticate
+itself when connecting to Riak.</p>
+
+<p>If you are using <a href="/riak/kv/2.2.0/using/security/managing-sources/#trust-based-authentication">trust-</a> or <a href="/riak/kv/2.2.0/using/security/managing-sources/#pam-based-authentication">PAM</a>-based authentication, you can use the
+security setup described <a href="#php-client-basics">below</a>. <a href="/riak/kv/2.2.0/using/security/managing-sources/#certificate-based-authentication">Certificate</a>-based authentication is not
+yet supported in the PHP client due to limitations of the HTTP interface of Riak.</p>
+
+<h2 id="php-client-basics">PHP Client Basics</h2>
+
+<p>When connecting to Riak using a PHP-based client, you typically do so
+by instantiating separate <code class="language-plaintext highlighter-rouge">\Basho\Riak\Node</code> objects for each node in your
+cluster and passing those <code class="language-plaintext highlighter-rouge">\Basho\Riak\Node</code> objects as an array to a
+<code class="language-plaintext highlighter-rouge">\Basho\Riak</code> object as a dependency. In this document, we will be working with
+only one node.</p>
+
+<p>If you are using Riak security, <em>all</em> connecting clients should have
+access to the same Certificate Authority (CA) used on the server side,
+regardless of which <a href="/riak/kv/2.2.0/using/security/managing-sources/">security source</a> you choose. All clients should also provide a username, regardless of
+security source. The example below sets up a single node object (we’ll
+simply call it <code class="language-plaintext highlighter-rouge">node</code>) that connects to Riak on <code class="language-plaintext highlighter-rouge">localhost</code> and on port
+8087 and specifies <code class="language-plaintext highlighter-rouge">riakuser</code> as a username. That object will be used to
+create a Riak object. The setup below does not specify a CA and will throw
+an <code class="language-plaintext highlighter-rouge">\Basho\Riak\Node\Builder\Exception</code>:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak</span><span class="p">;</span>
+<span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak\Node</span><span class="p">;</span>
+
+<span class="nv">$node</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Node\Builder</span><span class="p">())</span>
+    <span class="o">-&gt;</span><span class="nf">atHost</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">onPort</span><span class="p">(</span><span class="s1">'8087'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">usingPasswordAuthentication</span><span class="p">(</span><span class="s1">'riakuser'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="c1">// since we are using a single node, it needs to be wrapped in array brackets</span>
+<span class="nv">$riak</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak</span><span class="p">([</span><span class="nv">$node</span><span class="p">]);</span>
+</code></pre></div></div>
+
+<p>This client object is not currently set up to use any of the available
+security sources. This will change in the sections below.</p>
+
+<h2 id="password-based-authentication">Password-based Authentication</h2>
+
+<p>To enable our client to use password-based auth, we can use most of the
+setup from the example above, with the exception that we will specify a
+password for the client in the <code class="language-plaintext highlighter-rouge">usingPasswordAuthentication</code> method in
+the <code class="language-plaintext highlighter-rouge">node</code> object’s builder rather than omitting it. We will also
+pass the path of the CA file relative to the current working directory into
+the <code class="language-plaintext highlighter-rouge">withCertificateAuthorityFile</code> method.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak</span><span class="p">;</span>
+<span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak\Node</span><span class="p">;</span>
+
+<span class="nv">$node</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Node\Builder</span><span class="p">())</span>
+    <span class="o">-&gt;</span><span class="nf">atHost</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">onPort</span><span class="p">(</span><span class="s1">'8087'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">usingPasswordAuthentication</span><span class="p">(</span><span class="s1">'riakuser'</span><span class="p">,</span> <span class="s1">'rosebud'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">withCertificateAuthorityFile</span><span class="p">(</span><span class="nb">getcwd</span><span class="p">()</span> <span class="mf">.</span> <span class="s1">'/ssl_dir/cacertfile.pem'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="c1">// since we are using a single node, it needs to be wrapped in array brackets</span>
+<span class="nv">$riak</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak</span><span class="p">([</span><span class="nv">$node</span><span class="p">]);</span>
+</code></pre></div></div>
+
+<h2 id="pam--and-trust-based-authentication">PAM- and Trust-based Authentication</h2>
+
+<p>If you are using PAM- or trust-based authentication, the only difference
+from password-based authentication is that you do not need to specify a
+password. There are helper methods that handle this for you, 
+<code class="language-plaintext highlighter-rouge">usingPamAuthentication</code> and <code class="language-plaintext highlighter-rouge">usingTrustAuthentication</code>.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak</span><span class="p">;</span>
+<span class="kn">use</span> <span class="err">\</span><span class="nc">Basho\Riak\Node</span><span class="p">;</span>
+
+<span class="c1">// PAM Example</span>
+<span class="nv">$node</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Node\Builder</span><span class="p">())</span>
+    <span class="o">-&gt;</span><span class="nf">atHost</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">onPort</span><span class="p">(</span><span class="s1">'8087'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">usingPamAuthentication</span><span class="p">(</span><span class="s1">'riakuser'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">withCertificateAuthorityFile</span><span class="p">(</span><span class="nb">getcwd</span><span class="p">()</span> <span class="mf">.</span> <span class="s1">'/ssl_dir/cacertfile.pem'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="c1">// Trust Example</span>
+<span class="nv">$node</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Node\Builder</span><span class="p">())</span>
+    <span class="o">-&gt;</span><span class="nf">atHost</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">onPort</span><span class="p">(</span><span class="s1">'8087'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">usingTrustAuthentication</span><span class="p">(</span><span class="s1">'riakuser'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">withCertificateAuthorityFile</span><span class="p">(</span><span class="nb">getcwd</span><span class="p">()</span> <span class="mf">.</span> <span class="s1">'/ssl_dir/cacertfile.pem'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="c1">// since we are using a single node, it needs to be wrapped in array brackets</span>
+<span class="nv">$riak</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak</span><span class="p">([</span><span class="nv">$node</span><span class="p">]);</span>
+</code></pre></div></div>
+
+<h2 id="certificate-based-authentication">Certificate-based Authentication</h2>
+
+<p>Certificate-based authentication is not currently supported in the
+official Riak PHP client due to limitations in the HTTP interface.</p>

@@ -1,0 +1,104 @@
+
+<p>These calculators will assist you in sizing your cluster if you plan to
+use the default <a href="/riak/kv/2.2.0/setup/planning/backend/bitcask">Bitcask</a> storage back end.</p>
+
+<p>This page is designed to give you a rough estimate when sizing your
+cluster.  The calculations are a <em>best guess</em>, and they tend to be a bit
+on the conservative side. It’s important to include a bit of head room
+as well as room for unexpected growth so that if demand exceeds
+expectations you’ll be able to add more nodes to the cluster and stay
+ahead of your requirements.</p>
+
+<div id="node_info" class="calc_info"></div>
+<div class="calculator">
+   <ul>
+     <li>
+       <label for="n_total_keys">Total Number of Keys:</label>
+       <input id="n_total_keys" type="text" size="12" name="n_total_keys" value="" class="calc_input" />
+       <span class="error_span" id="n_total_keys_error"></span>
+     </li>
+     <li>
+       <label for="n_bucket_size">Average Bucket Size (Bytes):</label>
+       &lt;input id="n_bucket_size"type="text" size="7" name="n_bucket_size" value="" class="calc_input"&gt;
+       &lt;span class="error_span"id="n_bucket_size_error"&gt;&lt;/span&gt;
+     </li>
+     <li>
+       <label for="n_key_size">Average Key Size (Bytes):</label>
+       <input type="text" size="2" name="n_key_size" id="n_key_size" value="" class="calc_input" />
+       <span class="error_span" id="n_key_size_error"></span>
+     </li>
+     <li>
+       <label for="n_record_size">Average Value Size (Bytes):</label>
+       &lt;input id="n_record_size"type="text" size="7" name="n_record_size" value="" class="calc_input"&gt;
+       &lt;span class="error_span"id="n_record_size_error"&gt;&lt;/span&gt;
+     </li>
+     <li>
+       <label for="n_ram">RAM Per Node (in GB):</label>
+       <input type="text" size="4" name="n_ram" id="n_ram" value="" class="calc_input" />
+       <span class="error_span" id="n_ram_error"></span>
+     </li>
+     <li>
+       <label for="n_nval"><i>N</i> (Number of Write Copies):</label>
+       <input type="text" size="2" name="n_nval" id="n_nval" value="" class="calc_input" />
+       <span class="error_span" id="n_nval_error"></span>
+     </li>
+</ul>
+</div>
+
+<h2 id="recommendations">Recommendations</h2>
+
+<p><span id="recommend"></span></p>
+
+<h2 id="details-on-bitcask-ram-calculation">Details on Bitcask RAM Calculation</h2>
+
+<p>With the above information in mind, the following variables will factor
+into your RAM calculation:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Variable</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Static Bitcask per-key overhead</td>
+      <td style="text-align: left">44.5 bytes per key</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Estimated average bucket-plus-key length</td>
+      <td style="text-align: left">The combined number of characters your bucket + keynames will require (on average). We’ll assume 1 byte per character.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Estimated total objects</td>
+      <td style="text-align: left">The total number of key/value pairs your cluster will have when started</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Replication Value (<code class="language-plaintext highlighter-rouge">n_val</code>)</td>
+      <td style="text-align: left">The number of times each key will be replicated when written to Riak (the default is 3)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="the-actual-equation">The actual equation</h2>
+
+<p>Approximate RAM Needed for Bitcask = (static bitcask per key overhead +
+estimated average bucket+key length in bytes) * estimate total number of
+keys * <code class="language-plaintext highlighter-rouge">n_val</code></p>
+
+<p>Example:</p>
+
+<ul>
+  <li>50,000,000 keys in your cluster to start</li>
+  <li>approximately 30 bytes for each bucket+key name</li>
+  <li>default <code class="language-plaintext highlighter-rouge">n_val</code> of 3</li>
+</ul>
+
+<p>The amount of RAM you would need for Bitcask is about <strong>9.78 GBs across
+your entire cluster.</strong></p>
+
+<p>Additionally, Bitcask relies on your operating system’s filesystem cache
+to deliver high performance reads. So when sizing your cluster, take
+this into account and plan on having several more gigabytes of RAM
+available for your filesystem cache.</p>

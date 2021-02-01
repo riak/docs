@@ -1,0 +1,27 @@
+<p>v2 Multi-Datacenter Replication is deprecated and will be removed in a future version. Please use <a href="/riak/kv/2.2.0/using/reference/v3-multi-datacenter/scheduling-fullsync/">v3</a> instead.</p>
+
+<h2 id="scheduling-fullsync-operation">Scheduling Fullsync Operation</h2>
+
+<p>With the <code class="language-plaintext highlighter-rouge">pause</code> and <code class="language-plaintext highlighter-rouge">resume</code> commands it is possible to limit the
+fullsync operation to off-peak times. First, disable <code class="language-plaintext highlighter-rouge">fullsync_interval</code>
+and set <code class="language-plaintext highlighter-rouge">fullsync_on_connect</code> to <code class="language-plaintext highlighter-rouge">false</code>. Then, using cron or something
+similar, execute the commands below at the start of the sync window.
+In these examples, the commands are combined in a <code class="language-plaintext highlighter-rouge">.sh</code> or analogous
+file:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/sh</span>
+
+<span class="c">## Resume from where we left off</span>
+riak-repl resume-fullsync
+
+<span class="c">## Start fullsync if nothing is running</span>
+riak-repl start-fullsync
+</code></pre></div></div>
+
+<p>At the end of the sync window:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/sh</span>
+
+<span class="c">## Stop fullsync until start of next sync window</span>
+riak-repl pause-fullsync
+</code></pre></div></div>

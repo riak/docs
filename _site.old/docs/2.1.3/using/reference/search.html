@@ -1,0 +1,411 @@
+
+<blockquote>
+  <p><strong>Note on Search 2.0 vs. Legacy Search</strong></p>
+
+  <p>This document refers to the new Riak Search 2.0 with
+<a href="http://lucene.apache.org/solr/">Solr</a> integration (codenamed
+Yokozuna). For information about the deprecated Riak Search, visit <a href="http://docs.basho.com/riak/1.4.10/dev/using/search/">the old Using Riak Search docs</a>.</p>
+</blockquote>
+
+<p>The project that implements Riak Search is codenamed Yokozuna. This is a
+more detailed overview of the concepts and reasons behind the design of
+Yokozuna, for those interested. If you’re simply looking to use Riak
+Search, you should check out the <a href="/riak/kv/2.1.3/developing/usage/search">Using Search</a> document.</p>
+
+<p><img src="/images/yokozuna.png" alt="Yokozuna" /></p>
+
+<h2 id="riak-search-is-erlang">Riak Search is Erlang</h2>
+
+<p>In Erlang OTP, an “application” is a group of modules and Erlang
+processes which together perform a specific task. The word application
+is confusing because most people think of an application as an entire
+program such as Emacs or Photoshop. But Riak Search is just a sub-system
+in Riak itself. Erlang applications are often stand-alone, but Riak
+Search is more like an appendage of Riak. It requires other subsystems
+like Riak Core and KV, but also extends their functionality by providing
+search capabilities for KV data.</p>
+
+<p>The purpose of Riak Search is to bring more sophisticated and robust
+query and search support to Riak. Many people consider Lucene and
+programs built on top of it, such as Solr, as the standard for
+open-source search. There are many successful applications built on
+Lucene/Solr, and it sets the standard for the feature set that
+developers and users expect.  Meanwhile, Riak has a great story as a
+highly-available, distributed key/value store. Riak Search takes
+advantage of the fact that Riak already knows how to do the distributed
+bits, combining its feature set with that of Solr, taking advantage of
+the strengths of each.</p>
+
+<p>Riak Search is a mediator between Riak and Solr. There is nothing
+stopping a user from deploying these two programs separately, but this
+would leave the user responsible for the glue between them. That glue
+can be tricky to write. It requires dealing with monitoring, querying,
+indexing, and dissemination of information.</p>
+
+<p>Unlike Solr by itself, Riak Search knows how to do all of the following:</p>
+
+<ul>
+  <li>Listen for changes in key/value (KV) data and to make the appropriate
+changes to indexes that live in Solr. It also knows how to take a user
+query on any node and convert it to a Solr distributed search, which
+will correctly cover the entire index without overlap in replicas.</li>
+  <li>Take index creation commands and disseminate that information across
+the cluster.</li>
+  <li>Communicate and monitor the Solr OS process.</li>
+</ul>
+
+<h2 id="solrjvm-os-process">Solr/JVM OS Process</h2>
+
+<p>Every node in a Riak <a href="/riak/kv/2.1.3/learn/concepts/clusters">cluster</a> has a corresponding operating
+system (OS) process running a JVM which hosts Solr on the Jetty
+application server. This OS process is a child of the Erlang OS process
+running Riak.</p>
+
+<p>Riak Search has a <code class="language-plaintext highlighter-rouge">gen_server</code> process which monitors the JVM OS
+process. The code for this server is in <code class="language-plaintext highlighter-rouge">yz_solr_proc</code>. When the JVM
+process crashes, this server crashes, causing its supervisor to restart
+it.</p>
+
+<p>If there is more than 1 restart in 45 seconds, the entire Riak node will
+be shut down. If Riak Search is enabled and Solr cannot function for
+some reason, the Riak node needs to go down so that the user will notice
+and take corrective action.</p>
+
+<p>Conversely, the JVM process monitors the Riak process. If for any reason
+Riak goes down hard (e.g. a segfault) the JVM process will also exit.
+This double monitoring along with the crash semantics means that neither
+process may exist without the other. They are either both up or both
+down.</p>
+
+<p>All other communication between Riak Search and Solr is performed via
+HTTP, including querying, indexing, and administration commands.  The
+ibrowse Erlang HTTP client is used to manage these communications as
+both it and the Jetty container hosting Solr pool HTTP connections,
+allowing for reuse. Moreover, since there is no <code class="language-plaintext highlighter-rouge">gen_server</code> involved in
+this communication, there’s no serialization point to bottleneck.</p>
+
+<h2 id="indexes">Indexes</h2>
+
+<p>An index, stored as a set of files on disk, is a logical namespace that
+contains index entries for objects. Each such index maintains its own
+set of files on disk—a critical difference from Riak KV, in which a
+bucket is a purely logical entity and not physically disjoint at all. A
+Solr index requires significantly less disk space than the corresponding
+legacy Riak Search index, depending on the Solr schema used.</p>
+
+<p>Indexes may be associated with zero or more buckets. At creation time,
+however, each index has no associated buckets—unlike the legacy Riak
+Search, indexes in the new Riak Search do not implicitly create bucket
+associations, meaning that this must be done as a separate configuration
+step.</p>
+
+<p>To associate a bucket with an index, the bucket property <code class="language-plaintext highlighter-rouge">search_index</code> must
+be set to the name of the index you wish to associate. Conversely, in
+order to disassociate a bucket you use the sentinel value
+<code class="language-plaintext highlighter-rouge">_dont_index_</code>.</p>
+
+<p>Many buckets can be associated with the same index. This is useful for
+logically partitioning data into different KV buckets which are of the
+same type of data, for example if a user wanted to store event objects
+but logically partition them in KV by using a date as the bucket name.</p>
+
+<p>A bucket <em>cannot</em> be associated with many indexes—the <code class="language-plaintext highlighter-rouge">search_index</code>
+property must be a single name, not a list.</p>
+
+<p>See the <a href="/riak/kv/2.1.3/developing/usage/search/#simple-setup">main Search documentation</a> for details on creating an index.</p>
+
+<h2 id="extractors">Extractors</h2>
+
+<p>There is a tension between Riak KV and Solr when it comes to data. Riak
+KV treats object values as mostly opaque, and while KV does maintain an
+associated content type, it is simply treated as metadata to be returned
+to the user to provide context for interpreting the returned object.
+Otherwise, the user wouldn’t know what type of data it is!</p>
+
+<p>Solr, on the other hand, wants semi-structured data, more specifically a
+flat collection of field-value pairs. “Flat” here means that a field’s
+value cannot be a nested structure of field-value pairs; the values are
+treated as-is (non-composite is another way to say it).</p>
+
+<p>Because of this mismatch between KV and Solr, Riak Search must act as a
+mediator between the two, meaning it must have a way to inspect a KV
+object and create a structure which Solr can ingest for indexing. In
+Solr this structure is called a <strong>document</strong>. This task of creating a
+Solr document from a Riak object is the job of the <strong>extractor</strong>. To
+perform this task two things must be considered.</p>
+
+<p><strong>Note</strong>: This isn’t quite right, the fields created by the extractor
+are only a subset of the fields created. Special fields needed for
+Yokozuna to properly query data and tagging fields are also created.
+This call happens inside <code class="language-plaintext highlighter-rouge">yz_doc:make_doc</code>.</p>
+
+<ol>
+  <li>Does an extractor exist to map the content-type of the object to a
+Solr document?</li>
+  <li>If so, how is the object’s value mapped from one to the other?
+For example, the value may be <code class="language-plaintext highlighter-rouge">application/json</code> which contains
+nested objects. This must somehow be transformed into a flat
+structure.</li>
+</ol>
+
+<p>The first question is answered by the <em>extractor mapping</em>. By default
+Yokozuna ships with extractors for several common data types. Below is a
+table of this default mapping:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Content Type</th>
+      <th style="text-align: left">Erlang Module</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">application/json</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_json_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">application/xml</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_xml_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">text/plain</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_text_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">text/xml</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_xml_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">N/A</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_noop_extractor</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The answer to the second question is a function of the implementation
+of the extractor module. Every extractor must conform to the
+following Erlang specification:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">-</span><span class="ni">spec</span><span class="p">(</span><span class="nv">ObjectValue</span><span class="p">::</span><span class="nf">binary</span><span class="p">(),</span> <span class="nv">Options</span><span class="p">::</span><span class="nf">proplist</span><span class="p">())</span> <span class="o">-&gt;</span> <span class="nf">fields</span><span class="p">()</span> <span class="p">|</span> <span class="p">{</span><span class="n">error</span><span class="p">,</span> <span class="nf">term</span><span class="p">()}.</span>
+<span class="p">-</span><span class="ni">type</span> <span class="nf">field_name</span><span class="p">()</span> <span class="p">::</span> <span class="nf">atom</span><span class="p">()</span> <span class="p">|</span> <span class="nf">binary</span><span class="p">().</span>
+<span class="p">-</span><span class="ni">type</span> <span class="nf">field_value</span><span class="p">()</span> <span class="p">::</span> <span class="nf">binary</span><span class="p">().</span>
+<span class="p">-</span><span class="ni">type</span> <span class="nf">fields</span><span class="p">()</span> <span class="p">::</span> <span class="p">[{</span><span class="nf">field_name</span><span class="p">(),</span> <span class="nf">field_value</span><span class="p">()}]</span>
+</code></pre></div></div>
+
+<p>The value of the object is passed along with options specific to each
+extractor. Assuming the extractor correctly parses the value it will
+return a list of fields, which are name-value pairs.</p>
+
+<p>The text extractor is the simplest one. By default it will use the
+object’s value verbatim and associate if with the field name <code class="language-plaintext highlighter-rouge">text</code>.
+For example, an object with the value “How much wood could a woodchuck
+chuck if a woodchuck could chuck wood?” would result in the following
+fields list.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[{</span><span class="n">text</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"How much wood could a woodchuck chuck if a woodchuck could chuck wood?"</span><span class="o">&gt;&gt;</span><span class="p">}]</span>
+</code></pre></div></div>
+
+<p>An object with the content type <code class="language-plaintext highlighter-rouge">application/json</code> is a little trickier.
+JSON can be nested arbitrarily. That is, the key of a top-level object
+can have an object as a value, and this object can have another object
+nested inside, an so on. Yokozuna’s JSON extractor must have some method
+of converting this arbitrary nesting into a flat list. It does this by
+concatenating nested object fields with a separator. The default
+separator is <code class="language-plaintext highlighter-rouge">.</code>. An example should make this more clear.</p>
+
+<p>Below is JSON that represents a person, what city they are from and what
+cities they have traveled to.</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ryan"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"info"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"city"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Baltimore"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"visited"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Boston"</span><span class="p">,</span><span class="w"> </span><span class="s2">"New York"</span><span class="p">,</span><span class="w"> </span><span class="s2">"San Francisco"</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Below is the field list that would be created by the JSON extract.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[{</span><span class="o">&lt;&lt;</span><span class="s">"info.visited"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"San Francisco"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+ <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"info.visited"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"New York"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+ <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"info.visited"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"Boston"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+ <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"info.city"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"Baltimore"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+ <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"name"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"ryan"</span><span class="o">&gt;&gt;</span><span class="p">}]</span>
+</code></pre></div></div>
+
+<p>Some key points to notice.</p>
+
+<ul>
+  <li>Nested objects have their field names concatenated to form a field
+name. The default field separator is <code class="language-plaintext highlighter-rouge">.</code>. This can be modified.</li>
+  <li>Any array causes field names to repeat.  This will require that your
+schema defines this field as multi-valued.</li>
+</ul>
+
+<p>The XML extractor works in very similar fashion to the JSON extractor
+except it also has element attributes to worry about. To see the
+document created for an object, without actually writing the object, you
+can use the extract HTTP endpoint. This will do a dry-run extraction and
+return the document structure as <code class="language-plaintext highlighter-rouge">application/json</code>.</p>
+
+<pre><code class="language-curl">curl -XPUT http://localhost:8098/search/extract \
+     -H 'Content-Type: application/json' \
+     --data-binary @object.json
+</code></pre>
+
+<h2 id="schemas">Schemas</h2>
+
+<p>Every index must have a schema, which is a collection of field names and
+types. For each document stored, every field must have a matching name
+in the schema, used to determine the field’s type, which in turn
+determines how a field’s value will be indexed.</p>
+
+<p>Currently, Yokozuna makes no attempts to hide any details of the Solr
+schema: a user creates a schema for Yokozuna just as she would for Solr.
+Here is the general structure of a schema.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?xml version="1.0" encoding="UTF-8" ?&gt;</span>
+<span class="nt">&lt;schema</span> <span class="na">name=</span><span class="s">"my-schema"</span> <span class="na">version=</span><span class="s">"1.5"</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;fields&gt;</span>
+    <span class="c">&lt;!-- field definitions go here --&gt;</span>
+  <span class="nt">&lt;/fields&gt;</span>
+
+  <span class="c">&lt;!-- DO NOT CHANGE THIS --&gt;</span>
+  <span class="nt">&lt;uniqueKey&gt;</span>_yz_id<span class="nt">&lt;/uniqueKey&gt;</span>
+
+  <span class="nt">&lt;types&gt;</span>
+    <span class="c">&lt;!-- field type definitions go here --&gt;</span>
+  <span class="nt">&lt;/types&gt;</span>
+<span class="nt">&lt;/schema&gt;</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">&lt;fields&gt;</code> element is where the field name, type, and overriding
+options are declared. Here is an example of a field for indexing dates.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"created"</span> <span class="na">type=</span><span class="s">"date"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span><span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>The corresponding date type is declared under <code class="language-plaintext highlighter-rouge">&lt;types&gt;</code> like so.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;fieldType</span> <span class="na">name=</span><span class="s">"date"</span> <span class="na">class=</span><span class="s">"solr.TrieDateField"</span> <span class="na">precisionStep=</span><span class="s">"0"</span> <span class="na">positionIncrementGap=</span><span class="s">"0"</span><span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>You can also find more information on to how customize your own <a href="/riak/kv/2.1.3/developing/usage/search-schemas">search schema</a>.</p>
+
+<p>Yokozuna comes bundled with a <a href="https://github.com/basho/yokozuna/blob/develop/priv/default_schema.xml">default schema</a>
+called <code class="language-plaintext highlighter-rouge">_yz_default</code>. This is an extremely general schema which makes
+heavy use of dynamic fields—it is intended for development and
+testing. In production, a schema should be tailored to the data being
+indexed.</p>
+
+<h2 id="active-anti-entropy-aae">Active Anti-Entropy (AAE)</h2>
+
+<p><a href="/riak/kv/2.1.3/learn/concepts/active-anti-entropy/">Active Anti-Entropy</a> (AAE) is the process of discovering and
+correcting entropy (divergence) between the data stored in Riak’s
+key-value backend and the indexes stored in Solr. The impetus for AAE is
+that failures come in all shapes and sizes—disk failure, dropped
+messages, network partitions, timeouts, overflowing queues, segment
+faults, power outages, etc. Failures range from obvious to invisible.
+Failure prevention is fraught with failure, as well. How do you prevent
+your prevention system from failing? You don’t. Code for detection, not
+prevention. That is the purpose of AAE.</p>
+
+<p>Constantly reading and re-indexing every object in Riak could be quite
+expensive. To minimize the overall cost of detection AAE make use of
+hashtrees. Every partition has a pair of hashtrees; one for KV and
+another for Yokozuna. As data is written the hashtrees are updated in
+real-time.</p>
+
+<p>Each tree stores the hash of the object. Periodically a partition is
+selected and the pair of hashtrees is <em>exchanged</em>. First the root hashes
+are compared. If equal then there is no more work to do. You could have
+millions of keys in one partition and verifying they <strong>all</strong> agree takes
+the same time as comparing two hashes. If they don’t match then the
+root’s children are checked and this process continues until the
+individual discrepancies are found. If either side is missing a key or
+the hashes for a key do not match then <em>repair</em> is invoked on that key.
+Repair converges the KV data and its indexes, removing the entropy.</p>
+
+<p>Since failure is inevitable, and absolute prevention impossible, the
+hashtrees themselves may contain some entropy. For example, what if the
+root hashes agree but a divergence exists in the actual data?  Simple,
+you assume you can never fully trust the hashtrees so periodically you
+<em>expire</em> them. When expired, a tree is completely destroyed and the
+re-built from scratch. This requires folding all data for a partition,
+which can be expensive and take some time. For this reason, by default,
+expiration occurs after one week.</p>
+
+<p>For an in-depth look at Riak’s AAE process, watch Joseph Blomstedt’s
+<a href="http://coffee.jtuple.com/video/AAE.html">screencast</a>.</p>
+
+<h2 id="analysis--analyzers">Analysis &amp; Analyzers</h2>
+
+<p>Analysis is the process of breaking apart (analyzing) text into a
+stream of tokens. Solr allows many different methods of analysis,
+an important fact because different field values may represent
+different types of data. For data like unique identifiers, dates, and
+categories you want to index the value verbatim—it shouldn’t be
+analyzed at all. For text like product summaries, or a blog post,
+you want to split the value into individual words so that they may be
+queried individually. You may also want to remove common words,
+lowercase words, or perform stemming. This is the process of
+<em>analysis</em>.</p>
+
+<p>Solr provides many different field types which analyze data in different
+ways, and custom analyzer chains may be built by stringing together XML
+in the schema file, allowing custom analysis for each field. For more
+information on analysis, see <a href="/riak/kv/2.1.3/developing/usage/search-schemas">Search Schema</a>.</p>
+
+<h2 id="tagging">Tagging</h2>
+
+<p>Tagging is the process of adding field-value pairs to be indexed via
+Riak object metadata. It is useful in two scenarios.</p>
+
+<ol>
+  <li>
+    <p>The object being stored is opaque but your application has metadata
+about it that should be indexed, for example storing an image with
+location or category metadata.</p>
+  </li>
+  <li>
+    <p>The object being stored is not opaque, but additional indexes must
+be added <em>without</em> modifying the object’s value.</p>
+  </li>
+</ol>
+
+<p>See
+<a href="https://github.com/basho/yokozuna/blob/develop/docs/TAGGING.md">Tagging</a>
+for more information.</p>
+
+<h2 id="coverage">Coverage</h2>
+
+<p>Yokozuna uses <em>doc-based partitioning</em>. This means that all index
+entries for a given Riak Object are co-located on the same physical
+machine. To query the entire index all partitions must be contacted.
+Adjacent partitions keep replicas of the same object. Replication allows
+the entire index to be considered by only contacting a subset of the
+partitions. The process of finding a covering set of partitions is known
+as <em>coverage</em>.</p>
+
+<p>Each partition in the coverage plan has an owning node. Thus a plan can
+be thought of as a unique set of nodes along with a covering set of
+partitions. Yokozuna treats the node list as physical hostnames and
+passes them to Solr’s distributed search via the <code class="language-plaintext highlighter-rouge">shards</code> parameter.
+Partitions, on the other hand, are treated logically in Yokozuna. All
+partitions for a given node are stored in the same index; unlike KV
+which uses <em>partition</em> as a physical separation. To properly filter out
+overlapping replicas the partition data from the cover plan is passed to
+Solr via the filter query (<code class="language-plaintext highlighter-rouge">fq</code>) parameter.</p>
+
+<p>Calculating a coverage plan is handled by Riak Core. It can be a very
+expensive operation as much computation is done symbolically, and the
+process amounts to a knapsack problem. The larger the ring the more
+expensive. Yokozuna takes advantage of the fact that it has no physical
+partitions by computing a coverage plan asynchronously every few
+seconds, caching the plan for query use. In the case of node failure or
+ownership change this could mean a delay between cluster state and the
+cached plan. This is, however, a good trade-off given the performance
+benefits, especially since even without caching there is a race, albeit
+one with a smaller window.</p>

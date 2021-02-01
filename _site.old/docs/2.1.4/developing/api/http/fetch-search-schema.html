@@ -1,0 +1,24 @@
+<p>Retrieves a Riak KV <a href="/riak/kv/2.1.4/developing/usage/search-schemas">search schema</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /search/schema/&lt;schema_name&gt;
+</code></pre></div></div>
+
+<h2 id="normal-response-codes">Normal Response Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+</ul>
+
+<h2 id="typical-error-codes">Typical Error Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">404 Object Not Found</code></li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> — The request timed out internally</li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>If the schema is found, Riak will return the contents of the schema as
+XML (all Riak Search schemas are XML).</p>

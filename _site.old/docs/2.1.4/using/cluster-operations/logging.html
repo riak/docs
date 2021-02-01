@@ -1,0 +1,25 @@
+<p>If you’d like to enable debug logging on the current node, i.e. set the
+console log level to <code class="language-plaintext highlighter-rouge">debug</code>, you can do so without restarting the node
+by accessing the Erlang console directly using the <a href="/riak/kv/2.1.4/using/admin/riak-cli/#attach"><code class="language-plaintext highlighter-rouge">riak attach</code></a> command. Once you run this command and drop into the console, enter the following:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">lager</span><span class="p">:</span><span class="nf">set_loglevel</span><span class="p">(</span><span class="n">lager_file_backend</span><span class="p">,</span> <span class="s">"/var/log/riak/console.log"</span><span class="p">,</span> <span class="n">debug</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>You should replace the file location above (<code class="language-plaintext highlighter-rouge">/var/log/riak/console.log</code>)
+with your platform-specific location, e.g. <code class="language-plaintext highlighter-rouge">./log/console.log</code> for a
+source installation. This location is specified by the
+<code class="language-plaintext highlighter-rouge">log.console.file</code> parameter explained above.</p>
+
+<p>If you’d like to enable debug logging on <em>all</em> nodes instead of just one
+node, you can enter the Erlang console of any running by running <code class="language-plaintext highlighter-rouge">riak
+attach</code> and enter the following:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">rp</span><span class="p">(</span><span class="nn">rpc</span><span class="p">:</span><span class="nf">multicall</span><span class="p">(</span><span class="n">lager</span><span class="p">,</span> <span class="n">set_loglevel</span><span class="p">,</span> <span class="p">[</span><span class="n">lager_file_backend</span><span class="p">,</span> <span class="s">"/var/log/riak/console.log"</span><span class="p">,</span> <span class="n">debug</span><span class="p">])).</span>
+</code></pre></div></div>
+
+<p>As before, use the appropriate log file location for your cluster.</p>
+
+<p>At any time, you can set the log level back to <code class="language-plaintext highlighter-rouge">info</code>:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nf">rp</span><span class="p">(</span><span class="nn">rpc</span><span class="p">:</span><span class="nf">multicall</span><span class="p">(</span><span class="n">lager</span><span class="p">,</span> <span class="n">set_loglevel</span><span class="p">,</span> <span class="p">[</span><span class="n">lager_file_backend</span><span class="p">,</span> <span class="s">"/var/log/riak/console.log"</span><span class="p">,</span> <span class="n">info</span><span class="p">])).</span>
+</code></pre></div></div>

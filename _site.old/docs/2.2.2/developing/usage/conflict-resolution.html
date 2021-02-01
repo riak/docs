@@ -1,0 +1,670 @@
+
+<p>One of Riak’s <a href="../../../learn/why-riak-kv">central goals</a> is high availability. It was built as a <a href="/riak/kv/2.2.2/learn/concepts/clusters">clustered</a> system in which any <a href="/riak/kv/2.2.2/learn/glossary/#node">node</a> is capable of receiving requests without requiring that
+every node participate in each request.</p>
+
+<p>If you are using Riak in an <a href="/riak/kv/2.2.2/learn/concepts/eventual-consistency">eventually consistent</a> way, conflicts between object values on different nodes is
+unavoidable. Often, Riak can resolve these conflicts on its own
+internally if you use causal context, i.e. <a href="/riak/kv/2.2.2/learn/concepts/causal-context#vector-clocks">vector clocks</a> or <a href="/riak/kv/2.2.2/learn/concepts/causal-context#dotted-version-vectors">dotted version vectors</a>, when updating objects. Instructions on this can be found in the section <a href="#siblings">below</a>.</p>
+
+<p>In versions of Riak prior to 2.0, vector clocks were the only causal context
+mechanism available in Riak, which changed with the introduction of dotted
+version vectors in 2.0. Please note that you may frequent find terminology in
+client library APIs, internal Basho documentation, and more that uses the term
+“vector clock” interchangeably with causal context in general. Riak’s HTTP API
+still uses a <code class="language-plaintext highlighter-rouge">X-Riak-Vclock</code> header, for example, even if you are using dotted
+version vectors.</p>
+
+<p>But even when you use causal context, Riak cannot always decide which
+value is most causally recent, especially in cases involving concurrent
+updates to an object. So how does Riak behave when it can’t decide on a
+single most-up-to-date value? <strong>That is your choice</strong>. A full listing of
+available options can be found in the <a href="#client-and-server-side-conflict-resolution">section below</a>. For now,
+though, please bear in mind that we strongly recommend one of the
+following two options:</p>
+
+<ol>
+  <li>If your data can be modeled as one of the currently available <a href="/riak/kv/2.2.2/developing/data-types">Riak
+Data Types</a>, we recommend using one of these types,
+because all of them have conflict resolution <em>built in</em>, completely
+relieving applications of the need to engage in conflict resolution.</li>
+  <li>If your data cannot be modeled as one of the available Data Types,
+we recommend allowing Riak to generate <a href="#siblings">siblings</a> and to design your application to resolve
+conflicts in a way that fits your use case. Developing your own
+<strong>conflict resolution strategy</strong> can be tricky, but it has clear
+advantages over other approaches.</li>
+</ol>
+
+<p>Because Riak allows for a mixed approach when storing and managing data,
+you can apply multiple conflict resolution strategies within a cluster.</p>
+
+<blockquote>
+  <p><strong>Note on strong consistency</strong></p>
+
+  <p>In versions of Riak 2.0 and later, you have the option of using Riak in
+a strongly consistent fashion. This document pertains to usage of Riak
+as an <em>eventually</em> consistent system. If you’d like to use Riak’s
+strong consistency feature, please refer to the following documents:</p>
+
+  <ul>
+    <li><a href="/riak/kv/2.2.2/developing/app-guide/strong-consistency">Using Strong Consistency</a> — A guide for developers</li>
+    <li><a href="/riak/kv/2.2.2/configuring/strong-consistency">Managing Strong Consistency</a> — A guide for operators</li>
+    <li><a href="/riak/kv/2.2.2/using/reference/strong-consistency">strong consistency</a> — A more theoretical explication of strong
+consistency</li>
+  </ul>
+</blockquote>
+
+<h2 id="client--and-server-side-conflict-resolution">Client- and Server-side Conflict Resolution</h2>
+
+<p>Riak’s eventual consistency model is powerful because Riak is
+fundamentally non-opinionated about how data resolution takes place.
+While Riak <em>does</em> have a set of <a href="/riak/kv/2.2.2/developing/app-guide/replication-properties#available-parameters">defaults</a>, there are a variety of general
+approaches to conflict resolution that are available. In Riak, you can
+mix and match conflict resolution strategies at the bucket level,
+<a href="/riak/kv/2.2.2/developing/usage/bucket-types">using bucket types</a>. The most important <a href="/riak/kv/2.2.2/learn/concepts/buckets">bucket properties</a>
+to consider when reasoning about conflict resolution are the
+<code class="language-plaintext highlighter-rouge">allow_mult</code> and <code class="language-plaintext highlighter-rouge">last_write_wins</code> properties.</p>
+
+<p>These properties provide you with the following basic options:</p>
+
+<h3 id="timestamp-based-resolution">Timestamp-based Resolution</h3>
+
+<p>If the <a href="#siblings"><code class="language-plaintext highlighter-rouge">allow_mult</code></a> parameter is set to
+<code class="language-plaintext highlighter-rouge">false</code>, Riak resolves all object replica conflicts internally and does
+not return siblings to the client. How Riak resolves those conflicts
+depends on the value that you set for a different bucket property,
+<a href="/riak/kv/2.2.2/learn/concepts/buckets"><code class="language-plaintext highlighter-rouge">last_write_wins</code></a>. If <code class="language-plaintext highlighter-rouge">last_write_wins</code> is set to <code class="language-plaintext highlighter-rouge">false</code>,
+Riak will resolve all conflicts on the basis of
+<a href="http://en.wikipedia.org/wiki/Timestamp">timestamps</a>, which are
+attached to all Riak objects as metadata.</p>
+
+<p>The problem with timestamps is that they are not a reliable resolution
+mechanism in distributed systems, and they always bear the risk of data
+loss. A better yet still-problematic option is to adopt a
+last-write-wins strategy, described directly below.</p>
+
+<h3 id="last-write-wins">Last-write-wins</h3>
+
+<p>Another way to manage conflicts is to set <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code>, as
+with timestamp-based resolution, while also setting the
+<code class="language-plaintext highlighter-rouge">last_write_wins</code> parameter to
+<code class="language-plaintext highlighter-rouge">true</code>. This produces a so-called last-write-wins (LWW) strategy whereby
+Riak foregoes the use of all internal conflict resolution strategies
+when making writes, effectively disregarding all previous writes.</p>
+
+<p>The problem with LWW is that it will necessarily drop some writes in the
+case of concurrent updates in the name of preventing sibling creation.
+If your use case requires that your application be able to reason about
+differing values produced in the case of concurrent updates, then we
+advise against LWW as a general conflict resolution strategy.</p>
+
+<p>However, LWW can be useful—and safe—if you are certain that there
+will be no concurrent updates. If you are storing immutable data in
+which each object is guaranteed to have its own key or engaging in
+operations related to bulk loading, you should consider LWW.</p>
+
+<p>Setting both <code class="language-plaintext highlighter-rouge">allow_mult</code> and <code class="language-plaintext highlighter-rouge">last_write_wins</code> to <code class="language-plaintext highlighter-rouge">true</code> necessarily leads to
+unpredictable behavior and should always be avoided.</p>
+
+<h3 id="resolve-conflicts-on-the-application-side">Resolve Conflicts on the Application Side</h3>
+
+<p>While setting <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code> unburdens applications from having
+to reason about siblings, delegating that responsibility to Riak itself,
+it bears all of the drawbacks explained above. On the other hand,
+setting <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">true</code> has the following benefits:</p>
+
+<ul>
+  <li>Riak will retain writes even in the case of concurrent updates to a
+key, which enables you to capture the benefits of high availability
+with a far lower risk of data loss</li>
+  <li>If your application encounters siblings, it can apply its own
+use-case-specific conflict resolution logic</li>
+</ul>
+
+<p>Conflict resolution in Riak can be a complex business, but the presence
+of this variety of options means that requests to Riak can always be
+made in accordance with your data model(s), business needs, and use
+cases. For examples of client-side sibling resolution, see the following
+client-library-specific docs:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/java">Java</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/ruby">Ruby</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/python">Python</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/csharp">C#</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/nodejs">Node.js</a></li>
+</ul>
+
+<p>In Riak versions 2.0 and later, <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">true</code> by default
+for any <a href="/riak/kv/2.2.2/developing/usage/bucket-types">bucket types</a> that you create. This means
+that if you wish to avoid client-side sibling resolution, you have a few
+options:</p>
+
+<ul>
+  <li>Explicitly create and activate <a href="/riak/kv/2.2.2/developing/usage/bucket-types">bucket types</a>
+that set <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code></li>
+  <li>Use Riak’s <a href="/riak/kv/2.2.2/configuring/reference">Configuration Files</a> to change the <a href="/riak/kv/2.2.2/configuring/reference#default-bucket-properties">default bucket properties</a> for your
+cluster. If you set the <code class="language-plaintext highlighter-rouge">buckets.default.allow_mult</code> parameter to
+<code class="language-plaintext highlighter-rouge">false</code>, all bucket types that you create will have <code class="language-plaintext highlighter-rouge">allow_mult</code> set
+to <code class="language-plaintext highlighter-rouge">false</code> by default.</li>
+</ul>
+
+<h2 id="causal-context">Causal Context</h2>
+
+<p>When a value is stored in Riak, it is tagged with a piece of metadata
+called a <strong>causal context</strong> which establishes the object’s initial
+version. Causal context comes in one of two possible forms, depending
+on what value you set for <code class="language-plaintext highlighter-rouge">dvv_enabled</code>. If set to <code class="language-plaintext highlighter-rouge">true</code>, <a href="/riak/kv/2.2.2/learn/concepts/causal-context#dotted-version-vectors">dotted version vectors</a> will be used; if set to <code class="language-plaintext highlighter-rouge">false</code> (the default), <a href="/riak/kv/2.2.2/learn/concepts/causal-context#vector-clocks">vector clocks</a> will be used.</p>
+
+<p>Causal context essentially enables Riak to compare the different values
+of objects stored in Riak and to determine a number of important things
+about those values:</p>
+
+<ul>
+  <li>Whether one value is a direct descendant of the other</li>
+  <li>Whether the values are direct descendants of a common parent</li>
+  <li>Whether the values are unrelated in recent heritage</li>
+</ul>
+
+<p>Using the information provided by causal context, Riak is frequently,
+though not always, able to resolve conflicts between values without
+producing siblings.</p>
+
+<p>Both vector clocks and dotted version vectors are non human readable and
+look something like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>a85hYGBgzGDKBVIcR4M2cgczH7HPYEpkzGNlsP/VfYYvCwA=
+</code></pre></div></div>
+
+<p>If <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">true</code>, you should <em>always</em> use causal context
+when updating objects, <em>unless you are certain that no object exists
+under that key</em>. Failing to use causal context with mutable data,
+especially for objects that are frequently updated, can lead to
+<a href="/riak/kv/2.2.2/using/performance/latency-reduction#siblings">sibling explosion</a>, which can
+produce a variety of problems in your cluster. Fortunately, much of the
+work involved with using causal context is handled automatically by
+Basho’s official <a href="/riak/kv/2.2.2/developing/client-libraries">client libraries</a>. Examples can be found for each
+client library in the <a href="/riak/kv/2.2.2/developing/usage/updating-objects">Object Updates</a> document.</p>
+
+<h2 id="siblings">Siblings</h2>
+
+<p>A <strong>sibling</strong> is created when Riak is unable to resolve the canonical
+version of an object being stored, i.e. when Riak is presented with
+multiple possible values for an object and can’t figure out which one is
+most causally recent. The following scenarios can create sibling values
+inside of a single object:</p>
+
+<ol>
+  <li><strong>Concurrent writes</strong> — If two writes occur simultaneously from
+clients, Riak may not be able to choose a single value to store, in
+which case the object will be given a sibling. These writes could happen
+on the same node or on different nodes.</li>
+  <li><strong>Stale causal context</strong> — Writes from any client using a stale
+<a href="/riak/kv/2.2.2/learn/concepts/causal-context">causal context</a>. This is a less likely scenario if a client updates
+the object by reading the object first, fetching the causal context
+currently attached to the object, and then returning that causal context
+to Riak when performing the update (fortunately, our client libraries
+handle much of this automatically). However, even if a client follows
+this protocol when performing updates, a situation may occur in which an
+update happens from a different client while the read/write cycle is
+taking place. This may cause the first client to issue the write with an
+old causal context value and for a sibling to be created. A client is
+“misbehaved” if it habitually updates objects with a stale or no context
+object.</li>
+  <li><strong>Missing causal context</strong> — If an object is updated with no causal
+context attached, siblings are very likely to be created. This is an
+unlikely scenario if you’re using a Basho client library, but it <em>can</em>
+happen if you are manipulating objects using a client like <code class="language-plaintext highlighter-rouge">curl</code> and
+forgetting to set the <code class="language-plaintext highlighter-rouge">X-Riak-Vclock</code> header.</li>
+</ol>
+
+<h2 id="siblings-in-action">Siblings in Action</h2>
+
+<p>Let’s have a more concrete look at how siblings work in Riak. First,
+we’ll create a bucket type called <code class="language-plaintext highlighter-rouge">siblings_allowed</code> with <code class="language-plaintext highlighter-rouge">allow_mult</code>
+set to <code class="language-plaintext highlighter-rouge">true</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create siblings_allowed <span class="s1">'{"props":{"allow_mult":true}}'</span>
+riak-admin bucket-type activate siblings_allowed
+riak-admin bucket-type status siblings_allowed
+</code></pre></div></div>
+
+<p>If the type has been activated, running the <code class="language-plaintext highlighter-rouge">status</code> command should
+return <code class="language-plaintext highlighter-rouge">siblings_allowed is active</code>. Now, we’ll create two objects and
+write both of them to the same key without first fetching the object
+(which obtains the causal context):</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">bestCharacterKey</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"siblings_allowed"</span><span class="o">,</span> <span class="s">"nickolodeon"</span><span class="o">),</span> <span class="s">"best_character"</span><span class="o">);</span>
+
+<span class="nc">RiakObject</span> <span class="n">obj1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">withContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"Ren"</span><span class="o">));</span>
+<span class="nc">RiakObject</span> <span class="n">obj2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">withContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"Stimpy"</span><span class="o">));</span>
+<span class="nc">StoreValue</span> <span class="n">store1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">obj1</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withLocation</span><span class="o">(</span><span class="n">bestCharacterKey</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">StoreValue</span> <span class="n">store2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">obj2</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withLocation</span><span class="o">(</span><span class="n">bestCharacterKey</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store1</span><span class="o">);</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store2</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'siblings_allowed'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'nickolodeon'</span><span class="p">)</span>
+<span class="n">obj1</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'best_character'</span><span class="p">)</span>
+<span class="n">obj1</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj1</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'Ren'</span>
+<span class="n">obj1</span><span class="p">.</span><span class="nf">store</span>
+
+<span class="n">obj2</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'best_character'</span><span class="p">)</span>
+<span class="n">obj2</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj2</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'Stimpy'</span>
+<span class="n">obj2</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'siblings_allowed'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'nickolodeon'</span><span class="p">)</span>
+<span class="n">obj1</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'best_character'</span><span class="p">)</span>
+<span class="n">obj1</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj1</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'Ren'</span>
+<span class="n">obj1</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="n">obj2</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'best_character'</span><span class="p">)</span>
+<span class="n">obj2</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj2</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'Stimpy'</span>
+<span class="n">obj2</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"siblings_allowed"</span><span class="p">,</span> <span class="s">"nickolodeon"</span><span class="p">,</span> <span class="s">"best_character"</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Ren"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Stimpy"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">renObj</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">stimpyObj</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">obj1</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setBucketType</span><span class="p">(</span><span class="dl">'</span><span class="s1">siblings_allowed</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setBucket</span><span class="p">(</span><span class="dl">'</span><span class="s1">nickolodeon</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setKey</span><span class="p">(</span><span class="dl">'</span><span class="s1">best_character</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj1</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">Ren</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">obj2</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">obj2</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj2</span><span class="p">.</span><span class="nx">setBucketType</span><span class="p">(</span><span class="dl">'</span><span class="s1">siblings_allowed</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj2</span><span class="p">.</span><span class="nx">setBucket</span><span class="p">(</span><span class="dl">'</span><span class="s1">nickolodeon</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj2</span><span class="p">.</span><span class="nx">setKey</span><span class="p">(</span><span class="dl">'</span><span class="s1">best_character</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">obj2</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">Ren</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">storeFuncs</span> <span class="o">=</span> <span class="p">[];</span>
+<span class="p">[</span><span class="nx">obj1</span><span class="p">,</span> <span class="nx">obj2</span><span class="p">].</span><span class="nx">forEach</span><span class="p">(</span><span class="kd">function</span> <span class="p">(</span><span class="nx">obj</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">storeFuncs</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span>
+        <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span> <span class="na">value</span><span class="p">:</span> <span class="nx">obj</span> <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">async_cb</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">);</span>
+            <span class="p">});</span>
+        <span class="p">}</span>
+    <span class="p">);</span>
+<span class="p">});</span>
+
+<span class="k">async</span><span class="p">.</span><span class="nx">parallel</span><span class="p">(</span><span class="nx">storeFuncs</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslts</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Obj1</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"siblings_allowed"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"nickolodeon"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                     <span class="o">&lt;&lt;</span><span class="s">"best_character"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                     <span class="o">&lt;&lt;</span><span class="s">"Ren"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                     <span class="o">&lt;&lt;</span><span class="s">"text/plain"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="nv">Obj2</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"siblings_allowed"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"nickolodeon"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                     <span class="o">&lt;&lt;</span><span class="s">"best_character"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                     <span class="o">&lt;&lt;</span><span class="s">"Stimpy"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                     <span class="o">&lt;&lt;</span><span class="s">"text/plain"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Obj1</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Obj2</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT http://localhost:8098/types/siblings_allowed/nickolodeon/whatever/keys/best_character \
+  -H "Content-Type: text/plain" \
+  -d "Ren"
+
+curl -XPUT http://localhost:8098/types/siblings_allowed/nickolodeon/whatever/keys/best_character \
+  -H "Content-Type: text/plain" \
+  -d "Stimpy"
+</code></pre>
+
+<blockquote>
+  <p><strong>Getting started with Riak KV clients</strong></p>
+
+  <p>If you are connecting to Riak using one of Basho’s official
+<a href="/riak/kv/2.2.2/developing/client-libraries">client libraries</a>, you can find more information about getting started with your client in <a href="/riak/kv/2.2.2/developing/getting-started">Developing with Riak KV: Getting Started</a> section.</p>
+</blockquote>
+
+<p>At this point, multiple objects have been stored in the same key without
+passing any causal context to Riak. Let’s see what happens if we try to
+read contents of the object:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">bestCharacterKey</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"siblings_allowed"</span><span class="o">,</span> <span class="s">"nickolodeon"</span><span class="o">),</span> <span class="s">"best_character"</span><span class="o">);</span>
+
+<span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">bestCharacterKey</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchValue</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getValue</span><span class="o">(</span><span class="nc">RiakObject</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">obj</span><span class="o">.</span><span class="na">getValue</span><span class="o">().</span><span class="na">toString</span><span class="o">());</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'siblings_allowed'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'nickolodeon'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'best_character'</span><span class="p">)</span>
+<span class="n">obj</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'siblings_allowed'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'nickolodeon'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'best_character'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">siblings</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"siblings_allowed"</span><span class="p">,</span> <span class="s">"nickolodeon"</span><span class="p">,</span> <span class="s">"best_character"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">getResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+<span class="n">RiakObject</span> <span class="n">obj</span> <span class="p">=</span> <span class="n">getResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="n">format</span><span class="p">:</span> <span class="s">"Sibling count: {0}"</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="n">Count</span><span class="p">);</span>
+<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">sibling</span> <span class="k">in</span> <span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Debug</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span>
+        <span class="n">format</span><span class="p">:</span> <span class="s">"    VTag: {0}"</span><span class="p">,</span>
+        <span class="n">args</span><span class="p">:</span> <span class="n">sibling</span><span class="p">.</span><span class="n">VTag</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">client</span><span class="p">.</span><span class="nx">fetchValue</span><span class="p">({</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">siblings_allowed</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span>
+        <span class="dl">'</span><span class="s1">nickolodeon</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">best_character</span><span class="dl">'</span>
+<span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">nickolodeon/best_character has '%d' siblings</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">length</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/siblings_allowed/buckets/nickolodeon/keys/best_character
+</code></pre>
+
+<p>Uh-oh! Siblings have been found. We should get this response:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">com</span><span class="o">.</span><span class="na">basho</span><span class="o">.</span><span class="na">riak</span><span class="o">.</span><span class="na">client</span><span class="o">.</span><span class="na">cap</span><span class="o">.</span><span class="na">UnresolvedConflictException</span><span class="o">:</span> <span class="nc">Siblings</span> <span class="n">found</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&lt;</span><span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span> <span class="p">{</span><span class="n">nickolodeon</span><span class="p">,</span><span class="n">best_character</span><span class="p">}</span> <span class="p">[</span><span class="c1">#&lt;Riak::RContent [text/plain]:"Ren"&gt;, #&lt;Riak::RContent [text/plain]:"Stimpy"&gt;]&gt;</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[</span><span class="o">&lt;</span><span class="n">riak</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">RiakContent</span> <span class="nb">object</span> <span class="n">at</span> <span class="mh">0x10a00eb90</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">riak</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">RiakContent</span> <span class="nb">object</span> <span class="n">at</span> <span class="mh">0x10a00ebd0</span><span class="o">&gt;</span><span class="p">]</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Sibling</span> <span class="n">count</span><span class="p">:</span> <span class="m">2</span>
+    <span class="n">VTag</span><span class="p">:</span> <span class="m">1D</span><span class="n">SVo7VED8AC6llS8IcDE6</span>
+    <span class="n">VTag</span><span class="p">:</span> <span class="m">7</span><span class="n">EiwrlFAJI5VMLK87vU4tE</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">info</span><span class="p">:</span> <span class="nx">nickolodeon</span><span class="o">/</span><span class="nx">best_character</span> <span class="nx">has</span> <span class="dl">'</span><span class="s1">2</span><span class="dl">'</span> <span class="nx">siblings</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">Siblings:
+175xDv0I3UFCfGRC7K7U9z
+6zY2mUCFPEoL834vYCDmPe
+</code></pre>
+
+<p>As you can see, reading an object with sibling values will result in
+some form of “multiple choices” response (e.g. <code class="language-plaintext highlighter-rouge">300 Multiple Choices</code> in
+HTTP). If you’re using the HTTP interface and want to view all sibling
+values, you can attach an <code class="language-plaintext highlighter-rouge">Accept: multipart/mixed</code> header to your
+request:</p>
+
+<pre><code class="language-curl">curl -H "Accept: multipart/mixed" \
+  http://localhost:8098/types/siblings_allowed/buckets/nickolodeon/keys/best_character
+</code></pre>
+
+<p>Response (without headers):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ren
+--WUnzXITIPJFwucNwfdaofMkEG7H
+
+stimpy
+--WUnzXITIPJFwucNwfdaofMkEG7H--
+</code></pre></div></div>
+
+<p>If you select the first of the two siblings and retrieve its value, you
+should see <code class="language-plaintext highlighter-rouge">Ren</code> and not <code class="language-plaintext highlighter-rouge">Stimpy</code>.</p>
+
+<h3 id="using-causal-context">Using Causal Context</h3>
+
+<p>Once you are presented with multiple options for a single value, you
+must determine the correct value. In an application, this can be done
+either in an automatic fashion, using a use case-specific resolver, or
+by presenting the conflicting objects to the end user. For more
+information on application-side conflict resolution, see our
+client-library-specific documentation for the following languages:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/java">Java</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/ruby">Ruby</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/python">Python</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/csharp">C#</a></li>
+  <li><a href="/riak/kv/2.2.2/developing/usage/conflict-resolution/nodejs">Node.js</a></li>
+</ul>
+
+<p>We won’t deal with conflict resolution in this section. Instead, we’ll
+focus on how to use causal context.</p>
+
+<p>After having written several objects to Riak in the section above, we
+have values in our object: <code class="language-plaintext highlighter-rouge">Ren</code> and <code class="language-plaintext highlighter-rouge">Stimpy</code>. But let’s say that we
+decide that <code class="language-plaintext highlighter-rouge">Stimpy</code> is the correct value based on our application’s use
+case. In order to resolve the conflict, we need to do three things:</p>
+
+<ol>
+  <li>Fetch the current object (which will return both siblings)</li>
+  <li>Modify the value of the object, i.e. make the value <code class="language-plaintext highlighter-rouge">Stimpy</code></li>
+  <li>Write the object back to the <code class="language-plaintext highlighter-rouge">best_character</code> key</li>
+</ol>
+
+<p>What happens when we fetch the object first, prior to the update, is
+that the object handled by the client has a causal context attached. At
+that point, we can modify the object’s value, and when we write the
+object back to Riak, <em>the causal context will automatically be attached
+to it</em>. Let’s see what that looks like in practice:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// First, we fetch the object</span>
+<span class="nc">Location</span> <span class="n">bestCharacterKey</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"siblings_allowed"</span><span class="o">,</span> <span class="s">"nickolodeon"</span><span class="o">),</span> <span class="s">"best_character"</span><span class="o">);</span>
+<span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">bestCharacterKey</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchValue</span><span class="o">.</span><span class="na">Response</span> <span class="n">res</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="na">getValue</span><span class="o">(</span><span class="nc">RiakObject</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+
+
+<span class="c1">// Then we modify the object's value</span>
+<span class="n">obj</span><span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"Stimpy"</span><span class="o">));</span>
+
+<span class="c1">// Then we store the object, which has the vector clock already attached</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">obj</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withLocation</span><span class="o">(</span><span class="n">bestCharacterKey</span><span class="o">);</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># First, we fetch the object</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'nickolodeon'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'best_character'</span><span class="p">,</span> <span class="ss">type: </span><span class="s1">'siblings_allowed'</span><span class="p">)</span>
+
+<span class="c1"># Then we modify the object's value</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'Stimpy'</span>
+
+<span class="c1"># Then we store the object, which has the vector clock already attached</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># First, we fetch the object
+</span><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'siblings_allowed'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'nickolodeon'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'best_character'</span><span class="p">)</span>
+
+<span class="c1"># Then we modify the object's value
+</span><span class="n">new_obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'Stimpy'</span>
+
+<span class="c1"># Then we store the object, which has the vector clock already attached
+</span><span class="n">new_obj</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="n">vclock</span><span class="o">=</span><span class="n">vclock</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// First, fetch the object</span>
+<span class="kt">var</span> <span class="n">getResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+
+<span class="c1">// Then, modify the object's value</span>
+<span class="n">RiakObject</span> <span class="n">obj</span> <span class="p">=</span> <span class="n">getResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">SetObject</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;(</span><span class="s">"Stimpy"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+
+<span class="c1">// Then, store the object which has vector clock attached</span>
+<span class="kt">var</span> <span class="n">putRslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">putRslt</span><span class="p">);</span>
+
+<span class="n">obj</span> <span class="p">=</span> <span class="n">putRslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="c1">// Voila, no more siblings!</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">Assert</span><span class="p">(</span><span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">0</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">client</span><span class="p">.</span><span class="nx">fetchValue</span><span class="p">({</span>
+        <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">siblings_allowed</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">nickolodeon</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">best_character</span><span class="dl">'</span>
+    <span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">shift</span><span class="p">();</span>
+        <span class="nx">riakObj</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">Stimpy</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span> <span class="na">value</span><span class="p">:</span> <span class="nx">riakObj</span><span class="p">,</span> <span class="na">returnBody</span><span class="p">:</span> <span class="kc">true</span> <span class="p">},</span>
+            <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+                <span class="p">}</span>
+
+                <span class="nx">assert</span><span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">length</span> <span class="o">===</span> <span class="mi">1</span><span class="p">);</span>
+            <span class="p">}</span>
+        <span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -i http://localhost:8098/types/siblings_allowed/buckets/nickolodeon/keys/best_character
+
+# In the HTTP interface, the causal context can be found in the
+# "X-Riak-Vclock" header. That will look something like this:
+
+X-Riak-Vclock: a85hYGBgzGDKBVIcR4M2cgczH7HPYEpkzGNlsP/VfYYvCwA=
+
+# When performing a write to the same key, that same header needs to
+# accompany the write for Riak to be able to use the vector clock
+</code></pre>
+
+<p>It should be noted that it is possible to have two clients that are
+simultaneously engaging in conflict resolution. To avoid a pathological
+divergence, you should be sure to limit the number of reconciliations and fail
+once that limit has been exceeded.</p>
+
+<h3 id="sibling-explosion">Sibling Explosion</h3>
+
+<p>Sibling explosion occurs when an object rapidly collects siblings
+without being reconciled. This can lead to myriad issues. Having an
+enormous object in your node can cause reads of that object to crash
+the entire node. Other issues include <a href="/riak/kv/2.2.2/using/performance/latency-reduction">increased cluster latency</a> as the object is replicated and out-of-memory errors.</p>
+
+<h3 id="vector-clock-explosion">Vector Clock Explosion</h3>
+
+<p>Besides sibling explosion, the vector clock itself can grow extremely
+large when a significant volume of updates are performed on a single
+object in a small period of time. While updating a single object
+<em>extremely</em> frequently is not recommended, you can tune Riak’s vector
+clock pruning to prevent vector clocks from growing too large too
+quickly. More on pruning in the <a href="#vector-clock-pruning">section below</a>.</p>
+
+<h3 id="how-does-last_write_wins-affect-resolution">How does <code class="language-plaintext highlighter-rouge">last_write_wins</code> affect resolution?</h3>
+
+<p>On the surface, it seems like setting <code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code>
+(the default) and <code class="language-plaintext highlighter-rouge">last_write_wins</code> to <code class="language-plaintext highlighter-rouge">true</code> would result in the same
+behavior, but there is a subtle distinction.</p>
+
+<p>Even though both settings return only one value to the client, setting
+<code class="language-plaintext highlighter-rouge">allow_mult</code> to <code class="language-plaintext highlighter-rouge">false</code> still uses vector clocks for resolution, whereas
+if <code class="language-plaintext highlighter-rouge">last_write_wins</code> is <code class="language-plaintext highlighter-rouge">true</code>, Riak reads the timestamp to determine
+the latest version. Deeper in the system, if <code class="language-plaintext highlighter-rouge">allow_mult</code> is <code class="language-plaintext highlighter-rouge">false</code>,
+Riak will still allow siblings to exist when they are created (via
+concurrent writes or network partitions), whereas setting
+<code class="language-plaintext highlighter-rouge">last_write_wins</code> to <code class="language-plaintext highlighter-rouge">true</code> means that Riak will overwrite the value
+with the one that has the later timestamp.</p>
+
+<p>When you don’t care about sibling creation, setting <code class="language-plaintext highlighter-rouge">allow_mult</code> to
+<code class="language-plaintext highlighter-rouge">false</code> has the least surprising behavior: you get the latest value,
+but network partitions are handled gracefully. However, for cases in
+which keys are rewritten often (and quickly) and the new value isn’t
+necessarily dependent on the old value, <code class="language-plaintext highlighter-rouge">last_write_wins</code> will provide
+better performance. Some use cases where you might want to use
+<code class="language-plaintext highlighter-rouge">last_write_wins</code> include caching, session storage, and insert-only
+(no updates).</p>
+
+<p>The combination of setting both the <code class="language-plaintext highlighter-rouge">allow_mult</code> and <code class="language-plaintext highlighter-rouge">last_write_wins</code>
+properties to <code class="language-plaintext highlighter-rouge">true</code> leads to undefined behavior and should not be used.</p>
+
+<h2 id="vector-clock-pruning">Vector Clock Pruning</h2>
+
+<p>Riak regularly prunes vector clocks to prevent overgrowth based on four
+parameters which can be set for any bucket type that you create:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Default value</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">small_vclock</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">50</code></td>
+      <td style="text-align: left">If the length of the vector clock list is smaller than this value, the list’s entries will not be pruned</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">big_vclock</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">50</code></td>
+      <td style="text-align: left">If the length of the vector clock list is larger than this value, the list will be pruned</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">young_vclock</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">20</code></td>
+      <td style="text-align: left">If a vector clock entry is younger than this value (in milliseconds), it will not be pruned</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">old_vclock</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">86400</code> (one day)</td>
+      <td style="text-align: left">If a vector clock entry is older than this value (in milliseconds), it will be pruned</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>This diagram shows how the values of these parameters dictate the vector
+clock pruning process:</p>
+
+<p><img src="/images/vclock-pruning.png" alt="Vclock Pruning" /></p>
+
+<h2 id="more-information">More Information</h2>
+
+<p>Additional background information on vector clocks:</p>
+
+<ul>
+  <li><a href="http://en.wikipedia.org/wiki/Vector_clock">Vector Clocks on Wikipedia</a></li>
+  <li><a href="http://basho.com/why-vector-clocks-are-easy/">Why Vector Clocks are Easy</a></li>
+  <li><a href="http://basho.com/why-vector-clocks-are-hard/">Why Vector Clocks are Hard</a></li>
+  <li>The vector clocks used in Riak are based on the <a href="http://portal.acm.org/citation.cfm?id=359563">work of Leslie Lamport</a></li>
+</ul>

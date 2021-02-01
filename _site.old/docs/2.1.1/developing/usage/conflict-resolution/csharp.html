@@ -1,0 +1,96 @@
+<p>For reasons explained in the <a href="/riak/kv/2.1.1/developing/usage/conflict-resolution">Introduction to conflict resolution</a>, we strongly recommend adopting a conflict resolution strategy that requires applications to resolve siblings according to use-case-specific
+criteria. Here, we’ll provide a brief guide to conflict resolution using the
+official <a href="https://github.com/basho/riak-dotnet-client">Riak .NET client</a>.</p>
+
+<h2 id="how-the-net-client-handles-conflict-resolution">How the .NET Client Handles Conflict Resolution</h2>
+
+<p>In the Riak .NET client, every Riak object has a <code class="language-plaintext highlighter-rouge">siblings</code> property that
+provides access to a list of that object’s sibling values. If there are no
+siblings, that property will return an empty list.</p>
+
+<p>Here’s an example of an object with siblings:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"siblings_allowed"</span><span class="p">,</span> <span class="s">"nickolodeon"</span><span class="p">,</span> <span class="s">"best_character"</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Ren"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Stimpy"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">renObj</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">stimpyObj</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">getResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+<span class="n">RiakObject</span> <span class="n">obj</span> <span class="p">=</span> <span class="n">getResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="n">format</span><span class="p">:</span> <span class="s">"Sibling count: {0}"</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="n">Count</span><span class="p">);</span>
+<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">sibling</span> <span class="k">in</span> <span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Debug</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span>
+        <span class="n">format</span><span class="p">:</span> <span class="s">"    VTag: {0}"</span><span class="p">,</span>
+        <span class="n">args</span><span class="p">:</span> <span class="n">sibling</span><span class="p">.</span><span class="n">VTag</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>So what happens if the count of <code class="language-plaintext highlighter-rouge">obj.Siblings</code> is greater than 0, as in the case
+above?</p>
+
+<p>In order to resolve siblings, you need to either fetch, update and store a
+canonical value, or choose a sibling from the <code class="language-plaintext highlighter-rouge">Siblings</code> list and store that as
+the canonical value.</p>
+
+<h2 id="basic-conflict-resolution-example">Basic Conflict Resolution Example</h2>
+
+<p>In this example, you will ignore the contents of the <code class="language-plaintext highlighter-rouge">Siblings</code> list and will
+fetch, update and store the definitive value.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"siblings_allowed"</span><span class="p">,</span> <span class="s">"nickolodeon"</span><span class="p">,</span> <span class="s">"best_character"</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Ren"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Stimpy"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">renObj</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">stimpyObj</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">getResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+<span class="n">RiakObject</span> <span class="n">obj</span> <span class="p">=</span> <span class="n">getResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">Assert</span><span class="p">(</span><span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">2</span><span class="p">);</span>
+
+<span class="c1">// Now, modify the object's value</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">SetObject</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;(</span><span class="s">"Stimpy"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+
+<span class="c1">// Then, store the object which has vector clock attached</span>
+<span class="kt">var</span> <span class="n">putRslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">putRslt</span><span class="p">);</span>
+
+<span class="n">obj</span> <span class="p">=</span> <span class="n">putRslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="c1">// Voila, no more siblings!</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">Assert</span><span class="p">(</span><span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">0</span><span class="p">);</span>
+</code></pre></div></div>
+
+<h3 id="choosing-a-value-from-siblings">Choosing a value from <code class="language-plaintext highlighter-rouge">Siblings</code></h3>
+
+<p>This example shows a basic sibling resolution strategy in which the first
+sibling is chosen as the canonical value.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"siblings_allowed"</span><span class="p">,</span> <span class="s">"nickolodeon"</span><span class="p">,</span> <span class="s">"best_character"</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Ren"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyObj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"Stimpy"</span><span class="p">,</span> <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">TextPlain</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">renResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">renObj</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">stimpyResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">stimpyObj</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">getResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+<span class="n">RiakObject</span> <span class="n">obj</span> <span class="p">=</span> <span class="n">getResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">Assert</span><span class="p">(</span><span class="n">obj</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">2</span><span class="p">);</span>
+
+<span class="c1">// Pick the first sibling</span>
+<span class="n">RiakObject</span> <span class="n">chosenSibling</span> <span class="p">=</span> <span class="n">getResult</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="nf">First</span><span class="p">();</span>
+
+<span class="c1">// Then, store the chosen object</span>
+<span class="kt">var</span> <span class="n">putRslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">chosenSibling</span><span class="p">);</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">putRslt</span><span class="p">);</span>
+
+<span class="n">RiakObject</span> <span class="n">updatedObject</span> <span class="p">=</span> <span class="n">putRslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="c1">// Voila, no more siblings!</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">Assert</span><span class="p">(</span><span class="n">updatedObject</span><span class="p">.</span><span class="n">Siblings</span><span class="p">.</span><span class="n">Count</span> <span class="p">==</span> <span class="m">0</span><span class="p">);</span>
+</code></pre></div></div>
+

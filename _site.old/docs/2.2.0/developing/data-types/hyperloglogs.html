@@ -1,0 +1,564 @@
+<p>The examples in this section will show you how to use hyperloglogs on their own.</p>
+
+<h2 id="set-up-a-bucket-type">Set Up a Bucket Type</h2>
+
+<blockquote>
+  <p>If you’ve already created and activated a bucket type with the <code class="language-plaintext highlighter-rouge">datatype</code> parameter set to <code class="language-plaintext highlighter-rouge">hyperloglog</code>, skip to the <a href="#client-setup">next section</a>.</p>
+</blockquote>
+
+<p>Start by creating a bucket type with the <code class="language-plaintext highlighter-rouge">datatype</code> parameter set to <code class="language-plaintext highlighter-rouge">hyperloglog</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak_admin bucket-type create hlls <span class="s1">'{"props":{"datatype":"hll"}}'</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note</strong></p>
+
+  <p>The <code class="language-plaintext highlighter-rouge">hlls</code> bucket type name provided above is an example and is not required to be <code class="language-plaintext highlighter-rouge">hlls</code>. You are free to name bucket types whatever you like, with the exception of <code class="language-plaintext highlighter-rouge">default</code>.</p>
+</blockquote>
+
+<p>After creating a bucket with a Riak data type, confirm the bucket property configuration associated with that type is correct:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status hlls
+</code></pre></div></div>
+
+<p>This returns a list of bucket properties and their values
+in the form of <code class="language-plaintext highlighter-rouge">property: value</code>.</p>
+
+<p>If our <code class="language-plaintext highlighter-rouge">hlls</code> bucket type has been set properly we should see the following pair in our console output:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>datatype: hll
+</code></pre></div></div>
+
+<p>Once we have confirmed the bucket type is properly configured, we can activate the bucket type to be used in Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type activate hlls
+</code></pre></div></div>
+
+<p>We can check if activation has been successful by using the same <code class="language-plaintext highlighter-rouge">bucket-type status</code> command shown above:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type status hlls
+</code></pre></div></div>
+
+<p>After creating and activating our new <code class="language-plaintext highlighter-rouge">hlls</code> bucket type, we can setup our client to start using the bucket type as detailed in the next section.</p>
+
+<h2 id="client-setup">Client Setup</h2>
+
+<p>First, we need to direct our client to the bucket type/bucket/key
+location that contains our counter.</p>
+
+<p>For this example we’ll use the <code class="language-plaintext highlighter-rouge">hlls</code> bucket type created and activated above and a bucket called <code class="language-plaintext highlighter-rouge">hlls</code>:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% Buckets are simply named binaries in the Erlang client. See the
+%% examples below for more information
+</span></code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Java client, a bucket/bucket type combination is specified</span>
+<span class="c1">// using a Namespace object. To specify bucket, bucket type, and key,</span>
+<span class="c1">// use a Location object that incorporates the Namespace object, as is</span>
+<span class="c1">// done below.</span>
+
+<span class="nc">Location</span> <span class="n">hllLocation</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"&lt;bucket_type&gt;"</span><span class="o">,</span> <span class="s">"&lt;bucket&gt;"</span><span class="o">),</span> <span class="s">"&lt;key&gt;"</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket_type</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'hlls'</span><span class="p">)</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">bucket_type</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_hlls'</span><span class="p">)</span>
+<span class="n">hll</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+<span class="c1"># or
+</span>
+<span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Hll</span>
+<span class="n">hll</span> <span class="o">=</span> <span class="n">Hll</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// Buckets and bucket types are simply strings in the Go client.</span>
+
+<span class="c">// See the examples below for more information, or the full example at</span>
+<span class="c">// https://github.com/basho/riak-go-client/blob/master/examples/dev/using/data-types/hyperloglog.go</span>
+
+<span class="c">// We will need the follow imports to run the examples:</span>
+<span class="k">import</span> <span class="p">(</span>
+	<span class="s">"fmt"</span>
+	<span class="s">"os"</span>
+	<span class="s">"time"</span>
+
+	<span class="n">riak</span> <span class="s">"github.com/basho/riak-go-client"</span>
+	<span class="s">"errors"</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the C# client, buckets are just string parameters to operations.</span>
+<span class="c1">// See the examples below for more information.</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Node.js client, buckets are just string parameters to operations.</span>
+<span class="c1">// See the examples below for more information.</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$command</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\FetchHll</span><span class="p">(</span><span class="nv">$riak_client</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'&lt;key&gt;'</span><span class="p">,</span> <span class="s1">'&lt;bucket&gt;'</span><span class="p">,</span> <span class="s1">'hlls'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'hlls'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'my_hlls'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/&lt;bucket_type&gt;/buckets/&lt;bucket&gt;/datatypes/&lt;key&gt;
+
+# Note that this differs from the URL structure for non-Data-Type
+# requests, which end in /keys/&lt;key&gt;
+</code></pre>
+
+<h2 id="create-a-hyperloglog-data-type">Create a HyperLogLog data type</h2>
+
+<p>To create a hyperloglog data structure, you need to specify a bucket/key pair to
+hold that hyperloglog. Here is the general syntax for doing so:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">HLL</span> <span class="o">=</span> <span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">new</span><span class="p">().</span>
+
+<span class="c">%% Hyperloglogs in the Erlang client are opaque data structures that
+%% collect operations as you mutate them. We will associate the data
+%% structure with a bucket type, bucket, and key later on.
+</span></code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Java client, you specify the location of Data Types</span>
+<span class="c1">// before you perform operations on them:</span>
+
+<span class="nc">Location</span> <span class="n">hllLocation</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"hlls"</span><span class="o">,</span> <span class="s">"hello"</span><span class="o">),</span> <span class="s">"darkness"</span><span class="o">);</span>
+
+<span class="c1">// In the Java client, there is no intermediate "empty" hyperloglog data type.</span>
+<span class="c1">// Hyperloglogs can be created when an element is added to them, as in the examples below.</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket_type</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'hlls'</span><span class="p">)</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">bucket_type</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_hlls'</span><span class="p">)</span>
+<span class="n">hll</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+<span class="c1"># or
+</span>
+<span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Hll</span>
+<span class="n">hll</span> <span class="o">=</span> <span class="n">Hll</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// In the Go client, there is no intermediate "empty" hyperloglog data type.</span>
+<span class="c">// Hyperloglogs can be created when an element is added to them, as in the examples below.</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the C# client, there is no intermediate "empty" hyperloglog data type.</span>
+<span class="c1">// Hyperloglogs can be created when an element is added to them, as in the examples below.</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// In the Node.js client, there is no intermediate "empty" hyperloglog data type.</span>
+<span class="c1">// Hyperloglogs can be created when an element is added to them, as in the examples below.</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Note that "hlls" is just an example HLL bucket type name used</span>
+<span class="c1">// in these examples</span>
+
+<span class="nv">$command</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\UpdateHll</span><span class="p">(</span><span class="nv">$riak_client</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'gosabres poked you.'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'phprocks viewed your profile.'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'phprocks started following you.'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildBucket</span><span class="p">(</span><span class="s1">'&lt;bucket&gt;'</span><span class="p">,</span> <span class="s1">'hlls'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$response</span> <span class="o">=</span> <span class="nv">$command</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">key</span> <span class="o">=</span> <span class="s2">"darkness"</span>
+<span class="n">hll</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">HyperLogLog</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl"># You cannot create an empty hyperloglog data structure through the HTTP
+# interface.
+# Hyperloglogs can only be created when an element is added to them, as in the
+# examples below.
+</code></pre>
+
+<p>Upon creation, our hyperloglog data structure is empty:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">HLL</span><span class="p">.</span>
+
+<span class="c">%% which will return:
+%% {hll,0,[]}
+</span></code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">FetchHll</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchHll</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">hllLocation</span><span class="o">)</span>
+    <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">RiakHll</span> <span class="n">hll</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="kt">boolean</span> <span class="n">isEmpty</span> <span class="o">=</span> <span class="n">hll</span><span class="o">.</span><span class="na">getCardinality</span><span class="o">()</span> <span class="o">==</span> <span class="mi">0</span><span class="o">;</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">is_empty</span> <span class="o">=</span> <span class="n">hll</span><span class="p">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">0</span>
+</code></pre></div></div>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">var</span> <span class="n">resp</span> <span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchHllResponse</span>
+
+<span class="n">builder</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewFetchHllCommandBuilder</span><span class="p">()</span>
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">builder</span><span class="o">.</span><span class="n">WithBucketType</span><span class="p">(</span><span class="s">"hlls"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="s">"hello"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithKey</span><span class="p">(</span><span class="s">"darkness"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="n">err</span>
+<span class="p">}</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="n">err</span>
+<span class="p">}</span>
+<span class="k">if</span> <span class="n">fc</span><span class="p">,</span> <span class="n">ok</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchHllCommand</span><span class="p">);</span> <span class="n">ok</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="n">fc</span><span class="o">.</span><span class="n">Response</span> <span class="o">==</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"expected non-nil Response"</span><span class="p">)</span>
+  <span class="p">}</span>
+  <span class="n">resp</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">Response</span>
+<span class="p">}</span>
+
+<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Hyperloglog cardinality: "</span><span class="p">,</span> <span class="n">resp</span><span class="o">.</span><span class="n">Cardinality</span><span class="p">)</span>
+<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Hyperloglog isNotFound: "</span><span class="p">,</span> <span class="n">resp</span><span class="o">.</span><span class="n">IsNotFound</span><span class="p">)</span>
+<span class="k">return</span> <span class="no">nil</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">hlls</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">hello</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">darkness</span><span class="dl">'</span>
+<span class="p">};</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchHll</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">notFound</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">Not Found</span><span class="dl">"</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+<span class="c1">// Prints "Not Found" to logger.info.</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="kt">var</span> <span class="n">fetch</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FetchHll</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+                    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"hlls"</span><span class="p">)</span>
+                    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"hello"</span><span class="p">)</span>
+                    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"darkness"</span><span class="p">)</span>
+                    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">fetch</span><span class="p">);</span>
+<span class="n">HllResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">fetch</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">response</span><span class="p">.</span><span class="n">NotFound</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Not Found"</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="c1">// Prints "Not Found" to the console.</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$command</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\FetchHll</span><span class="p">(</span><span class="nv">$riak_client</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'darkness'</span><span class="p">,</span> <span class="s1">'hello'</span><span class="p">,</span> <span class="s1">'hlls'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$response</span> <span class="o">=</span> <span class="nv">$command</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getCode</span><span class="p">()</span> <span class="o">==</span> <span class="s1">'404'</span><span class="p">;</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">puts</span> <span class="n">hll</span><span class="p">.</span><span class="nf">cardinality</span>
+<span class="c1"># Prints "0"</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/hlls/buckets/hello/datatypes/darkness
+
+# Response
+{"type":"hll","error":"notfound"}
+</code></pre>
+
+<h2 id="add-elements-to-a-hyperloglog-data-type">Add elements to a HyperLogLog data type</h2>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">HLL1</span> <span class="o">=</span> <span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Jokes"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">HLL</span><span class="p">),</span>
+<span class="nv">RepeatHLL1</span> <span class="o">=</span> <span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"Jokes"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">HLL</span><span class="p">),</span>
+<span class="nv">HLL2</span> <span class="o">=</span> <span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">add_elements</span><span class="p">([</span><span class="o">&lt;&lt;</span><span class="s">"Are"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"Better"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"Explained"</span><span class="o">&gt;&gt;</span><span class="p">],</span> <span class="nv">HLL1</span><span class="p">),</span>
+
+<span class="nv">HLL2</span><span class="p">.</span>
+
+<span class="c">%% which will return:
+%% {hll,0,[&lt;&lt;"Are"&gt;&gt;,&lt;&lt;"Better"&gt;&gt;,&lt;&lt;"Explained"&gt;&gt;, &lt;&lt;"Jokes"&gt;&gt;]}
+</span></code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">HllUpdate</span> <span class="n">hllUpdate</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">HllUpdate</span><span class="o">()</span>
+                        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"Jokes"</span><span class="o">)</span>
+                        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"Are"</span><span class="o">)</span>
+                        <span class="o">.</span><span class="na">addAll</span><span class="o">(</span><span class="nc">Arrays</span><span class="o">.</span><span class="na">asList</span><span class="o">(</span><span class="s">"Better"</span><span class="o">,</span> <span class="s">"Explained"</span><span class="o">,</span> <span class="s">"Jokes"</span><span class="o">));</span>
+
+<span class="n">hllUpdate</span><span class="o">.</span><span class="na">getElementAdds</span><span class="o">();</span>
+<span class="c1">// Returns the set of ["Jokes", "Are", "Better", "Explained"]                     </span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket_type</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'hlls'</span><span class="p">)</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">bucket_type</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_hlls'</span><span class="p">)</span>
+<span class="n">myhll</span> <span class="o">=</span> <span class="n">datatypes</span><span class="p">.</span><span class="n">Hll</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'hll_one'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Jokes'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Are'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Better'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Explained'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Jokes'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+<span class="c1"># myhll.value == 4
+</span></code></pre></div></div>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">// We will add values in the next example</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// We will add values in the next example</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// We will add values in the next example</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$command</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\UpdateHll</span><span class="p">(</span><span class="nv">$riak_client</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Jokes'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Are'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Better'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Explained'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Jokes'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildBucket</span><span class="p">(</span><span class="s1">'my_hlls'</span><span class="p">,</span> <span class="s1">'hlls'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$response</span> <span class="o">=</span> <span class="nv">$command</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code></code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPOST http://localhost:8098/types/hlls/buckets/hello/datatypes/darkness \
+  -H "Content-Type: application/json" \
+  -d '{"add_all":["my", "old", "friend"]}'
+</code></pre>
+
+<p>However, when using a non-HTTP client, the approximate cardinality/value of our
+data structure will be 0, locally, until its pushed to the server and then
+<a href="#retrieve-a-hyperloglog-datatype">fetched</a> from the server.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">value</span><span class="p">(</span><span class="nv">HLL2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">.</span>
+
+<span class="c">%% which will return:
+%% true
+</span>
+<span class="nv">Port</span> <span class="o">=</span> <span class="mi">8087</span><span class="p">,</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Pid</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">start_link</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="nv">Port</span><span class="p">),</span>
+<span class="nv">Key</span> <span class="o">=</span> <span class="o">&lt;&lt;</span><span class="s">"Holy Diver"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+<span class="nv">BucketType</span> <span class="o">=</span> <span class="o">&lt;&lt;</span><span class="s">"hlls"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+<span class="nv">Bucket</span> <span class="o">=</span> <span class="p">{</span><span class="nv">BucketType</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"rainbow in the dark"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+
+<span class="n">ok</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">update_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Bucket</span><span class="p">,</span> <span class="nv">Key</span><span class="p">,</span> <span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">to_op</span><span class="p">(</span><span class="nv">HLL2</span><span class="p">)).</span>
+<span class="n">ok</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">update_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Bucket</span><span class="p">,</span> <span class="nv">Key</span><span class="p">,</span> <span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">to_op</span><span class="p">(</span><span class="nv">RepeatHLL1</span><span class="p">)).</span>
+</code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using hllUpdate and hllLocation from above examples</span>
+
+<span class="nc">UpdateHll</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateHll</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">hllLocation</span><span class="o">,</span> <span class="n">hllUpdate</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket_type</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'hlls'</span><span class="p">)</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">bucket_type</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_hlls'</span><span class="p">)</span>
+<span class="n">myhll</span> <span class="o">=</span> <span class="n">datatypes</span><span class="p">.</span><span class="n">Hll</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'hll_one'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Jokes'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Are'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Better'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Explained'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'Jokes'</span><span class="p">)</span>
+<span class="n">myhll</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+<span class="c1"># myhll.value == 4
+</span></code></pre></div></div>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">adds</span> <span class="o">:=</span> <span class="p">[][]</span><span class="kt">byte</span><span class="p">{</span>
+  <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"Jokes"</span><span class="p">),</span>
+  <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"Are"</span><span class="p">),</span>
+  <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"Better"</span><span class="p">),</span>
+  <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"Explained"</span><span class="p">),</span>
+  <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"Jokes"</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="n">builder</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewUpdateHllCommandBuilder</span><span class="p">()</span>
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">builder</span><span class="o">.</span><span class="n">WithBucketType</span><span class="p">(</span><span class="s">"hlls"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="s">"hello"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithKey</span><span class="p">(</span><span class="s">"darkness"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithAdditions</span><span class="p">(</span><span class="n">adds</span><span class="o">...</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="n">err</span>
+<span class="p">}</span>
+
+<span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">hlls</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">hello</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">darkness</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">additions</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">Jokes</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Are</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Better</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Explained</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Jokes</span><span class="dl">'</span><span class="p">],</span>
+<span class="p">};</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">updateHll</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">adds</span> <span class="p">=</span> <span class="k">new</span> <span class="n">HashSet</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">&gt;</span> <span class="p">{</span> <span class="s">"Jokes"</span><span class="p">,</span> <span class="s">"Are"</span><span class="p">,</span> <span class="s">"Better"</span><span class="p">,</span> <span class="s">"Explained"</span><span class="p">,</span> <span class="s">"Jokes"</span> <span class="p">};</span>
+
+<span class="kt">var</span> <span class="n">update</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateHll</span><span class="p">.</span><span class="nf">Builder</span><span class="p">(</span><span class="n">adds</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"hlls"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"hello"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"darkness"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithReturnBody</span><span class="p">(</span><span class="k">true</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">update</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$command</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\UpdateHll</span><span class="p">(</span><span class="nv">$riak_client</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Jokes'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Are'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Better'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Explained'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Jokes'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'darkness'</span><span class="p">,</span> <span class="s1">'hello'</span><span class="p">,</span> <span class="s1">'hlls'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$response</span> <span class="o">=</span> <span class="nv">$command</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">hll</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'Jokes'</span><span class="p">)</span>
+<span class="n">hll</span><span class="p">.</span><span class="nf">batch</span> <span class="k">do</span> <span class="o">|</span><span class="n">s</span><span class="o">|</span>
+  <span class="n">s</span><span class="p">.</span><span class="nf">add</span> <span class="s1">'Are'</span>
+  <span class="n">s</span><span class="p">.</span><span class="nf">add</span> <span class="s1">'Better'</span>
+  <span class="n">s</span><span class="p">.</span><span class="nf">add</span> <span class="s1">'Explained'</span>
+  <span class="n">s</span><span class="p">.</span><span class="nf">add</span> <span class="s1">'Jokes'</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<h2 id="retrieve-a-hyperloglog-data-type">Retrieve a HyperLogLog data type</h2>
+
+<p>Now, we can check the approximate count-of (a.k.a. the cardinality of the elements
+added to) our hyperloglog data structure:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">HLL3</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">fetch_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Bucket</span><span class="p">,</span> <span class="nv">Key</span><span class="p">),</span>
+<span class="nn">riakc_hll</span><span class="p">:</span><span class="nf">value</span><span class="p">(</span><span class="nv">HLL3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">.</span>
+
+<span class="c">%% which would return:
+%% true
+</span>
+<span class="c">%% We added &lt;&lt;"Jokes"&gt;&gt; twice, but, remember, the algorithm only counts the
+%% unique elements we've added to the data structure.
+</span></code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">FetchHll</span> <span class="n">hllFetchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchHll</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">location</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">RiakHll</span> <span class="n">hll</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">hllFetchCmd</span><span class="o">);</span>
+<span class="n">hll</span><span class="o">.</span><span class="na">getCardinality</span><span class="o">();</span>
+<span class="c1">// Which returns 4</span>
+
+<span class="c1">// We added "Jokes" twice, but, remember, the algorithm only counts the</span>
+<span class="c1">// unique elements we've added to the data structure.</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket_type</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'hlls'</span><span class="p">)</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">bucket_type</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'my_hlls'</span><span class="p">)</span>
+<span class="n">myhll</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'hll_one'</span><span class="p">)</span>
+<span class="c1"># myhll.value == 4
+</span></code></pre></div></div>
+
+<div class="language-go highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">var</span> <span class="n">resp</span> <span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchHllResponse</span>
+
+<span class="n">builder</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewFetchHllCommandBuilder</span><span class="p">()</span>
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">builder</span><span class="o">.</span><span class="n">WithBucketType</span><span class="p">(</span><span class="s">"hlls"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithBucket</span><span class="p">(</span><span class="s">"hello"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">WithKey</span><span class="p">(</span><span class="s">"darkness"</span><span class="p">)</span><span class="o">.</span>
+  <span class="n">Build</span><span class="p">()</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="n">err</span>
+<span class="p">}</span>
+<span class="k">if</span> <span class="n">err</span> <span class="o">=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="n">err</span>
+<span class="p">}</span>
+<span class="k">if</span> <span class="n">fc</span><span class="p">,</span> <span class="n">ok</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">FetchHllCommand</span><span class="p">);</span> <span class="n">ok</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="n">fc</span><span class="o">.</span><span class="n">Response</span> <span class="o">==</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">errors</span><span class="o">.</span><span class="n">New</span><span class="p">(</span><span class="s">"expected non-nil Response"</span><span class="p">)</span>
+  <span class="p">}</span>
+  <span class="n">resp</span> <span class="o">=</span> <span class="n">fc</span><span class="o">.</span><span class="n">Response</span>
+<span class="p">}</span>
+
+<span class="c">// We added "Jokes" twice, but, remember, the algorithm only counts the</span>
+<span class="c">// unique elements we've added to the data structure.</span>
+<span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="s">"Hyperloglog cardinality: "</span><span class="p">,</span> <span class="n">resp</span><span class="o">.</span><span class="n">Cardinality</span><span class="p">)</span>
+<span class="k">return</span> <span class="no">nil</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">hlls</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">hello</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">darkness</span><span class="dl">'</span>
+<span class="p">};</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">fetchHll</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">notFound</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">Not Found</span><span class="dl">"</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">Hyperloglog cardinality is: </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">cardinality</span><span class="p">);</span>
+<span class="p">});</span>
+<span class="c1">// Prints "Hyperloglog cardinality is: 4"</span>
+<span class="c1">// We added "Jokes" twice, but, remember, the algorithm only counts the</span>
+<span class="c1">// unique elements we've added to the data structure.</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">fetch</span> <span class="p">=</span> <span class="k">new</span> <span class="n">FetchHll</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+                    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"hlls"</span><span class="p">)</span>
+                    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"hello"</span><span class="p">)</span>
+                    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"darkness"</span><span class="p">)</span>
+                    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">fetch</span><span class="p">);</span>
+<span class="n">Assert</span><span class="p">.</span><span class="nf">IsTrue</span><span class="p">(</span><span class="n">rslt</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">,</span> <span class="n">rslt</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">);</span>
+
+<span class="n">HllResponse</span> <span class="n">response</span> <span class="p">=</span> <span class="n">fetch</span><span class="p">.</span><span class="n">Response</span><span class="p">;</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">response</span><span class="p">.</span><span class="n">NotFound</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Not Found"</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">else</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Hyperloglog cardinality is: "</span> <span class="p">+</span> <span class="n">response</span><span class="p">.</span><span class="n">Cardinality</span><span class="p">);</span>  
+<span class="p">}</span>
+
+<span class="c1">// Prints "Hyperloglog cardinality is: 4"</span>
+<span class="c1">// We added "Jokes" twice, but, remember, the algorithm only counts the</span>
+<span class="c1">// unique elements we've added to the data structure.</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$command</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\FetchHll</span><span class="p">(</span><span class="nv">$riak_client</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'darkness'</span><span class="p">,</span> <span class="s1">'hello'</span><span class="p">,</span> <span class="s1">'hlls'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$result</span> <span class="o">=</span> <span class="nv">$command</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="c1">// Note: as though we are in a PHP unit test</span>
+<span class="nv">$this</span><span class="o">-&gt;</span><span class="nf">assertTrue</span><span class="p">(</span><span class="nb">is_int</span><span class="p">(</span><span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getHll</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">()));</span>
+<span class="nv">$this</span><span class="o">-&gt;</span><span class="nf">assertEquals</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getHll</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">());</span>
+
+<span class="c1">// We added "Jokes" twice, but, remember, the algorithm only counts the</span>
+<span class="c1">// unique elements we've added to the data structure.</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">puts</span> <span class="n">hll</span><span class="p">.</span><span class="nf">cardinality</span>
+<span class="c1"># Prints "4"</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/hlls/buckets/hello/datatypes/darkness
+
+# Response
+{"type":"hll","value":"4"}
+</code></pre>

@@ -1,0 +1,56 @@
+<p>Riak counters are a CRDT (convergent replicated data type) that (eventually)
+converge to the correct total. You merely increment the counter with some
+integer, and any potential conflicts will be automatically resolved by Riak.</p>
+
+<h2 id="setup">Setup</h2>
+
+<p>Riak counters can only be used if the bucket has the <code class="language-plaintext highlighter-rouge">allow_mult</code> property
+set to <code class="language-plaintext highlighter-rouge">true</code>.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl -XPUT localhost:8098/buckets/BUCKET/props \
+  -H "Content-Type: application/json" \
+  -d "{\"props\" : {\"allow_mult\": true}}"
+</code></pre></div></div>
+
+<p>If you attempt to use counters without setting the above, you’ll get this
+message:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Counters require bucket property 'allow_mult=true'
+</code></pre></div></div>
+
+<h2 id="request">Request</h2>
+
+<p>To insert just POST an integer value using the <code class="language-plaintext highlighter-rouge">/counters</code> resource. This will
+increment that keyed value by the given amount.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>POST /buckets/BUCKET/counters/KEY
+</code></pre></div></div>
+
+<p>To receive the current value is a GET using <code class="language-plaintext highlighter-rouge">/counters</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /buckets/BUCKET/counters/KEY
+</code></pre></div></div>
+
+<h2 id="response">Response</h2>
+
+<p>The regular POST/PUT (<a href="/riak/kv/2.1.1/developing/api/http/store-object">HTTP Store Object</a>) and GET (<a href="/riak/kv/2.1.1/developing/api/http/fetch-object">HTTP Fetch Object</a>) responses apply here.</p>
+
+<p>Caveats: Counters have no support for Secondary Indexes (2i), Links or Custom HTTP Metadata.</p>
+
+<h2 id="example">Example</h2>
+
+<p>The body must be an integer (positive or negative).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl -XPOST http://localhost:8098/buckets/my_bucket/counters/my_key -d "1"
+
+curl http://localhost:8098/buckets/my_bucket/counters/my_key
+1
+
+curl -XPOST http://localhost:8098/buckets/my_bucket/counters/my_key -d "100"
+
+curl http://localhost:8098/buckets/my_bucket/counters/my_key
+101
+
+curl -XPOST http://localhost:8098/buckets/my_bucket/counters/my_key -d "-1"
+100
+</code></pre></div></div>

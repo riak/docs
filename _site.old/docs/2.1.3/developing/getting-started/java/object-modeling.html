@@ -1,0 +1,429 @@
+<p>To get started, let’s create the models that we’ll be using.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">package</span> <span class="nn">com.basho.msgy.Models</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">java.text.DateFormat</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.text.SimpleDateFormat</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.util.Date</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.util.TimeZone</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">Msg</span> <span class="o">{</span>
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">Sender</span><span class="o">;</span>
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">Recipient</span><span class="o">;</span>
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">Created</span><span class="o">;</span>
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">Text</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="kd">static</span> <span class="nc">Msg</span> <span class="nf">createNew</span><span class="o">(</span><span class="nc">String</span> <span class="n">sender</span><span class="o">,</span> <span class="nc">String</span> <span class="n">recipient</span><span class="o">,</span> <span class="nc">String</span> <span class="n">text</span><span class="o">)</span> <span class="o">{</span>
+        <span class="nc">Msg</span> <span class="n">msg</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Msg</span><span class="o">();</span>
+        <span class="n">msg</span><span class="o">.</span><span class="na">Sender</span> <span class="o">=</span> <span class="n">sender</span><span class="o">;</span>
+        <span class="n">msg</span><span class="o">.</span><span class="na">Recipient</span> <span class="o">=</span> <span class="n">recipient</span><span class="o">;</span>
+        <span class="n">msg</span><span class="o">.</span><span class="na">Text</span> <span class="o">=</span> <span class="n">text</span><span class="o">;</span>
+        <span class="n">msg</span><span class="o">.</span><span class="na">Created</span> <span class="o">=</span> <span class="nc">GetCurrentISO8601Timestamp</span><span class="o">();</span>
+        <span class="k">return</span> <span class="n">msg</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">private</span> <span class="kd">static</span> <span class="nc">String</span> <span class="nf">GetCurrentISO8601Timestamp</span><span class="o">()</span> <span class="o">{</span>
+        <span class="nc">TimeZone</span> <span class="n">tz</span> <span class="o">=</span> <span class="nc">TimeZone</span><span class="o">.</span><span class="na">getTimeZone</span><span class="o">(</span><span class="s">"UTC"</span><span class="o">);</span>
+        <span class="c1">// Java Dates don't have microsecond resolution :(</span>
+        <span class="c1">// Pad out to microseconds to match other examples.</span>
+        <span class="nc">DateFormat</span> <span class="n">df</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SimpleDateFormat</span><span class="o">(</span><span class="s">"yyyy-MM-dd'T'HH:mm:ss.SSS'000'"</span><span class="o">);</span>
+        <span class="n">df</span><span class="o">.</span><span class="na">setTimeZone</span><span class="o">(</span><span class="n">tz</span><span class="o">);</span>
+        <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="na">format</span><span class="o">(</span><span class="k">new</span> <span class="nc">Date</span><span class="o">());</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+
+<span class="c1">// ----------------------------------------------------------------------------</span>
+
+<span class="kn">import</span> <span class="nn">java.util.ArrayList</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">Timeline</span> <span class="o">{</span>
+
+    <span class="kd">public</span> <span class="kd">enum</span> <span class="nc">TimelineType</span>
+    <span class="o">{</span>
+        <span class="nc">Inbox</span><span class="o">,</span>
+        <span class="nc">Sent</span><span class="o">;</span>
+
+        <span class="nd">@Override</span>
+        <span class="kd">public</span> <span class="nc">String</span> <span class="nf">toString</span><span class="o">()</span> <span class="o">{</span>
+            <span class="k">if</span><span class="o">(</span><span class="k">this</span> <span class="o">==</span> <span class="nc">Inbox</span><span class="o">)</span>
+                <span class="k">return</span> <span class="s">"Inbox"</span><span class="o">;</span>
+            <span class="k">else</span>
+                <span class="k">return</span> <span class="s">"Sent"</span><span class="o">;</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nf">Timeline</span><span class="o">()</span> <span class="o">{</span>
+        <span class="nc">Msgs</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">ArrayList</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">&gt;();</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">Owner</span><span class="o">;</span>
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">Type</span><span class="o">;</span>
+    <span class="kd">public</span> <span class="nc">ArrayList</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">&gt;</span> <span class="nc">Msgs</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="c1">// ----------------------------------------------------------------------------</span>
+
+<span class="kn">package</span> <span class="nn">com.basho.msgy.Models</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.convert.RiakKey</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">User</span> <span class="o">{</span>
+    <span class="nd">@RiakKey</span>
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">UserName</span><span class="o">;</span>
+
+    <span class="nd">@RiakBucketName</span>
+    <span class="kd">final</span> <span class="nc">String</span> <span class="n">bucketName</span> <span class="o">=</span> <span class="s">"msgs"</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">FullName</span><span class="o">;</span>
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nc">Email</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="nf">User</span><span class="o">()</span> <span class="o">{}</span>
+
+    <span class="kd">public</span> <span class="nf">User</span><span class="o">(</span><span class="nc">String</span> <span class="n">userName</span><span class="o">,</span> <span class="nc">String</span> <span class="n">fullName</span><span class="o">,</span> <span class="nc">String</span> <span class="n">email</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">UserName</span> <span class="o">=</span> <span class="n">userName</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">FullName</span> <span class="o">=</span> <span class="n">fullName</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">Email</span> <span class="o">=</span> <span class="n">email</span><span class="o">;</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>To use these classes to store data, we will first have to create a user.
+Then, when a user creates a message, we will append that message to one
+or more timelines. If it’s a private message, we’ll append it to the
+Recipient’s <code class="language-plaintext highlighter-rouge">Inbox</code> timeline and the User’s own <code class="language-plaintext highlighter-rouge">Sent</code> timeline. If it’s
+a group message, we’ll append it to the Group’s timeline, as well as to
+the User’s <code class="language-plaintext highlighter-rouge">Sent</code> timeline.</p>
+
+<h4 id="buckets-and-keys-revisited">Buckets and Keys Revisited</h4>
+
+<p>Now that we’ve worked out how we will differentiate data in the system,
+let’s figure out our bucket and key names.</p>
+
+<p>The bucket names are straightforward. We can use <code class="language-plaintext highlighter-rouge">Users</code>, <code class="language-plaintext highlighter-rouge">Msgs</code>, and
+<code class="language-plaintext highlighter-rouge">Timelines</code>. The key names, however, are a little more tricky. In past
+examples we’ve used sequential integers, but this presents a problem: we
+would need a secondary service to hand out these IDs. This service could
+easily be a future bottleneck in the system, so let’s use a natural key.
+Natural keys are a great fit for key/value systems because both humans
+and computers can easily construct them when needed, and most of the
+time they can be made unique enough for a KV store.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Bucket</th>
+      <th style="text-align: left">Key Pattern</th>
+      <th style="text-align: left">Example Key</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Users</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;user_name&gt;</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">joeuser</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Msgs</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;datetime&gt;</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">joeuser_2014-03-06T02:05:13.223556Z</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Timelines</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;type&gt;_&lt;date&gt;</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">joeuser_Sent_2014-03-06Z</code><br /> <code class="language-plaintext highlighter-rouge">marketing_group_Inbox_2014-03-06Z</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For the <code class="language-plaintext highlighter-rouge">Users</code> bucket, we can be certain that we will want each
+username to be unique, so let’s use the <code class="language-plaintext highlighter-rouge">username</code> as the key.  With the
+Java client, we can use the <code class="language-plaintext highlighter-rouge">@RiakKey</code> annotation to tell the client
+that we want to use the <code class="language-plaintext highlighter-rouge">UserName</code> member as the key. It will
+automatically use that value in the future, instead of having to pass the
+key in as another parameter when storing a value.</p>
+
+<p>For the <code class="language-plaintext highlighter-rouge">Msgs</code> bucket, let’s use a combination of the username and the
+posting datetime in an <a href="http://en.wikipedia.org/wiki/ISO_8601">ISO 8601
+Long</a> format. This combination
+gives us the pattern <code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;datetime&gt;</code>, which produces keys like
+<code class="language-plaintext highlighter-rouge">joeuser_2014-03-05T23:20:28Z</code>.</p>
+
+<p>Now for <code class="language-plaintext highlighter-rouge">Timelines</code>, we need to differentiate between <code class="language-plaintext highlighter-rouge">Inbox</code> and <code class="language-plaintext highlighter-rouge">Sent</code>
+timelines, so we can simply add that type into the key name. We will
+also want to partition each collection object into some time period,
+that way the object doesn’t grow too large (see note below).</p>
+
+<p>For <code class="language-plaintext highlighter-rouge">Timelines</code>, let’s use the pattern <code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;type&gt;_&lt;date&gt;</code> for
+users, and <code class="language-plaintext highlighter-rouge">&lt;groupname&gt;_Inbox_&lt;date&gt;</code> for groups, which will look like
+<code class="language-plaintext highlighter-rouge">joeuser_Sent_2014-03-06Z</code> or <code class="language-plaintext highlighter-rouge">marketing_group_Inbox_2014-03-05Z</code>,
+respectively.</p>
+
+<p>Riak performs best with objects under 1-2MB. Objects larger than that can hurt
+performance, especially many siblings are being created. We will cover
+siblings, sibling resolution, and sibling explosions in the next chapter.</p>
+
+<h4 id="keeping-our-story-straight-with-repositories">Keeping our story straight with repositories</h4>
+
+<p>Now that we’ve figured out our object model, let’s write some
+repositories to help create and work with these objects in Riak:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">package</span> <span class="nn">com.basho.msgy.Repositories</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Models.Msg</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.IRiakClient</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.RiakRetryFailedException</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.bucket.Bucket</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">MsgRepository</span> <span class="o">{</span>
+
+    <span class="kd">static</span> <span class="kd">final</span> <span class="nc">String</span> <span class="no">BUCKET_NAME</span> <span class="o">=</span> <span class="s">"Msgs"</span><span class="o">;</span>
+    <span class="kd">protected</span> <span class="nc">RiakClient</span> <span class="n">client</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="nf">MsgRepository</span><span class="o">(</span><span class="nc">RiakClient</span> <span class="n">client</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">client</span> <span class="o">=</span> <span class="n">client</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">Msg</span> <span class="nf">get</span><span class="o">(</span><span class="nc">String</span> <span class="n">msgKey</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">Exception</span> <span class="o">{</span>
+        <span class="nc">Location</span> <span class="n">key</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="no">BUCKET_NAME</span><span class="o">),</span> <span class="n">msgKey</span><span class="o">);</span>
+        <span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">key</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+        <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+        <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="na">getValue</span><span class="o">(</span><span class="nc">Msg</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">String</span> <span class="nf">save</span><span class="o">(</span><span class="nc">Msg</span> <span class="n">msg</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">Exception</span> <span class="o">{</span>
+        <span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">msg</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+        <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+        <span class="k">return</span> <span class="nf">generateKey</span><span class="o">(</span><span class="n">msg</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="kd">private</span> <span class="nc">String</span> <span class="nf">generateKey</span><span class="o">(</span><span class="nc">Msg</span> <span class="n">msg</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="na">Sender</span> <span class="o">+</span> <span class="s">"_"</span> <span class="o">+</span> <span class="n">msg</span><span class="o">.</span><span class="na">Created</span><span class="o">;</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+
+<span class="c1">// ----------------------------------------------------------------------------</span>
+
+<span class="kn">package</span> <span class="nn">com.basho.msgy.Repositories</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Models.Msg</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Models.Timeline</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.IRiakClient</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.RiakRetryFailedException</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.bucket.Bucket</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">java.text.DateFormat</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.text.SimpleDateFormat</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.util.Date</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.util.TimeZone</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">TimelineRepository</span> <span class="o">{</span>
+
+    <span class="kd">static</span> <span class="kd">final</span> <span class="nc">String</span> <span class="no">BUCKET_NAME</span> <span class="o">=</span> <span class="s">"Timelines"</span><span class="o">;</span>
+    <span class="kd">protected</span> <span class="nc">RiakClient</span> <span class="n">client</span><span class="o">;</span>
+    <span class="kd">protected</span> <span class="nc">MsgRepository</span> <span class="n">msgRepo</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="nf">TimelineRepository</span><span class="o">(</span><span class="nc">RiakClient</span> <span class="n">client</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">client</span> <span class="o">=</span> <span class="n">client</span><span class="o">;</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">msgRepo</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MsgRepository</span><span class="o">(</span><span class="k">this</span><span class="o">.</span><span class="na">client</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">postMsg</span><span class="o">(</span><span class="nc">Msg</span> <span class="n">msg</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">Exception</span> <span class="o">{</span>
+        <span class="nc">String</span> <span class="n">msgKey</span> <span class="o">=</span> <span class="n">msgRepo</span><span class="o">.</span><span class="na">save</span><span class="o">(</span><span class="n">msg</span><span class="o">);</span>
+
+        <span class="c1">// Post to recipient's Inbox timeline</span>
+        <span class="n">addToTimeline</span><span class="o">(</span><span class="n">msg</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span><span class="o">.</span><span class="na">Inbox</span><span class="o">,</span> <span class="n">msgKey</span><span class="o">);</span>
+
+        <span class="c1">// Post to sender's Sent timeline</span>
+        <span class="n">addToTimeline</span><span class="o">(</span><span class="n">msg</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span><span class="o">.</span><span class="na">Sent</span><span class="o">,</span> <span class="n">msgKey</span><span class="o">);</span>
+    <span class="o">}</span>
+
+
+    <span class="kd">private</span> <span class="kt">void</span> <span class="nf">addToTimeline</span><span class="o">(</span><span class="nc">Msg</span> <span class="n">msg</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span> <span class="n">type</span><span class="o">,</span> <span class="nc">String</span> <span class="n">msgKey</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">Exception</span> <span class="o">{</span>
+        <span class="nc">String</span> <span class="n">timelineKey</span> <span class="o">=</span> <span class="n">generateKeyFromMsg</span><span class="o">(</span><span class="n">msg</span><span class="o">,</span> <span class="n">type</span><span class="o">);</span>
+
+        <span class="nc">Location</span> <span class="n">loc</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="no">BUCKET_NAME</span><span class="o">),</span> <span class="n">timelineKey</span><span class="o">);</span>
+        <span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">loc</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+        <span class="nc">Timeline</span> <span class="n">timeline</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">).</span><span class="na">getValue</span><span class="o">(</span><span class="nc">Timeline</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+
+        <span class="k">if</span> <span class="o">(</span><span class="n">timeline</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+            <span class="n">timeline</span> <span class="o">=</span> <span class="n">addToExistingTimeline</span><span class="o">(</span><span class="n">timeline</span><span class="o">,</span><span class="n">msgKey</span><span class="o">);</span>
+        <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+            <span class="n">timeline</span> <span class="o">=</span> <span class="n">createNewTimeline</span><span class="o">(</span><span class="n">msg</span><span class="o">,</span> <span class="n">type</span><span class="o">,</span> <span class="n">msgKey</span><span class="o">);</span>
+        <span class="o">}</span>
+
+        <span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">timeline</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+        <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">Timeline</span> <span class="nf">createNewTimeline</span><span class="o">(</span><span class="nc">Msg</span> <span class="n">msg</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span> <span class="n">type</span><span class="o">,</span> <span class="nc">String</span> <span class="n">msgKey</span><span class="o">)</span> <span class="o">{</span>
+        <span class="nc">String</span> <span class="n">owner</span> <span class="o">=</span> <span class="n">getOwner</span><span class="o">(</span><span class="n">msg</span><span class="o">,</span> <span class="n">type</span><span class="o">);</span>
+
+        <span class="nc">Timeline</span> <span class="n">newTimeline</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Timeline</span><span class="o">();</span>
+        <span class="n">newTimeline</span><span class="o">.</span><span class="na">Owner</span> <span class="o">=</span> <span class="n">owner</span><span class="o">;</span>
+        <span class="n">newTimeline</span><span class="o">.</span><span class="na">Type</span> <span class="o">=</span> <span class="n">type</span><span class="o">.</span><span class="na">toString</span><span class="o">();</span>
+        <span class="n">newTimeline</span><span class="o">.</span><span class="na">Msgs</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">msgKey</span><span class="o">);</span>
+
+        <span class="k">return</span> <span class="n">newTimeline</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">Timeline</span> <span class="nf">addToExistingTimeline</span><span class="o">(</span><span class="nc">Timeline</span> <span class="n">timeline</span><span class="o">,</span> <span class="nc">String</span> <span class="n">msgKey</span><span class="o">)</span> <span class="o">{</span>
+        <span class="n">timeline</span><span class="o">.</span><span class="na">Msgs</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">msgKey</span><span class="o">);</span>
+        <span class="k">return</span> <span class="n">timeline</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">Timeline</span> <span class="nf">getTimeline</span><span class="o">(</span><span class="nc">String</span> <span class="n">ownerUsername</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span> <span class="n">type</span><span class="o">,</span> <span class="nc">Date</span> <span class="n">date</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">RiakRetryFailedException</span> <span class="o">{</span>
+        <span class="nc">String</span> <span class="n">timelineKey</span> <span class="o">=</span> <span class="n">generateKey</span><span class="o">(</span><span class="n">ownerUsername</span><span class="o">,</span> <span class="n">type</span><span class="o">,</span> <span class="n">date</span><span class="o">);</span>
+        <span class="nc">Bucket</span> <span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">fetchBucket</span><span class="o">(</span><span class="no">BUCKET_NAME</span><span class="o">).</span><span class="na">execute</span><span class="o">();</span>
+        <span class="k">return</span> <span class="n">bucket</span><span class="o">.</span><span class="na">fetch</span><span class="o">(</span><span class="n">timelineKey</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">class</span><span class="o">).</span><span class="na">execute</span><span class="o">();</span>
+    <span class="o">}</span>
+
+    <span class="kd">private</span> <span class="nc">String</span> <span class="nf">generateKeyFromMsg</span><span class="o">(</span><span class="nc">Msg</span> <span class="n">msg</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span> <span class="n">type</span><span class="o">)</span> <span class="o">{</span>
+        <span class="nc">String</span> <span class="n">owner</span> <span class="o">=</span> <span class="n">getOwner</span><span class="o">(</span><span class="n">msg</span><span class="o">,</span> <span class="n">type</span><span class="o">);</span>
+        <span class="nc">String</span> <span class="n">dateString</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="na">Created</span><span class="o">.</span><span class="na">substring</span><span class="o">(</span><span class="mi">0</span><span class="o">,</span> <span class="mi">10</span><span class="o">);</span>
+        <span class="k">return</span> <span class="nf">generateKey</span><span class="o">(</span><span class="n">owner</span><span class="o">,</span> <span class="n">type</span><span class="o">,</span> <span class="n">dateString</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="kd">private</span> <span class="nc">String</span> <span class="nf">getOwner</span><span class="o">(</span><span class="nc">Msg</span> <span class="n">msg</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span> <span class="n">type</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">if</span><span class="o">(</span><span class="n">type</span> <span class="o">==</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span><span class="o">.</span><span class="na">Inbox</span><span class="o">)</span>
+            <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="na">Recipient</span><span class="o">;</span>
+        <span class="k">else</span>
+            <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="na">Sender</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">private</span> <span class="nc">String</span> <span class="nf">generateKey</span><span class="o">(</span><span class="nc">String</span> <span class="n">ownerUsername</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span> <span class="n">type</span><span class="o">,</span> <span class="nc">Date</span> <span class="n">date</span><span class="o">)</span> <span class="o">{</span>
+        <span class="nc">String</span> <span class="n">dateString</span> <span class="o">=</span> <span class="n">getIso8601DateStringFromDate</span><span class="o">(</span><span class="n">date</span><span class="o">);</span>
+        <span class="k">return</span> <span class="nf">generateKey</span><span class="o">(</span><span class="n">ownerUsername</span><span class="o">,</span> <span class="n">type</span><span class="o">,</span> <span class="n">dateString</span><span class="o">);</span>
+    <span class="o">}</span>
+
+    <span class="kd">private</span> <span class="nc">String</span> <span class="nf">generateKey</span><span class="o">(</span><span class="nc">String</span> <span class="n">ownerUsername</span><span class="o">,</span> <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span> <span class="n">type</span><span class="o">,</span> <span class="nc">String</span> <span class="n">dateString</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="n">ownerUsername</span> <span class="o">+</span> <span class="s">"_"</span> <span class="o">+</span> <span class="n">type</span><span class="o">.</span><span class="na">toString</span><span class="o">()</span> <span class="o">+</span> <span class="s">"_"</span> <span class="o">+</span> <span class="n">dateString</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">private</span> <span class="nc">String</span> <span class="nf">getIso8601DateStringFromDate</span><span class="o">(</span><span class="nc">Date</span> <span class="n">date</span><span class="o">)</span> <span class="o">{</span>
+        <span class="nc">TimeZone</span> <span class="n">tz</span> <span class="o">=</span> <span class="nc">TimeZone</span><span class="o">.</span><span class="na">getTimeZone</span><span class="o">(</span><span class="s">"UTC"</span><span class="o">);</span>
+        <span class="nc">DateFormat</span> <span class="n">df</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SimpleDateFormat</span><span class="o">(</span><span class="s">"yyyy-MM-dd"</span><span class="o">);</span>
+        <span class="n">df</span><span class="o">.</span><span class="na">setTimeZone</span><span class="o">(</span><span class="n">tz</span><span class="o">);</span>
+        <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="na">format</span><span class="o">(</span><span class="n">date</span><span class="o">);</span>
+    <span class="o">}</span>
+
+
+<span class="o">}</span>
+
+<span class="c1">// ----------------------------------------------------------------------------</span>
+
+<span class="kn">package</span> <span class="nn">com.basho.msgy.Repositories</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Models.User</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.IRiakClient</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.RiakRetryFailedException</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.bucket.Bucket</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">UserRepository</span> <span class="o">{</span>
+    <span class="kd">static</span> <span class="kd">final</span> <span class="nc">String</span> <span class="no">BUCKET_NAME</span> <span class="o">=</span> <span class="s">"Users"</span><span class="o">;</span>
+    <span class="kd">protected</span> <span class="nc">IRiakClient</span> <span class="n">client</span><span class="o">;</span>
+
+    <span class="kd">public</span> <span class="nf">UserRepository</span><span class="o">(</span><span class="nc">IRiakClient</span> <span class="n">client</span><span class="o">)</span> <span class="o">{</span>
+        <span class="k">this</span><span class="o">.</span><span class="na">client</span> <span class="o">=</span> <span class="n">client</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">save</span><span class="o">(</span><span class="nc">User</span> <span class="n">user</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">RiakRetryFailedException</span> <span class="o">{</span>
+        <span class="nc">Bucket</span> <span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">fetchBucket</span><span class="o">(</span><span class="no">BUCKET_NAME</span><span class="o">).</span><span class="na">execute</span><span class="o">();</span>
+        <span class="n">bucket</span><span class="o">.</span><span class="na">store</span><span class="o">(</span><span class="n">user</span><span class="o">).</span><span class="na">execute</span><span class="o">();</span>
+    <span class="o">}</span>
+
+    <span class="kd">public</span> <span class="nc">User</span> <span class="nf">get</span><span class="o">(</span><span class="nc">String</span> <span class="nc">UserName</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">RiakRetryFailedException</span> <span class="o">{</span>
+        <span class="nc">Bucket</span> <span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">fetchBucket</span><span class="o">(</span><span class="no">BUCKET_NAME</span><span class="o">).</span><span class="na">execute</span><span class="o">();</span>
+        <span class="k">return</span> <span class="n">bucket</span><span class="o">.</span><span class="na">fetch</span><span class="o">(</span><span class="nc">UserName</span><span class="o">,</span> <span class="nc">User</span><span class="o">.</span><span class="na">class</span><span class="o">).</span><span class="na">execute</span><span class="o">();</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+
+</code></pre></div></div>
+
+<p>Finally, let’s test them:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">package</span> <span class="nn">com.basho.msgy</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Models.Msg</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Models.Timeline</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Models.User</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Repositories.MsgRepository</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Repositories.TimelineRepository</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.msgy.Repositories.UserRepository</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.IRiakClient</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.RiakException</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.RiakFactory</span><span class="o">;</span>
+
+<span class="kn">import</span> <span class="nn">java.util.Date</span><span class="o">;</span>
+
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">MsgyMain</span> <span class="o">{</span>
+
+    <span class="kd">public</span> <span class="kd">static</span> <span class="kt">void</span> <span class="nf">main</span><span class="o">(</span><span class="nc">String</span><span class="o">[]</span> <span class="n">args</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">RiakException</span> <span class="o">{</span>
+        <span class="c1">// Setup our repositories</span>
+        <span class="nc">IRiakClient</span> <span class="n">client</span> <span class="o">=</span> <span class="nc">RiakFactory</span><span class="o">.</span><span class="na">pbcClient</span><span class="o">(</span><span class="s">"127.0.0.1"</span><span class="o">,</span> <span class="mi">10017</span><span class="o">);</span>
+
+        <span class="nc">UserRepository</span> <span class="n">userRepo</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UserRepository</span><span class="o">(</span><span class="n">client</span><span class="o">);</span>
+        <span class="nc">MsgRepository</span> <span class="n">msgRepo</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MsgRepository</span><span class="o">(</span><span class="n">client</span><span class="o">);</span>
+        <span class="nc">TimelineRepository</span> <span class="n">timelineRepo</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">TimelineRepository</span><span class="o">(</span><span class="n">client</span><span class="o">);</span>
+
+        <span class="c1">// Create and save users</span>
+        <span class="nc">User</span> <span class="n">marleen</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">User</span><span class="o">(</span><span class="s">"marleenmgr"</span><span class="o">,</span>
+                <span class="s">"Marleen Manager"</span><span class="o">,</span>
+                <span class="s">"marleen.manager@basho.com"</span><span class="o">);</span>
+
+        <span class="nc">User</span> <span class="n">joe</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">User</span><span class="o">(</span><span class="s">"joeuser"</span><span class="o">,</span>
+                <span class="s">"Joe User"</span><span class="o">,</span>
+                <span class="s">"joe.user@basho.com"</span><span class="o">);</span>
+
+        <span class="n">userRepo</span><span class="o">.</span><span class="na">save</span><span class="o">(</span><span class="n">marleen</span><span class="o">);</span>
+        <span class="n">userRepo</span><span class="o">.</span><span class="na">save</span><span class="o">(</span><span class="n">joe</span><span class="o">);</span>
+
+        <span class="c1">// Create new Msg, post to timelines</span>
+        <span class="nc">Msg</span> <span class="n">msg</span> <span class="o">=</span> <span class="nc">Msg</span><span class="o">.</span><span class="na">createNew</span><span class="o">(</span><span class="n">marleen</span><span class="o">.</span><span class="na">UserName</span><span class="o">,</span>
+                <span class="n">joe</span><span class="o">.</span><span class="na">UserName</span><span class="o">,</span>
+                <span class="s">"Welcome to the company!"</span><span class="o">);</span>
+
+        <span class="n">timelineRepo</span><span class="o">.</span><span class="na">postMsg</span><span class="o">(</span><span class="n">msg</span><span class="o">);</span>
+
+
+        <span class="c1">// Get Joe's inbox for today, get first message</span>
+        <span class="nc">Timeline</span> <span class="n">joesInboxToday</span> <span class="o">=</span> <span class="n">timelineRepo</span><span class="o">.</span><span class="na">getTimeline</span><span class="o">(</span><span class="n">joe</span><span class="o">.</span><span class="na">UserName</span><span class="o">,</span>
+                                                           <span class="nc">Timeline</span><span class="o">.</span><span class="na">TimelineType</span><span class="o">.</span><span class="na">Inbox</span><span class="o">,</span>
+                                                           <span class="k">new</span> <span class="nf">Date</span><span class="o">());</span>
+
+        <span class="nc">Msg</span> <span class="n">joesFirstMsg</span> <span class="o">=</span> <span class="n">msgRepo</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">joesInboxToday</span><span class="o">.</span><span class="na">Msgs</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">));</span>
+
+        <span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"From: "</span> <span class="o">+</span> <span class="n">joesFirstMsg</span><span class="o">.</span><span class="na">Sender</span><span class="o">);</span>
+        <span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">"Msg : "</span> <span class="o">+</span> <span class="n">joesFirstMsg</span><span class="o">.</span><span class="na">Text</span><span class="o">);</span>
+        <span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="s">""</span><span class="o">);</span>
+
+        <span class="n">client</span><span class="o">.</span><span class="na">shutdown</span><span class="o">();</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>As you can see, the repository pattern helps us with a few things:</p>
+
+<ul>
+  <li>It helps us to see if an object exists before creating a new one</li>
+  <li>It keeps our buckets and key names consistent</li>
+  <li>It provides us with a consistent interface to work with.</li>
+</ul>
+
+<p>While this set of repositories solves many of our problems, it is very
+minimal and doesn’t cover all the edge cases. For instance, what happens
+if two different people try to create a user with the same username?</p>
+
+<p>We can also easily “compute” key names now, but how do we quickly look
+up the last 10 messages a user sent? Many of these answers will be
+application dependent. If your application shows the last 10 messages in
+reverse order, for example, you may want to store that set of data in
+another collection object to make lookup faster. There are drawbacks to
+every solution, but we recommend seeking out the key/value-based
+solution first, as it will likely be the quickest.</p>
+
+<p>So to recap, in this chapter we learned:</p>
+
+<ul>
+  <li>How to choose bucket names</li>
+  <li>How to choose natural keys based on how we want to partition our data</li>
+</ul>

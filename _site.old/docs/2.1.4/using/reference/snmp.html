@@ -1,0 +1,152 @@
+<p>Riak Enterprise provides a built-in SNMP server that allows an external system, such as Hyperic, to query the Riak node for statistics such as the average get and put times as well as the number of puts and gets. This document only covers SNMP v2c support at this time.</p>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>The first step in configuring your SNMP setup is to edit the appropriate files in the Riak node’s <code class="language-plaintext highlighter-rouge">etc/snmp/agent/conf/</code> directory.</p>
+
+<p>First, edit the <code class="language-plaintext highlighter-rouge">agent.conf</code> file and set the appropriate IP on which the SNMP server should listen (Ex: <code class="language-plaintext highlighter-rouge">192.168.1.20</code>):</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">intAgentIpAddress</span><span class="p">,</span> <span class="p">[</span><span class="mi">192</span><span class="p">,</span><span class="mi">168</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">20</span><span class="p">]}.</span>
+<span class="p">{</span><span class="n">intAgentUDPPort</span><span class="p">,</span> <span class="mi">4000</span><span class="p">}.</span>
+<span class="p">{</span><span class="n">snmpEngineID</span><span class="p">,</span> <span class="s">"agent's engine"</span><span class="p">}.</span>
+<span class="p">{</span><span class="n">snmpEngineMaxMessageSize</span><span class="p">,</span> <span class="mi">484</span><span class="p">}.</span>
+
+<span class="c">%% Note: The commas in the IP are in the correct format
+</span></code></pre></div></div>
+
+<p>Next, edit the <code class="language-plaintext highlighter-rouge">community.conf</code> file if you would like to change your community from public to a different string.</p>
+
+<p>Finally, edit the <code class="language-plaintext highlighter-rouge">standard.conf</code> file and update it with the proper information:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">sysName</span><span class="p">,</span> <span class="s">"Riak Node 1"</span><span class="p">}.</span>
+<span class="p">{</span><span class="n">sysDescr</span><span class="p">,</span> <span class="s">"Riak Agent"</span><span class="p">}.</span>
+<span class="p">{</span><span class="n">sysContact</span><span class="p">,</span> <span class="s">"syadmin@company.com"</span><span class="p">}.</span>
+<span class="p">{</span><span class="n">sysLocation</span><span class="p">,</span> <span class="s">"System and Rack Location"</span><span class="p">}.</span>
+<span class="p">{</span><span class="n">sysObjectID</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">193</span><span class="p">,</span><span class="mi">19</span><span class="p">]}.</span>  <span class="c">%% {ericsson otp} - don't change
+</span><span class="p">{</span><span class="n">sysServices</span><span class="p">,</span> <span class="mi">72</span><span class="p">}.</span> <span class="c">%% don't change
+</span></code></pre></div></div>
+
+<p>Riak needs to be restarted for configuration changes to take affect.</p>
+
+<p><strong>Note</strong>: Prior to Riak Enterprise 0.13, SNMP configuration values were not reloaded during a restart.</p>
+
+<p>To force Riak to reload SNMP configuration files on startup:</p>
+
+<ol>
+  <li>
+    <p>Open <code class="language-plaintext highlighter-rouge">app.config</code> (most package installs place this file in <code class="language-plaintext highlighter-rouge">/etc/riak/</code>; Solaris package installs place this file in <code class="language-plaintext highlighter-rouge">/opt/riak/etc/</code>).</p>
+  </li>
+  <li>
+    <p>Locate the SNMP term:</p>
+  </li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>```erlang
+{snmp,
+  [{agent,
+    [{config, [{dir, "/etc/riak/snmp/agent/conf/"},
+               {force_load, true}]},
+     {db_dir, "/var/lib/riak/snmp/agent/db/"}]}]}
+{snmp,
+  [{agent,
+    [{config, [{dir, "/etc/riak/snmp/agent/conf/"}]},
+     {db_dir, "/var/lib/riak/snmp/agent/db/"}]}]}
+```
+</code></pre></div></div>
+
+<ol>
+  <li>Add <code class="language-plaintext highlighter-rouge">{force_load, true}</code> to the <code class="language-plaintext highlighter-rouge">config</code> term:</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>```erlang
+  {snmp,
+    [{agent,
+      [{config, [{dir, "/etc/riak/snmp/agent/conf/"},
+       {force_load, true}]},
+       {db_dir, "/var/lib/riak/snmp/agent/db/"}]}]}
+```
+</code></pre></div></div>
+
+<ol>
+  <li>
+    <p>Save <code class="language-plaintext highlighter-rouge">app.config</code></p>
+  </li>
+  <li>
+    <p>Restart Riak</p>
+  </li>
+</ol>
+
+<p>Once you have configured the SNMP settings you can start your Riak node and will be able to snmpwalk the node to verify that the setup is working:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>snmpwalk <span class="nt">-OS</span> <span class="nt">-c</span> public <span class="nt">-v2c</span> <span class="nt">-m</span> all 192.168.52.129:4000 <span class="nb">.</span>
+</code></pre></div></div>
+
+<p>If you would like to query the OIDs associated with Riak you will need to reference the MIB shipped with Riak. For example, the x86_64 packages have the MIB in the following folder:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/usr/lib64/riak/lib/riak_snmp-0.2/priv/mibs
+</code></pre></div></div>
+
+<p>This folder can be referenced in the snmpwalk command as follows:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>snmpwalk <span class="nt">-OS</span> <span class="nt">-c</span> public <span class="nt">-v</span> 2c <span class="nt">-m</span> ALL <span class="se">\</span>
+  <span class="nt">-M</span> +/usr/lib64/riak/lib/riak_snmp-0.2/priv/mibs <span class="se">\</span>
+  192.168.52.129:4000 RIAK 
+</code></pre></div></div>
+
+<h2 id="snmp-counters">SNMP Counters</h2>
+
+<p><strong>vnodeGets</strong><br />
+<em>Type:</em> Counter<br />
+Number of vnode-level GETs in past minute</p>
+
+<p><strong>vnodePuts</strong><br />
+<em>Type:</em> Counter<br />
+Number of vnode-level PUTs in past minute</p>
+
+<p><strong>nodeGets</strong><br />
+<em>Type:</em> Counter<br />
+Number of GETs in past minute</p>
+
+<p><strong>nodePuts</strong><br />
+<em>Type:</em> Counter<br />
+Number of PUTs in past minute</p>
+
+<p><strong>nodeGetTimeMean</strong><br />
+<em>Type:</em> Gauge<br />
+Mean GET time (microseconds)</p>
+
+<p><strong>nodeGetTimeMedian</strong><br />
+<em>Type:</em> Gauge<br />
+Median GET time (microseconds)</p>
+
+<p><strong>nodeGetTime95</strong><br />
+<em>Type:</em> Gauge<br />
+95th percentile GET time (microseconds)</p>
+
+<p><strong>nodeGetTime99</strong><br />
+<em>Type:</em> Gauge<br />
+99th percentile GET time (microseconds)</p>
+
+<p><strong>nodeGetTime100</strong><br />
+<em>Type:</em> Gauge<br />
+Maximum GET time (microseconds)</p>
+
+<p><strong>nodePutTime95</strong><br />
+<em>Type:</em> Gauge<br />
+95th percentile PUT time (microseconds)</p>
+
+<p><strong>nodePutTime99</strong><br />
+<em>Type:</em> Gauge<br />
+99th percentile PUT time (microseconds)</p>
+
+<p><strong>nodePutTime100</strong><br />
+<em>Type:</em> Gauge<br />
+Maximum PUT time (microseconds)</p>
+
+<p><strong>nodePutTimeMean</strong><br />
+<em>Type:</em> Gauge<br />
+Mean PUT time (microseconds)</p>
+
+<p><strong>nodePutTimeMedian</strong><br />
+<em>Type:</em> Gauge<br />
+Median PUT time (microseconds)</p>

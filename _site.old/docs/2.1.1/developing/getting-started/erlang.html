@@ -1,0 +1,35 @@
+<p>If you haven’t set up a Riak Node and started it, please visit <a href="/riak/kv/2.1.1/using/running-a-cluster">Running A Cluster</a> first.</p>
+
+<p>To try this flavor of Riak, a working installation of Erlang is
+required. You can also use the <code class="language-plaintext highlighter-rouge">erts</code> Erlang installation that comes
+with Riak.</p>
+
+<h2 id="client-setup">Client Setup</h2>
+
+<p>Download the latest Erlang client from GitHub
+(<a href="https://github.com/basho/riak-erlang-client/archive/master.zip">zip</a>,
+<a href="https://github.com/basho/riak-erlang-client/">GitHub repository</a>) and
+extract it to your working directory.</p>
+
+<p>Next, open the Erlang console with the client library paths included.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erl <span class="nt">-pa</span> CLIENT_LIBRARY_PATH/ebin/ CLIENT_LIBRARY_PATH/deps/<span class="k">*</span>/ebin
+</code></pre></div></div>
+
+<p>Now let’s create a link to the Riak node. If you are using a single
+local Riak node, use the following to create the link:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Pid</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">start</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">8087</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>If you set up a local Riak cluster using the [[five-minute install]]
+method, use this code snippet instead:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Pid</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">start_link</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">10017</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>We are now ready to start interacting with Riak.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p><a href="/riak/kv/2.1.1/developing/getting-started/erlang/crud-operations">CRUD Operations</a></p>

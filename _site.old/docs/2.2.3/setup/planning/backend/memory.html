@@ -1,0 +1,118 @@
+
+<p>The Memory storage backend uses in-memory tables to store all data.
+This data is never persisted to disk or to any other storage mechanism.
+The Memory storage engine is best used for testing Riak clusters or for
+storing small amounts of transient state in production systems.</p>
+
+<p>Internally, the Memory backend uses Erlang Ets tables to manage data.
+More information can be found in the
+<a href="http://www.erlang.org/doc/man/ets.html">official Erlang documentation</a>.</p>
+
+<h2 id="enabling-the-memory-backend">Enabling the Memory Backend</h2>
+
+<p>To enable the memory backend, edit your <a href="/riak/kv/2.2.3/configuring/reference">configuration files</a>
+for each Riak node and specify the Memory backend as shown in the following
+example:</p>
+
+<pre><code class="language-riakconf">storage_backend = memory
+</code></pre>
+
+<pre><code class="language-appconfig">{riak_kv, [
+    ...,
+    {storage_backend, riak_kv_memory_backend},
+    ...
+    ]}
+</code></pre>
+
+<p><strong>Note</strong>: If you <em>replace</em> the existing specified backend by removing it
+or commenting it out as shown in the above example, data belonging to
+the previously specified backend will still be preserved on the
+filesystem but will no longer be accessible through Riak unless the
+backend is enabled again.</p>
+
+<p>If you require multiple backends in your configuration, please consult
+the <a href="/riak/kv/2.2.3/setup/planning/backend/multi">Multi backend documentation</a>.</p>
+
+<h2 id="configuring-the-memory-backend">Configuring the Memory Backend</h2>
+
+<p>The Memory backend enables you to configure two fundamental aspects of
+object storage: maximum memory usage per <a href="/riak/kv/2.2.3/learn/glossary/#vnode">vnode</a>
+and object expiry.</p>
+
+<h3 id="max-memory">Max Memory</h3>
+
+<p>This setting specifies the maximum amount of memory consumed by the
+Memory backend. It’s important to note that this setting acts on a
+<em>per-vnode basis</em>, not on a per-node or per-cluster basis. This should
+be taken into account when planning for memory usage with the Memory
+backend, as the total memory used will be max memory times the number
+of vnodes in the cluster.</p>
+
+<p>When the threshold value that you set has been met in a particular
+vnode, Riak will begin discarding objects, beginning with the oldest
+object and proceeding until memory usage returns below the allowable
+threshold.</p>
+
+<p>You can configure maximum memory using the
+<code class="language-plaintext highlighter-rouge">memory_backend.max_memory_per_vnode</code> setting. You can specify
+<code class="language-plaintext highlighter-rouge">max_memory_per_vnode</code> however you’d like, using kilobytes, megabytes,
+or even gigabytes.</p>
+
+<p>The following are all possible settings:</p>
+
+<pre><code class="language-riakconf">memory_backend.max_memory_per_vnode = 500KB
+memory_backend.max_memory_per_vnode = 10MB
+memory_backend.max_memory_per_vnode = 2GB
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, the equivalent setting is max_memory,
+%% which must be expressed in megabytes:
+
+{riak_kv, [
+    %% storage_backend specifies the Erlang module defining the storage
+    %% mechanism that will be used on this node.
+
+    {storage_backend, riak_kv_memory_backend},
+    {memory_backend, [
+        ...,
+            {max_memory, 4096}, %% 4GB in megabytes
+        ...
+    ]}
+</code></pre>
+
+<p>To determine an optimal max memory setting, we recommend consulting the
+documentation on <a href="/riak/kv/2.2.3/setup/planning/backend/leveldb">LevelDB cache size</a>.</p>
+
+<h3 id="ttl">TTL</h3>
+
+<p>The time-to-live (TTL) parameter specifies the amount of time an object
+remains in memory before it expires. The minimum time is one second.</p>
+
+<p>In the newer, <code class="language-plaintext highlighter-rouge">riak.conf</code>-based configuration system, you can specify
+<code class="language-plaintext highlighter-rouge">ttl</code> in seconds, minutes, hours, days, etc. The following are all
+possible settings:</p>
+
+<pre><code class="language-riakconf">memory_backend.ttl = 1s
+memory_backend.ttl = 10m
+memory_backend.ttl = 3h
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the app.config-based system, the ttl setting must be expressed in
+%% seconds:
+
+{memory_backend, [
+    %% other settings
+        {ttl, 86400}, %% Set to 1 day
+    %% other settings
+    ]}
+</code></pre>
+
+<blockquote>
+  <p><strong>Dynamically Changing <code class="language-plaintext highlighter-rouge">ttl</code></strong></p>
+
+  <p>There is currently no way to dynamically change the <code class="language-plaintext highlighter-rouge">ttl</code> setting for a
+bucket or bucket type. The current workaround would be to define
+multiple Memory backends using the Multi backend, each with different
+<code class="language-plaintext highlighter-rouge">ttl</code> values. For more information, consult the documentation on the
+<a href="/riak/kv/2.2.3/setup/planning/backend/multi">Multi</a> backend.</p>
+</blockquote>

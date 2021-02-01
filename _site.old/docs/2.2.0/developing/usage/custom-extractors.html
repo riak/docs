@@ -1,0 +1,415 @@
+<p>Solr, and by extension Riak Search, has default extractors for a wide
+variety of data types, including JSON, XML, and plaintext. Riak Search
+ships with the following extractors:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Content Type</th>
+      <th style="text-align: left">Erlang Module</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">application/json</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_json_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">application/xml</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_xml_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">text/plain</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_text_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">text/xml</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_xml_extractor</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">No specified type</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">yz_noop_extractor</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>There are also built-in extractors for <a href="/riak/kv/2.2.0/developing/usage/searching-data-types">Riak Data Types</a>.</p>
+
+<p>If you’re working with a data format that does not have a default Solr
+extractor, you can create your own and register it with Riak Search.
+We’ll show you how to do so by way of example.</p>
+
+<h2 id="the-extractor-interface">The Extractor Interface</h2>
+
+<p>Creating a custom extract involves creating an Erlang interface that
+implements two functions:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">extract/1</code> — Takes the contents of the object and calls <code class="language-plaintext highlighter-rouge">extract/2</code> 
+  with the same contents and an empty list</li>
+  <li><code class="language-plaintext highlighter-rouge">extract/2</code> — Takes the contents of the object and returns an Erlang
+  <a href="http://www.erlang.org/doc/man/proplists.html">proplist</a> with a
+  single field name and a single value associated with that name</li>
+</ul>
+
+<p>The following extractor shows how a pure text extractor implements those
+two functions:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">-</span><span class="ni">module</span><span class="p">(</span><span class="n">search_test_extractor</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">include</span><span class="p">(</span><span class="s">"yokozuna.hrl"</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">compile</span><span class="p">(</span><span class="n">export_all</span><span class="p">).</span>
+
+<span class="nf">extract</span><span class="p">(</span><span class="nv">Value</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nf">extract</span><span class="p">(</span><span class="nv">Value</span><span class="p">,</span> <span class="p">[]).</span>
+
+<span class="nf">extract</span><span class="p">(</span><span class="nv">Value</span><span class="p">,</span> <span class="nv">Opts</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">FieldName</span> <span class="o">=</span> <span class="nf">field_name</span><span class="p">(</span><span class="nv">Opts</span><span class="p">),</span>
+    <span class="p">[{</span><span class="nv">FieldName</span><span class="p">,</span> <span class="nv">Value</span><span class="p">}].</span>
+
+<span class="p">-</span><span class="ni">spec</span> <span class="nf">field_name</span><span class="p">(</span><span class="nf">proplist</span><span class="p">())</span> <span class="o">-&gt;</span> <span class="nf">any</span><span class="p">().</span>
+<span class="nf">field_name</span><span class="p">(</span><span class="nv">Opts</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="n">field_name</span><span class="p">,</span> <span class="nv">Opts</span><span class="p">,</span> <span class="n">text</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>This extractor takes the contents of a <code class="language-plaintext highlighter-rouge">Value</code> and returns a proplist
+with a single field name (in this case <code class="language-plaintext highlighter-rouge">text</code>) and the single value.
+This function can be run in the Erlang shell. Let’s run it providing the
+text <code class="language-plaintext highlighter-rouge">hello</code>:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="nf">c</span><span class="p">(</span><span class="n">search_test_extractor</span><span class="p">).</span>
+<span class="c">%% {ok, search_test_extractor}
+</span>
+<span class="o">&gt;</span> <span class="nn">search_test_extractor</span><span class="p">:</span><span class="nf">extract</span><span class="p">(</span><span class="s">"hello"</span><span class="p">).</span>
+
+<span class="c">%% Console output:
+</span><span class="p">[{</span><span class="n">text</span><span class="p">,</span> <span class="s">"hello"</span><span class="p">}]</span>
+</code></pre></div></div>
+
+<p>Upon running this command, the value <code class="language-plaintext highlighter-rouge">hello</code> would be indexed in Solr
+under the fieldname <code class="language-plaintext highlighter-rouge">text</code>. If you wanted to find all objects with a
+<code class="language-plaintext highlighter-rouge">text</code> field that begins with <code class="language-plaintext highlighter-rouge">Fourscore</code>, you could use the
+Solr query <code class="language-plaintext highlighter-rouge">text:Fourscore*</code>, to give just one example.</p>
+
+<h2 id="an-example-custom-extractor">An Example Custom Extractor</h2>
+
+<p>Let’s say that we’re storing HTTP header packet data in Riak. Here’s an
+example of such a packet:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET http://www.google.com HTTP/1.1
+</code></pre></div></div>
+
+<p>We want to register the following information in Solr:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field name</th>
+      <th style="text-align: left">Value</th>
+      <th style="text-align: left">Extracted value in this example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">method</code></td>
+      <td style="text-align: left">The HTTP method</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">GET</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">host</code></td>
+      <td style="text-align: left">The URL’s host</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">www.google.com</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">uri</code></td>
+      <td style="text-align: left">The URI, i.e. what comes after the host</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">/</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The example extractor below would provide the three desired
+fields/values. It relies on the
+<a href="http://www.erlang.org/doc/man/erlang.html#decode_packet-3"><code class="language-plaintext highlighter-rouge">decode_packet</code></a>
+function from Erlang’s standard library.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">-</span><span class="ni">module</span><span class="p">(</span><span class="n">yz_httpheader_extractor</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">compile</span><span class="p">(</span><span class="n">export_all</span><span class="p">).</span>
+
+<span class="nf">extract</span><span class="p">(</span><span class="nv">Value</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nf">extract</span><span class="p">(</span><span class="nv">Value</span><span class="p">,</span> <span class="p">[]).</span>
+
+<span class="c">%% In this example, we can ignore the Opts variable from the example
+%% above, hence the underscore:
+</span><span class="nf">extract</span><span class="p">(</span><span class="nv">Value</span><span class="p">,</span> <span class="p">_</span><span class="nv">Opts</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="p">{</span><span class="n">ok</span><span class="p">,</span>
+        <span class="p">{</span><span class="n">http_request</span><span class="p">,</span>
+         <span class="nv">Method</span><span class="p">,</span>
+         <span class="p">{</span><span class="n">absoluteURI</span><span class="p">,</span> <span class="n">http</span><span class="p">,</span> <span class="nv">Host</span><span class="p">,</span> <span class="n">undefined</span><span class="p">,</span> <span class="nv">Uri</span><span class="p">},</span>
+         <span class="p">_</span><span class="nv">Version</span><span class="p">},</span>
+        <span class="p">_</span><span class="nv">Rest</span><span class="p">}</span> <span class="o">=</span> <span class="nn">erlang</span><span class="p">:</span><span class="nf">decode_packet</span><span class="p">(</span><span class="n">http</span><span class="p">,</span> <span class="nv">Value</span><span class="p">,</span> <span class="p">[]),</span>
+    <span class="p">[{</span><span class="n">method</span><span class="p">,</span> <span class="nv">Method</span><span class="p">},</span> <span class="p">{</span><span class="n">host</span><span class="p">,</span> <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">Host</span><span class="p">)},</span> <span class="p">{</span><span class="n">uri</span><span class="p">,</span> <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">Uri</span><span class="p">)}].</span>
+</code></pre></div></div>
+
+<p>This file will be stored in a <code class="language-plaintext highlighter-rouge">yz_httpheader_extractor.erl</code> file (as
+Erlang filenames must match the module name). Now that our extractor has
+been written, it must be compiled and registered in Riak before it can
+be used.</p>
+
+<h2 id="registering-custom-extractors">Registering Custom Extractors</h2>
+
+<p>In order to use a custom extractor, you must create a compiled <code class="language-plaintext highlighter-rouge">.beam</code>
+file out of your <code class="language-plaintext highlighter-rouge">.erl</code> extractor file and then tell Riak where that
+file is located. Let’s say that we have created a
+<code class="language-plaintext highlighter-rouge">search_test_extractor.erl</code> file in the directory <code class="language-plaintext highlighter-rouge">/opt/beams</code>. First,
+we need to compile that file:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erlc search_test_extractor.erl
+</code></pre></div></div>
+
+<p>To instruct Riak where to find the resulting
+<code class="language-plaintext highlighter-rouge">search_test_extractor.beam</code> file, we’ll need to add a line to an
+<code class="language-plaintext highlighter-rouge">advanced.config</code> file in the node’s <code class="language-plaintext highlighter-rouge">/etc</code> directory (more information
+can be found in our documentation on <a href="/riak/kv/2.2.0/configuring/reference/#advanced-configuration">advanced</a>). Here’s an
+example:</p>
+
+<pre><code class="language-advancedconfig">[
+  %% Other configs
+  {vm_args, [
+    {"-pa /opt/beams", ""}
+  ]},
+  %% Other configs
+]
+</code></pre>
+
+<p>This will instruct the Erlang VM on which Riak runs to look for compiled
+<code class="language-plaintext highlighter-rouge">.beam</code> files in the proper directory. You should re-start the node at
+this point. Once the node has been re-started, you can use the node’s
+Erlang shell to register the <code class="language-plaintext highlighter-rouge">yz_httpheader_extractor</code>. First, attach to
+the shell:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak attach
+</code></pre></div></div>
+
+<p>At this point, we need to choose a MIME type for our extractor. Let’s
+call it <code class="language-plaintext highlighter-rouge">application/httpheader</code>. Once you’re in the shell:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">&gt;</span> <span class="nn">yz_extractor</span><span class="p">:</span><span class="nb">register</span><span class="p">(</span><span class="s">"application/httpheader"</span><span class="p">,</span> <span class="n">yz_httpheader_extractor</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>If successful, this command will return a list of currently registered
+extractors. It should look like this:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[{</span><span class="n">default</span><span class="p">,</span><span class="n">yz_noop_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"application/httpheader"</span><span class="p">,</span><span class="n">yz_httpheader_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"application/json"</span><span class="p">,</span><span class="n">yz_json_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"application/riak_counter"</span><span class="p">,</span><span class="n">yz_dt_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"application/riak_map"</span><span class="p">,</span><span class="n">yz_dt_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"application/riak_set"</span><span class="p">,</span><span class="n">yz_dt_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"application/xml"</span><span class="p">,</span><span class="n">yz_xml_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"text/plain"</span><span class="p">,</span><span class="n">yz_text_extractor</span><span class="p">},</span>
+ <span class="p">{</span><span class="s">"text/xml"</span><span class="p">,</span><span class="n">yz_xml_extractor</span><span class="p">}]</span>
+</code></pre></div></div>
+
+<p>If the <code class="language-plaintext highlighter-rouge">application/httpheader</code> extractor is part of that list, then the
+extractor has been successfully registered.</p>
+
+<h2 id="verifying-our-custom-extractor">Verifying Our Custom Extractor</h2>
+
+<p>Now that Riak Search knows how to decode and extract HTTP header packet
+data, let’s store some in Riak and then query it. We’ll put the example
+packet data from above in a <code class="language-plaintext highlighter-rouge">google_packet.bin</code> file. Then, we’ll <code class="language-plaintext highlighter-rouge">PUT</code>
+that binary to Riak’s <code class="language-plaintext highlighter-rouge">/search/extract</code> endpoint:</p>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/search/extract \
+     -H 'Content-Type: application/httpheader' \ # Note that we used our custom MIME type
+     --data-binary @google_packet.bin
+</code></pre>
+
+<p>That should return the following JSON:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"method"</span><span class="p">:</span><span class="w"> </span><span class="s2">"GET"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"host"</span><span class="p">:</span><span class="w"> </span><span class="s2">"www.google.com"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"uri"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>We can also verify this in the Erlang shell (whether in a Riak node’s
+Erlang shell or otherwise):</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">yz_extractor</span><span class="p">:</span><span class="nf">run</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"GET http://www.google.com HTTP/1.1</span><span class="se">\n</span><span class="s">"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="n">yz_httpheader_extractor</span><span class="p">).</span>
+
+<span class="c">%% Console output:
+</span><span class="p">[{</span><span class="n">method</span><span class="p">,</span><span class="n">'GET'</span><span class="p">},{</span><span class="n">host</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"www.google.com"</span><span class="o">&gt;&gt;</span><span class="p">},{</span><span class="n">uri</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"/"</span><span class="o">&gt;&gt;</span><span class="p">}]</span>
+</code></pre></div></div>
+
+<h2 id="indexing-and-searching-http-header-packet-data">Indexing and Searching HTTP Header Packet Data</h2>
+
+<p>Now that Solr knows how to extract HTTP header packet data, we need to
+create a schema that extends the <a href="/riak/kv/2.2.0/developing/usage/search-schemas/#creating-a-custom-schema">default schema</a>. The following fields should be added
+to <code class="language-plaintext highlighter-rouge">&lt;fields&gt;</code> in the schema, which we’ll name <code class="language-plaintext highlighter-rouge">http_header_schema</code> and
+store in a <code class="language-plaintext highlighter-rouge">http_header_schema.xml</code> file:</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?xml version="1.0" encoding="UTF-8" ?&gt;</span>
+<span class="nt">&lt;schema</span> <span class="na">name=</span><span class="s">"http_header_schema"</span> <span class="na">version=</span><span class="s">"1.5"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;fields&gt;</span>
+  <span class="c">&lt;!-- other required fields here --&gt;</span>
+
+  <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"method"</span> <span class="na">type=</span><span class="s">"string"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+  <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"host"</span> <span class="na">type=</span><span class="s">"string"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+  <span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"uri"</span> <span class="na">type=</span><span class="s">"string"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"false"</span><span class="nt">/&gt;</span>
+<span class="nt">&lt;/fields&gt;</span>
+</code></pre></div></div>
+
+<p>Now, we can store the schema:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">org.apache.commons.io.FileUtils</span>
+
+<span class="nc">File</span> <span class="n">xml</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">File</span><span class="o">(</span><span class="s">"http_header_schema.xml"</span><span class="o">);</span>
+<span class="nc">String</span> <span class="n">xmlString</span> <span class="o">=</span> <span class="nc">FileUtils</span><span class="o">.</span><span class="na">readFileToString</span><span class="o">(</span><span class="n">xml</span><span class="o">);</span>
+<span class="nc">YokozunaSchema</span> <span class="n">schema</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">YokozunaSchema</span><span class="o">(</span><span class="s">"http_header_schema"</span><span class="o">,</span> <span class="n">xmlString</span><span class="o">);</span>
+<span class="nc">StoreSchema</span> <span class="n">storeSchemaOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreSchema</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">schema</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeSchemaOp</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">schema_xml</span> <span class="o">=</span> <span class="no">File</span><span class="p">.</span><span class="nf">read</span><span class="p">(</span><span class="s1">'http_header_schema.xml'</span><span class="p">)</span>
+<span class="n">client</span><span class="p">.</span><span class="nf">create_search_schema</span><span class="p">(</span><span class="s1">'http_header_schema'</span><span class="p">,</span> <span class="n">schema_xml</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$schema_string</span> <span class="o">=</span> <span class="nb">file_get_contents</span><span class="p">(</span><span class="s1">'http_header_schema.xml'</span><span class="p">);</span>
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreSchema</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withName</span><span class="p">(</span><span class="s1">'http_header_schema'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withSchemaString</span><span class="p">(</span><span class="nv">$schema_string</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">io</span>
+
+<span class="n">schema_xml</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s">'http_header_schema.xml'</span><span class="p">).</span><span class="n">read</span><span class="p">()</span>
+<span class="n">client</span><span class="p">.</span><span class="n">create_search_schema</span><span class="p">(</span><span class="s">'http_header_schema'</span><span class="p">,</span> <span class="n">schema_xml</span><span class="p">)</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/search/schema/http_header_schema \
+     -H 'Content-Type: application/xml' \
+     --data-binary @http_header_schema.xml
+</code></pre>
+
+<p>Riak now has our schema stored and ready for use. Let’s create a search
+index called <code class="language-plaintext highlighter-rouge">header_data</code> that’s associated with our new schema:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">YokozunaIndex</span> <span class="n">headerDataIndex</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">YokozunaIndex</span><span class="o">(</span><span class="s">"header_data"</span><span class="o">,</span> <span class="s">"http_header_schema"</span><span class="o">);</span>
+<span class="nc">StoreSearchIndex</span> <span class="n">storeIndex</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreSearchIndex</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">headerDataIndex</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeIndex</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="nf">create_search_index</span><span class="p">(</span><span class="s1">'header_data'</span><span class="p">,</span> <span class="s1">'http_header_schema'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreIndex</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withName</span><span class="p">(</span><span class="s1">'header_data'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">usingSchema</span><span class="p">(</span><span class="s1">'http_header_schema'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="n">create_search_index</span><span class="p">(</span><span class="s">'header_data'</span><span class="p">,</span> <span class="s">'http_header_schema'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/search/index/header_data \
+     -H 'Content-Type: application/json' \
+     -d '{"schema":"http_header_schema"}'
+</code></pre>
+
+<p>Now, we can create and activate a <a href="/riak/kv/2.2.0/developing/usage/bucket-types">bucket type</a>
+for all of the HTTP header data that we plan to store. Any bucket that
+bears this type will be associated with our <code class="language-plaintext highlighter-rouge">header_data</code> search index.
+We’ll call our bucket type <code class="language-plaintext highlighter-rouge">http_data_store</code>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create http_data_store <span class="s1">'{"props":{"search_index":"header_data"}}'</span>
+riak-admin bucket-type activate http_data_store
+</code></pre></div></div>
+
+<p>Let’s use the same <code class="language-plaintext highlighter-rouge">google_packet.bin</code> file that we used previously and
+store it in a bucket with the <code class="language-plaintext highlighter-rouge">http_data_store</code> bucket type, making sure
+to use our custom <code class="language-plaintext highlighter-rouge">application/httpheader</code> MIME type:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">key</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"http_data_store"</span><span class="o">,</span> <span class="s">"packets"</span><span class="o">),</span> <span class="s">"google"</span><span class="o">);</span>
+<span class="nc">File</span> <span class="n">packetData</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">File</span><span class="o">(</span><span class="s">"google_packet.bin"</span><span class="o">);</span>
+<span class="kt">byte</span><span class="o">[]</span> <span class="n">packetBinary</span> <span class="o">=</span> <span class="nc">FileUtils</span><span class="o">.</span><span class="na">readFileToByteArray</span><span class="o">(</span><span class="n">packetData</span><span class="o">);</span>
+
+<span class="nc">RiakObject</span> <span class="n">packetObject</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"application/httpheader"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="n">packetBinary</span><span class="o">));</span>
+
+<span class="nc">StoreValue</span> <span class="n">storeOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">packetObject</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setLocation</span><span class="o">(</span><span class="n">key</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeOp</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">packet_data</span> <span class="o">=</span> <span class="no">File</span><span class="p">.</span><span class="nf">read</span><span class="p">(</span><span class="s1">'google_packet.bin'</span><span class="p">)</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'http_data_store'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'packets'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Robject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'google'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'application/httpheader'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="n">packetData</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$object</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Object</span><span class="p">(</span><span class="nb">file_get_contents</span><span class="p">(</span><span class="s2">"google_packet.bin"</span><span class="p">),</span> <span class="p">[</span><span class="s1">'Content-Type'</span> <span class="o">=&gt;</span> <span class="s1">'application/httpheader'</span><span class="p">]);</span>
+
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'google'</span><span class="p">,</span> <span class="s1">'packets'</span><span class="p">,</span> <span class="s1">'http_data_store'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withObject</span><span class="p">(</span><span class="nv">$object</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">packet_data</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s">'google_packet.bin'</span><span class="p">).</span><span class="n">read</span><span class="p">()</span>
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'http_data_store'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'packets'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'google'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'application/httpheader'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">packet_data</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/types/http_data_store/buckets/packets/keys/google \
+     -H 'Content-Type: application/httpheader' \
+     --data-binary @google_packet.bin
+</code></pre>
+
+<p>Now that we have some header packet data stored, we can query our
+<code class="language-plaintext highlighter-rouge">header_data</code> index on whatever basis we’d like. First, let’s verify
+that we’ll get one result if we query for objects that have the HTTP
+method <code class="language-plaintext highlighter-rouge">GET</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method from above:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"method:GET"</span><span class="o">;</span>
+
+<span class="c1">// Again using the same method from above:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'http_header_schema'</span><span class="p">,</span> <span class="s1">'method:GET'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span> <span class="c1"># 1</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="err">\</span><span class="nf">Basho\Riak\Command\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'method:GET'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'header_data'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'http_header_schema'</span><span class="p">,</span> <span class="s">'method:GET'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span> <span class="c1"># 1
+</span></code></pre></div></div>
+
+<pre><code class="language-curl">curl "$RIAK_HOST/search/query/header_data?wt=json&amp;q=method:GET"
+
+# This should return a fairly large JSON object with a "num_found" field
+# The value of that field should be 1
+</code></pre>

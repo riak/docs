@@ -1,0 +1,118 @@
+
+<h2 id="overview">Overview</h2>
+
+<p>The cache proxy service in Riak Redis Add-on (RRA) provides pre-sharding and connection aggregation as a service, which reduces latency and increases addressable cache memory space with lower-cost hardware.</p>
+
+<p>On this page, you will find detailed descriptions of cache proxy service components, including what each component does and how you implement it. The following components are available:</p>
+
+<ul>
+  <li><a href="#pre-sharding">Pre-sharding</a></li>
+  <li><a href="#connection-aggregation">Connection Aggregation</a></li>
+  <li><a href="#command-pipelining">Command Pipelining</a></li>
+  <li><a href="#read-through-cache">Read-through Cache</a></li>
+  <li><a href="#write-around-cache">Write-around Cache</a></li>
+  <li><a href="#commands">Commands</a></li>
+  <li><a href="#object-lifetime">Object Lifetime</a></li>
+</ul>
+
+<h2 id="pre-sharding">Pre-sharding</h2>
+
+<p>Pre-sharding with consistent hashing dispatches object reads and writes based
+on a configurable hash function, spreading load across multiple cache servers.
+The cache proxy service uses pre-sharding to extend the total addressable cache memory space based on the number of Redis servers. Request keys are hashed, then
+requests are routed to the Redis server that handles that portion of the key
+range.</p>
+
+<p>Redis with no persistence is used as the frontend cache proxy service, and
+Redis as a data server holds all data in memory. The addressable memory of
+cache proxy is limited. By employing pre-sharding, the total addressable cache
+memory space is extended by the number of Redis servers.</p>
+
+<h2 id="connection-aggregation">Connection Aggregation</h2>
+
+<p>Redis client connections are a limited resource. Using the cache proxy service, connections may be spread across multiple Riak Redis Add-on (RRA) servers. This reduces the total required connections to the Redis server for the same key.</p>
+
+<p>Redis clients in various languages support specifying multiple servers, as well
+as implementing multiple methods of spreading load across those servers (i.e.
+round-robin load balancing or consistent hashing).  Since the cache proxy service is providing consistent hashing, any Redis client method of supporting multiple
+servers will suffice.</p>
+
+<h2 id="command-pipelining">Command Pipelining</h2>
+
+<p>The cache proxy service increases performance by pipelining requests to Redis. While pipelining can be performed at the client, the cache proxy service is ideal due to connection aggregation. Pipelining reduces network roundtrips to Redis and
+lowers CPU usage on Redis.</p>
+
+<h2 id="read-through-cache">Read-Through Cache</h2>
+
+<p>Implementing caching strategies in the cache proxy service reduces the cost of implementing cache strategies in client code in multiple applications and languages. The cache proxy service supports the read-through cache strategy, the most prevalent caching strategy used in distributed computing.</p>
+
+<p>The read-through cache strategy of the GET command is represented by the
+following sequence diagram:</p>
+
+<p><img src="/images/redis/GET_seq.msc.png" alt="GET command sequence diagram" /></p>
+
+<p>The <code class="language-plaintext highlighter-rouge">CACHE_TTL</code> configuration option establishes how long the cache takes to
+become consistent with the backend server during a write (DELETE or PUT) to the
+backend server.</p>
+
+<p>A short <code class="language-plaintext highlighter-rouge">CACHE_TTL</code>, for example “15s”, reduces a significant amount of read
+pressure from Riak, increasing performance of the overall solution.</p>
+
+<h2 id="write-around-cache">Write-Around Cache</h2>
+
+<p>The read-through cache strategy requires a TTL to keep cache as coherent as possible given that writes to Riak KV can and will be issued without the cache proxy service being informed of the write. The effect is that the cache proxy service is eventually consistent with the underlying Riak KV data store, with the time to consistency equal to the TTL.</p>
+
+<p>The cache proxy service write-around cache strategy was introduced to provide a means to keep cache coherent with zero time to consistency with the underlying Riak KV data store for all writes that the cache proxy is informed of. For the Redis String (Value in KV) datatype, SET and DEL commands result in writes to the underlying Riak KV data store followed by a PEXPIRE to invalidate cache.</p>
+
+<p>Of the three write cache strategies, the write-around cache strategy is the least
+prone to race condition, but least optimal for the read which immediately follows
+the write. In the overwhelming majority of distributed application data access
+patterns, the added certainty of cache coherency afforded by write-around over
+write-through is well worth the single cache miss. By definition, a key that is
+cached is expected to be accessed frequently, hence the single cache miss is
+expected to be followed by several accurate cache hits.</p>
+
+<p>The write-around cache strategy of the SET command is represented by the
+following sequence diagram:</p>
+
+<p><img src="/images/redis/SET_seq.msc.png" alt="SET command sequence diagram" /></p>
+
+<p>The write-around cache strategy of the DEL command is represented by the
+following sequence diagram:</p>
+
+<p><img src="/images/redis/DEL_seq.msc.png" alt="DEL command sequence diagram" /></p>
+
+<h2 id="commands">Commands</h2>
+
+<p>For command details, refer to the Redis <a href="http://redis.io/commands">documentation</a>.</p>
+
+<p>The cache proxy service supports the following augmented Redis commands fully:</p>
+
+<ul>
+  <li>
+    <p>GET - get the value of a key from Redis or Riak KV utilizing the read-through
+caching strategy with a TTL set at service configuration time.</p>
+  </li>
+  <li>
+    <p>SET - set the value of a key to Riak KV and invalidate cache, issue a PEXPIRE
+to Redis.</p>
+  </li>
+  <li>
+    <p>DEL - delete the value of a key to Riak KV and invalidate cache, issue a
+PEXPIRE to Redis.</p>
+  </li>
+</ul>
+
+<p>The cache proxy service also supports the set of Redis commands supported by Twemproxy, but only to the point of pre-sharding and command pipelining, issued only to Redis. Refer to the Twemproxy <a href="https://github.com/twitter/twemproxy/blob/master/notes/redis.md">documentation</a>.</p>
+
+<blockquote>
+  <p><strong>Important:</strong> While the cache proxy service does support issuing DEL commands, PEXPIRE, with a small TTL, is suggested instead when the semantic intent is to remove an item from cache.  With write-around, the DEL command will issue a delete to the Riak backend.</p>
+</blockquote>
+
+<h2 id="object-lifetime">Object Lifetime</h2>
+
+<p>With the combination of read-through and write-around cache strategies, the
+full object lifetime for a key-value is represented by the following
+sequence diagram:</p>
+
+<p><img src="/images/redis/Object_lifetime.msc.png" alt="Object lifetime sequence diagram" /></p>

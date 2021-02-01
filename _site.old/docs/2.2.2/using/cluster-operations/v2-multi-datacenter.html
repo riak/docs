@@ -1,0 +1,446 @@
+<p>v2 Multi-Datacenter Replication is deprecated and will be removed in a future version. Please use <a href="/riak/kv/2.2.2/using/cluster-operations/v3-multi-datacenter/">v3</a> instead.</p>
+
+<p>Riak Enterprise’s Multi-Datacenter Replication system is largely
+controlled by the <code class="language-plaintext highlighter-rouge">riak-repl</code> command. The sections below detail the
+available subcommands.</p>
+
+<h2 id="add-listener">add-listener</h2>
+
+<p>Adds a listener (primary) to the given node, IP address, and port.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-listener &lt;nodename&gt; &lt;listen_ip&gt; &lt;port&gt;
+</code></pre></div></div>
+
+<p>Below is an example usage:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-listener riak@10.0.1.156 10.0.1.156 9010
+</code></pre></div></div>
+
+<h2 id="add-nat-listener">add-nat-listener</h2>
+
+<p>Adds a NAT-aware listener (primary) to the given node, IP address, port,
+NAT IP, and NAT port. If a non-NAT listener already exists with the same
+internal IP and port, it is “upgraded” to a NAT Listener.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-nat-listener &lt;nodename&gt; &lt;internal_ip&gt; &lt;internal_port&gt; &lt;nat_ip&gt; &lt;nat_port&gt;
+</code></pre></div></div>
+
+<p>Below is an example usage:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-nat-listener riak@10.0.1.156 10.0.1.156 9010 50.16.238.123 9010
+</code></pre></div></div>
+
+<h2 id="del-listener">del-listener</h2>
+
+<p>Removes and shuts down a listener (primary) on the given node, IP
+address, and port.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl del-listener &lt;nodename&gt; &lt;listen_ip&gt; &lt;port&gt;
+</code></pre></div></div>
+
+<p>Below is an example usage:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl del-listener riak@10.0.1.156 10.0.1.156 9010
+</code></pre></div></div>
+
+<h2 id="add-site">add-site</h2>
+
+<p>Adds a site (secondary) to the local node, connecting to the specified
+listener.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-site &lt;ipaddr&gt; &lt;portnum&gt; &lt;sitename&gt;
+</code></pre></div></div>
+
+<p>Below is an example usage:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl add-site 10.0.1.156 9010 newyork
+</code></pre></div></div>
+
+<h2 id="del-site">del-site</h2>
+
+<p>Removes a site (secondary) from the local node by name.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl del-site &lt;sitename&gt;
+</code></pre></div></div>
+
+<p>Below is an example usage:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl del-site newyork
+</code></pre></div></div>
+
+<h2 id="status">status</h2>
+
+<p>Obtains status information about replication. Reports counts on how much
+data has been transmitted, transfer rates, message queue lengths of
+clients and servers, number of fullsync operations, and connection
+status. This command only displays useful information on the leader
+node.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl status
+</code></pre></div></div>
+
+<h2 id="start-fullsync">start-fullsync</h2>
+
+<p>Manually initiates a fullsync operation with connected sites.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl start-fullsync
+</code></pre></div></div>
+
+<h2 id="cancel-fullsync">cancel-fullsync</h2>
+
+<p>Cancels any fullsync operations in progress. If a partition is in
+progress, synchronization will stop after that partition completes.
+During cancellation, <code class="language-plaintext highlighter-rouge">riak-repl status</code> will show <code class="language-plaintext highlighter-rouge">cancelled</code> in the
+status.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl cancel-fullsync
+</code></pre></div></div>
+
+<h2 id="pause-fullsync">pause-fullsync</h2>
+
+<p>Pauses any fullsync operations in progress. If a partition is in
+progress, synchronization will pause after that partition completes.
+While paused, <code class="language-plaintext highlighter-rouge">riak-repl status</code> will show <code class="language-plaintext highlighter-rouge">paused</code> in the status
+information. Fullsync may be cancelled while paused.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl pause-fullsync
+</code></pre></div></div>
+
+<h2 id="resume-fullsync">resume-fullsync</h2>
+
+<p>Resumes any fullsync operations that were paused. If a fullsync
+operation was running at the time of the pause, the next partition will
+be synchronized. If not, it will wait until the next <code class="language-plaintext highlighter-rouge">start-fullsync</code>
+command or <code class="language-plaintext highlighter-rouge">fullsync_interval</code>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl resume-fullsync
+</code></pre></div></div>
+
+<h2 id="riak-repl-status-output">riak-repl Status Output</h2>
+
+<p>The following definitions describe the output of the <code class="language-plaintext highlighter-rouge">riak-repl status</code>
+command. Please note that many of these statistics will only appear on
+the current leader node, and that all counts will be reset to 0 upon
+restarting Riak Enterprise.</p>
+
+<h3 id="client">Client</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_stats</code></td>
+      <td style="text-align: left">See <a href="http://docs.basho.com/riak/kv/2.2.2/using/reference/multi-datacenter/statistics/#client-statistics">Client Statistics</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_bytes_recv</code></td>
+      <td style="text-align: left">The total number of bytes the client has received since the server has been started</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_bytes_sent</code></td>
+      <td style="text-align: left">The total number of bytes sent to all connected sites</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_connect_errors</code></td>
+      <td style="text-align: left">The number of TCP/IP connection errors</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_connects</code></td>
+      <td style="text-align: left">A count of the number of site connections made to this node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_redirect</code></td>
+      <td style="text-align: left">If a client connects to a non-leader node, it will be redirected to a leader node</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_rx_kbps</code></td>
+      <td style="text-align: left">A snapshot of the client (site)-received kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">client_tx_kbps</code></td>
+      <td style="text-align: left">A snapshot of the client (site)-sent kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="server">Server</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_bytes_recv</code></td>
+      <td style="text-align: left">The total number of bytes the server (listener) has received</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_bytes_sent</code></td>
+      <td style="text-align: left">The total number of bytes the server (listener) has sent</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_connect_errors</code></td>
+      <td style="text-align: left">The number of listener to site connection errors</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_connects</code></td>
+      <td style="text-align: left">The number of times the listener connects to the client site</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_fullsyncs</code></td>
+      <td style="text-align: left">The number of fullsync operations that have occurred since the server was started</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_rx_kbps</code></td>
+      <td style="text-align: left">A snapshot of the server (listener) received kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_tx_kbps</code></td>
+      <td style="text-align: left">A snapshot of the server (listener) sent kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">server_stats</code></td>
+      <td style="text-align: left">See <a href="http://docs.basho.com/riak/kv/2.2.2/using/reference/multi-datacenter/statistics/#server-statistics">Server Statistics</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="elections-and-objects">Elections and Objects</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">elections_elected</code></td>
+      <td style="text-align: left">If the replication leader node becomes unresponsive or unavailable, a new leader node in the cluster will be elected</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">elections_leader_changed</code></td>
+      <td style="text-align: left">The number of times a Riak node has surrendered leadership</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">objects_dropped_no_clients</code></td>
+      <td style="text-align: left">If the realtime replication work queue is full and there aren’t any clients to receive objects, then objects will be dropped from the queue. These objects will be synchronized during a fullsync operation.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">objects_dropped_no_leader</code></td>
+      <td style="text-align: left">If a client (site) cannot connect to a leader, objects will be dropped during realtime replication</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">objects_forwarded</code></td>
+      <td style="text-align: left">The number of Riak objects forwarded to the leader the participate in replication. <em>Please note that this value will only be accurate on a non-leader node</em>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">objects_sent</code></td>
+      <td style="text-align: left">The number of objects sent via realtime replication</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="other">Other</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">listener_&lt;nodeid&gt;</code></td>
+      <td style="text-align: left">Defines a replication listener that is running on node <code class="language-plaintext highlighter-rouge">&lt;nodeid&gt;</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">[sitename]_ips</code></td>
+      <td style="text-align: left">Defines a replication site</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">leader</code></td>
+      <td style="text-align: left">Which node is the current leader of the cluster</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">local_leader_message_queue_len</code></td>
+      <td style="text-align: left">The length of the object queue on the leader</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">local_leader_heap_size </code></td>
+      <td style="text-align: left">The amount of memory the leader is using</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="client-statistics">Client Statistics</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node</code></td>
+      <td>A unique ID for the Riak node on which the client (site) is running</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">site</code></td>
+      <td>The connected site name configured with <code class="language-plaintext highlighter-rouge">riak-repl add-site</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">strategy</code></td>
+      <td>A replication strategy defines an implementation of the Riak Replication protocol. Valid values: <code class="language-plaintext highlighter-rouge">keylist</code>, <code class="language-plaintext highlighter-rouge">syncv1</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_worker</code></td>
+      <td>The Erlang process ID of the fullsync worker</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">waiting_to_retry</code></td>
+      <td>The listeners currently waiting to retry replication after a failure</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">connected</code></td>
+      <td>A list of connected clients&lt;ul&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">connected</code> — The IP address and port of a connected client (site)&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">cluster_name</code> — The name of the connected client (site)&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">connecting</code> — The PID, IP address, and port of a client currently establishing a connection&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">state</code></td>
+      <td>State shows what the current replication strategy is currently processing. The following definitions appear in the status output if keylist strategy is being used. They can be used by Basho support to identify replication issues.&lt;ul&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">request_partition</code>&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">wait_for_fullsync</code>&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">send_keylist</code>&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">wait_ack</code>&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="bounded-queue">Bounded Queue</h2>
+
+<p>The bounded queue is responsible for holding objects that are waiting to
+participate in realtime replication. Please see the <a href="/riak/kv/2.2.2/configuring/v2-multi-datacenter/">Riak Enterprise MDC Replication Configuration</a> guide for more information.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_pid</code></td>
+      <td>The Erlang process ID of the bounded queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">dropped_count</code></td>
+      <td>The number of objects that failed to be enqueued in the bounded queue due to the queue being full. <em>These objects will be replicated during the next fullsync operation</em>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_length</code></td>
+      <td>The number of Riak objects currently in the bounded queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_byte_size</code></td>
+      <td>The size of all objects currently in the queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_max_size</code></td>
+      <td>The number of bytes the queue can hold before objects are dropped. <em>These objects will be replicated during the next fullsync operation</em>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_percentage</code></td>
+      <td>The percentage of the queue that is full</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_pending</code></td>
+      <td>The current count of “in-flight” objects we’ve sent that the client has not acknowledged</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_max_pending</code></td>
+      <td>The maximum number of objects that can be “in flight” before we refuse to send any more.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="server-statistics">Server Statistics</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node</code></td>
+      <td>A unique ID for the Riak node on which the server (listener) is running</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">site</code></td>
+      <td>The connected site name configured with <code class="language-plaintext highlighter-rouge">riak-repl add-site</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">strategy</code></td>
+      <td>A replication strategy defines an implementation of the Riak Replication protocol. Valid values: <code class="language-plaintext highlighter-rouge">keylist</code> or <code class="language-plaintext highlighter-rouge">syncv1</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_worker</code></td>
+      <td>The Erlang process ID of the fullsync worker</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bounded_queue</code></td>
+      <td>See the <a href="http://docs.basho.com/riak/kv/2.2.2/using/cluster-operations/v2-multi-datacenter/#bounded-queue">Bounded Queue</a> section above</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">state</code></td>
+      <td>State shows what the current replication strategy is processing. The following definitions appear in the status output if the keylist strategy is being used. They can be used by Basho support to identify replication issues.&lt;ul&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">wait_for_partition</code>&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">build_keylist</code>&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">wait_keylist</code>&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">diff_bloom</code>&lt;/li&gt;&lt;li&gt;<code class="language-plaintext highlighter-rouge">diff_keylist</code>&lt;/li&gt;&lt;/ul&gt;s</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">message_queue_len</code></td>
+      <td>The number of Erlang messages that are waiting to be processed by the server</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="keylist-strategy">Keylist Strategy</h2>
+
+<p>These similar fields are under both the <code class="language-plaintext highlighter-rouge">keylist_server</code> and
+<code class="language-plaintext highlighter-rouge">keylist_client</code> fields. Any differences are described in the table.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync</code></td>
+      <td>On the client, the number of partitions that remain to be processed. On the server, the partition currently being processed by fullsync replication.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">partition_start</code></td>
+      <td>The number of elapsed seconds since replication has started on a given partition</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">stage_start</code></td>
+      <td>The number of elapsed seconds since replication has started on a given stage</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">get_pool_size</code></td>
+      <td>The number of Riak get finite state workers available to process requests</td>
+    </tr>
+  </tbody>
+</table>

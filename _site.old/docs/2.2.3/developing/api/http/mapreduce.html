@@ -1,0 +1,61 @@
+<p><a href="/riak/kv/2.2.3/developing/usage/mapreduce">MapReduce</a> is a generic way to query Riak by specifying inputs and constructing a set of map, reduce, and link phases through which data will flow.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>POST /mapred
+</code></pre></div></div>
+
+<p>Important headers:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Content-Type</code> - must always be <code class="language-plaintext highlighter-rouge">application/json</code>.  The format of the request body is described in detail on the <a href="/riak/kv/2.2.3/developing/usage/mapreduce">MapReduce</a> page.</li>
+</ul>
+
+<p>Optional query parameters:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">chunked</code> - when set to <code class="language-plaintext highlighter-rouge">true</code>, results will be returned as they are received in <code class="language-plaintext highlighter-rouge">multipart/mixed</code> format using chunked-encoding.</li>
+</ul>
+
+<p><em>+This request must include an entity (body), which is the JSON form of the MapReduce query.+</em></p>
+
+<h2 id="response">Response</h2>
+
+<p>Normal status codes:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+</ul>
+
+<p>Typical error codes:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">400 Bad Request</code> - if an invalid job is submitted.</li>
+  <li><code class="language-plaintext highlighter-rouge">500 Internal Server Error</code> - if there was an error in processing a map or reduce function</li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> - if the job timed out before it could complete</li>
+</ul>
+
+<p>Important headers:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Content-Type</code> - <code class="language-plaintext highlighter-rouge">application/json</code> when <code class="language-plaintext highlighter-rouge">chunked</code> is not true, otherwise <code class="language-plaintext highlighter-rouge">multipart/mixed</code> with <code class="language-plaintext highlighter-rouge">application/json</code> sections.</li>
+</ul>
+
+<h2 id="example">Example</h2>
+
+<pre><code class="language-curl">$ curl -v -d '{"inputs":"test", "query":[{"link":{"bucket":"test"}},{"map":{"language":"javascript","name":"Riak.mapValuesJson"}}]}' -H "Content-Type: application/json" http://127.0.0.1:8098/mapred
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; POST /mapred HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt; Content-Type: application/json
+&gt; Content-Length: 117
+&gt;
+&lt; HTTP/1.1 200 OK
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 30
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+[{"foo":"bar"},{"riak":"CAP"}]
+</code></pre>

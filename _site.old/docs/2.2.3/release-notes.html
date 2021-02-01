@@ -1,0 +1,13 @@
+<p>Released April 3, 2017.</p>
+
+<p>In fixing a <code class="language-plaintext highlighter-rouge">riak</code> and <code class="language-plaintext highlighter-rouge">riak-admin</code> <a href="https://github.com/basho/node_package/pull/210">issue</a>, we inadvertently used a Bash-specific script variable (<code class="language-plaintext highlighter-rouge">$RANDOM</code>), causing the riak attach and riak top commands to fail on Ubuntu when /bin/sh is aliased to Dash.</p>
+
+<h2 id="bugs-fixed">Bugs Fixed</h2>
+
+<ul>
+  <li>[<a href="https://github.com/basho/riak/pull/909">riak PR 909</a> &amp; <a href="https://github.com/basho/node_package/pull/217">node_package PR 217</a>] Replace <code class="language-plaintext highlighter-rouge">$RANDOM</code> with PID to support non-Bash.</li>
+</ul>
+
+<h2 id="previous-release-notes">Previous Release Notes</h2>
+
+<p>Please see the KV 2.2.2 release notes <a href="/riak/kv/2.2.2/release-notes/">here</a>, and the KV 2.2.1 release notes <a href="/riak/kv/2.2.1/release-notes/">here</a>.</p>

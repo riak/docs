@@ -1,0 +1,39 @@
+<p>Retrieve a search index from Riak Search.</p>
+
+<h2 id="request">Request</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">name</code> parameter is the name of the index to fetch as a binary.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaIndexGetReq</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">name</span>  <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="response">Response</h2>
+
+<p>If a <code class="language-plaintext highlighter-rouge">name</code> is passed through the <code class="language-plaintext highlighter-rouge">RpbYokozunaIndexGetReq</code> request, zero
+or one <code class="language-plaintext highlighter-rouge">index</code> objects are returned. If <code class="language-plaintext highlighter-rouge">name</code> is empty, then a list of
+all indexes will be returned.</p>
+
+<p>Both requests will return a response of this form.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaIndexGetResp</span> <span class="p">{</span>
+    <span class="k">repeated</span> <span class="n">RpbYokozunaIndex</span> <span class="na">index</span>  <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>This message will contain any number of <code class="language-plaintext highlighter-rouge">RpbYokozunaIndex</code> messages,
+depending on how many indexes are returned.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaIndex</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">name</span>   <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">schema</span> <span class="o">=</span>  <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">n_val</span> <span class="o">=</span>  <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Each message specifying an index must include the index’s name as a
+binary (as <code class="language-plaintext highlighter-rouge">name</code>). Optionally, you can specify a <a href="/riak/kv/2.1.1/developing/usage/search-schemas"><code class="language-plaintext highlighter-rouge">schema</code></a> name and/or an <code class="language-plaintext highlighter-rouge">n_val</code>, i.e. the number of nodes on which the
+index is stored (for GET requests) or on which you wish the index to be
+stored (for PUT requests). An index’s <code class="language-plaintext highlighter-rouge">n_val</code> must match the associated
+bucket’s <code class="language-plaintext highlighter-rouge">n_val</code>.</p>

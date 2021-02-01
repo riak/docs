@@ -1,0 +1,15 @@
+<p>Gets the bucket properties associated with a <a href="/riak/kv/2.2.1/using/cluster-operations/bucket-types">bucket type</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbGetBucketTypeReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Only the name of the bucket type needs to be specified (under <code class="language-plaintext highlighter-rouge">name</code>).</p>
+
+<h2 id="response">Response</h2>
+
+<p>A bucket type’s properties will be sent to the client as part of an
+<a href="/riak/kv/2.2.1/developing/api/protocol-buffers/get-bucket-props"><code class="language-plaintext highlighter-rouge">RpbBucketProps</code></a> message.</p>

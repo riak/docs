@@ -1,0 +1,89 @@
+<p>Sets bucket properties like “n_val” and “allow_mult”.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PUT /buckets/bucket/props
+</code></pre></div></div>
+
+<p>Important headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Content-Type</code> - <code class="language-plaintext highlighter-rouge">application/json</code></li>
+</ul>
+
+<p>The body of the request should be a JSON object with a single entry “props”.
+Unmodified bucket properties may be omitted.</p>
+
+<p>Available properties:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">n_val</code> (integer &gt; 0) - the number of replicas for objects in this bucket</li>
+  <li><code class="language-plaintext highlighter-rouge">allow_mult</code> (true or false) - whether to allow sibling objects to be created
+(concurrent updates)</li>
+  <li><code class="language-plaintext highlighter-rouge">last_write_wins</code> (true or false) - whether to ignore object history (vector
+clock) when writing</li>
+  <li><code class="language-plaintext highlighter-rouge">precommit</code> - <a href="/riak/kv/2.1.4/developing/usage/commit-hooks">precommit hooks</a></li>
+  <li><code class="language-plaintext highlighter-rouge">postcommit</code> - <a href="/riak/kv/2.1.4/developing/usage/commit-hooks">postcommit hooks</a></li>
+  <li><code class="language-plaintext highlighter-rouge">r, w, dw, rw</code> - default quorum values for operations on keys in the bucket.
+Valid values are:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">"all"</code> - all nodes must respond</li>
+      <li><code class="language-plaintext highlighter-rouge">"quorum"</code> - (n_val/2) + 1 nodes must respond. <em>This is the default.</em></li>
+      <li><code class="language-plaintext highlighter-rouge">"one"</code> - equivalent to 1</li>
+      <li><em>Any integer</em> - must be less than or equal to n_val</li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">backend</code> - when using <code class="language-plaintext highlighter-rouge">riak_kv_multi_backend</code>, which named backend to use for
+the bucket</li>
+</ul>
+
+<p>Other properties do exist but are not commonly modified.</p>
+
+<p>Make sure you use the proper types for attributes like <strong>n_val</strong> and
+<strong>allow_mult</strong>. If you use strings instead of integers and booleans
+respectively, you may see some odd errors in your logs, saying something like
+<code class="language-plaintext highlighter-rouge">"{badarith,[{riak_kv_util,normalize_rw_value,2},]}"</code>.</p>
+
+<h2 id="response">Response</h2>
+
+<p>Normal status codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">204 No Content</code></li>
+</ul>
+
+<p>Typical error codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">400 Bad Request</code> - if the submitted JSON is invalid</li>
+  <li><code class="language-plaintext highlighter-rouge">415 Unsupported Media Type</code> - if the Content-Type was not set to
+application/json in the request</li>
+</ul>
+
+<p>If successful, no content will be returned in the response body.</p>
+
+<h2 id="example">Example</h2>
+
+<pre><code class="language-curl">$ curl -v -XPUT http://127.0.0.1:8098/buckets/test/props \
+       -H "Content-Type: application/json" -d '{"props":{"n_val":5}}'
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; PUT /buckets/test/props HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4
+OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt; Content-Type: application/json
+&gt; Content-Length: 21
+&gt;
+&lt; HTTP/1.1 204 No Content
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 0
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+</code></pre>

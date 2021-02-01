@@ -1,0 +1,351 @@
+
+<p>This document explains usage of the <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster"><code class="language-plaintext highlighter-rouge">riak-admin cluster</code></a> interface, which enables you to perform a wide
+variety of cluster-level actions.</p>
+
+<h2 id="how-cluster-administration-works">How Cluster Administration Works</h2>
+
+<p>Riak provides a multi-phased approach to cluster administration that
+enables you to stage and review cluster-level changes prior to
+committing them. This allows you to group multiple changes together,
+such as adding multiple nodes at once, adding some nodes and removing
+others, etc.</p>
+
+<p>Enacting cluster-level changes typically follows this set of steps:</p>
+
+<ol>
+  <li>Choose an action or set of actions, such as adding a node, removing
+multiple nodes, etc. These actions will be <strong>staged</strong> rather than
+executed immediately.</li>
+  <li><strong>Plan</strong> the changes using the <a href="#plan"><code class="language-plaintext highlighter-rouge">cluster plan</code></a> command. This will return a list of staged
+commands that you can review.</li>
+  <li><strong>Commit</strong> the changes using the <a href="#commit"><code class="language-plaintext highlighter-rouge">cluster commit</code></a> command. This will execute the changes that
+have been staged and reviewed.</li>
+</ol>
+
+<blockquote>
+  <p><strong>Note on command names</strong></p>
+
+  <p>Many of the commands available through the <code class="language-plaintext highlighter-rouge">riak-admin cluster</code>
+interface are also available as self-standing commands. The <code class="language-plaintext highlighter-rouge">riak-admin
+member-status</code> command is now the <code class="language-plaintext highlighter-rouge">riak-admin cluster status</code> command,
+<code class="language-plaintext highlighter-rouge">riak-admin join</code> is now <code class="language-plaintext highlighter-rouge">riak-admin cluster join</code>, etc.</p>
+
+  <p>We recommend using the <code class="language-plaintext highlighter-rouge">riak-admin cluster</code> interface over the older,
+deprecated commands. You will receive a deprecation warning if you use
+the older commands.</p>
+</blockquote>
+
+<h2 id="status">status</h2>
+
+<p>Displays a variety of information about the cluster.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster status
+</code></pre></div></div>
+
+<p>This will return output like the following in a 3-node cluster:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>---- Cluster Status ----
+Ring ready: true
+
++--------------------+------+-------+-----+-------+
+|        node        |status| avail |ring |pending|
++--------------------+------+-------+-----+-------+
+| (C) dev1@127.0.0.1 |valid |  up   | 34.4|  --   |
+|     dev2@127.0.0.1 |valid |  up   | 32.8|  --   |
+|     dev3@127.0.0.1 |valid |  up   | 32.8|  --   |
++--------------------+------+-------+-----+-------+
+</code></pre></div></div>
+
+<p>In the above output, <code class="language-plaintext highlighter-rouge">Ring ready</code> denotes whether or not the cluster
+agrees on <a href="/riak/kv/2.1.4/learn/concepts/clusters">the ring</a>, i.e. whether the cluster is
+ready to begin taking requests.</p>
+
+<p>The following information is then displayed for each node, by nodename
+(in this case <code class="language-plaintext highlighter-rouge">dev1@127.0.0.1</code>, etc.):</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">status</code> — There are five possible values for status:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">valid</code> — The node has begun participating in cluster operations</li>
+      <li><code class="language-plaintext highlighter-rouge">leaving</code> — The node is is currently unloading ownership of its
+<a href="/riak/kv/2.1.4/learn/concepts/clusters">data partitions</a> to other nodes</li>
+      <li><code class="language-plaintext highlighter-rouge">exiting</code> — The node’s ownership transfers are complete and it is
+currently shutting down</li>
+      <li><code class="language-plaintext highlighter-rouge">joining</code> — The node is in the process of joining the cluster but
+but has not yet completed the join process</li>
+      <li><code class="language-plaintext highlighter-rouge">down</code> — The node is not currently responding</li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">avail</code> — There are two possible values: <code class="language-plaintext highlighter-rouge">up</code> if the node is
+  available and taking requests and <code class="language-plaintext highlighter-rouge">down!</code> if the node is unavailable</li>
+  <li><code class="language-plaintext highlighter-rouge">ring</code> — What percentage of the Riak <a href="/riak/kv/2.1.4/learn/concepts/clusters">ring</a> the
+node is responsible for</li>
+  <li><code class="language-plaintext highlighter-rouge">pending</code> — The number of pending transfers to or from the node</li>
+</ul>
+
+<p>In addition, the cluster’s <a href="/riak/kv/2.1.4/using/cluster-operations/adding-removing-nodes">claimant node</a> node will have a <code class="language-plaintext highlighter-rouge">(C)</code> next
+to it.</p>
+
+<h2 id="join">join</h2>
+
+<p>Joins the current node to another node in the cluster.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster <span class="nb">join</span> &lt;node&gt;
+</code></pre></div></div>
+
+<p>You <em>must</em> specify a node to join to by nodename. You can join to any
+node in the cluster. The following would join the current node to
+<code class="language-plaintext highlighter-rouge">riak1@127.0.0.1</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster <span class="nb">join </span>riak1@127.0.0.1
+</code></pre></div></div>
+
+<p>Once a node joins, all of the operations necessary to establish
+communication with all other nodes proceeds automatically.</p>
+
+<blockquote>
+  <p><strong>Note</strong>: As with all cluster-level actions, the changes made when you
+run the <code class="language-plaintext highlighter-rouge">cluster join</code> command will take effect only after you have both
+planned the changes by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-plan"><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></a> and committed the changes by running
+<a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-commit"><code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code></a>.
+You can stage multiple joins before planning/committing.</p>
+</blockquote>
+
+<h2 id="leave">leave</h2>
+
+<p>Instructs the current node to hand off its
+<a href="/riak/kv/2.1.4/learn/concepts/clusters">data partitions</a>, leave the cluster, and shut down.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster leave
+</code></pre></div></div>
+
+<p>You can also instruct another node (by nodename) to leave the cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster leave &lt;node&gt;
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note</strong>: As with all cluster-level actions, the changes made when you
+run the <code class="language-plaintext highlighter-rouge">cluster leave</code> command will take effect only after you have
+both planned the changes by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-plan"><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></a> and committed the changes
+by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-commit"><code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code></a>.
+You can stage multiple leave command before planning/committing.</p>
+</blockquote>
+
+<h2 id="force-remove">force-remove</h2>
+
+<p>Removes another node from the cluster (by nodename) <em>without</em> first
+handing off its <a href="/riak/kv/2.1.4/learn/concepts/clusters">data partitions</a>. This command is
+designed for crashed, unrecoverable nodes and should be used with
+caution.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster force-remove &lt;node&gt;
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note</strong>: As with all cluster-level actions, the changes made when you
+run the <code class="language-plaintext highlighter-rouge">cluster force-remove</code> command will take effect only after you have
+both planned the changes by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-plan"><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></a> and committed the changes
+by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-commit"><code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code></a>. You can stage multiple force-remove actions
+before planning/committing.</p>
+</blockquote>
+
+<h2 id="replace">replace</h2>
+
+<p>Instructs a node to transfer all of its <a href="/riak/kv/2.1.4/learn/concepts/clusters">data partitions</a> to another node and then to leave the
+cluster and shut down.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster replace &lt;node1&gt; &lt;node2&gt;
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note</strong>: As with all cluster-level actions, the changes made when you
+run the <code class="language-plaintext highlighter-rouge">cluster replace</code> command will take effect only after you have
+both planned the changes by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-plan"><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></a> and committed the changes
+by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-commit"><code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code></a>. You can stage multiple replace actions before
+planning/committing.</p>
+</blockquote>
+
+<h2 id="force-replace">force-replace</h2>
+
+<p>Reassigns all <a href="/riak/kv/2.1.4/learn/concepts/clusters">data partitions</a> owned by one node to
+another node <em>without</em> first handing off data.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster force-replace &lt;node_being_replaced&gt; &lt;replacement_node&gt;
+</code></pre></div></div>
+
+<p>Once the data partitions have been reassigned, the node that is being
+replaced will be removed from the cluster.</p>
+
+<blockquote>
+  <p><strong>Note</strong>: As with all cluster-level actions, the changes made when you
+run the <code class="language-plaintext highlighter-rouge">cluster force-replace</code> command will take effect only after you have
+both planned the changes by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-plan"><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></a> and committed the changes
+by running <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-commit"><code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code></a>. You can stage multiple force-replace actions
+before planning/committing.</p>
+</blockquote>
+
+<h2 id="plan">plan</h2>
+
+<p>Displays the currently staged cluster changes.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster plan
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code> is complex, depending on the staged changes.</p>
+
+<ul>
+  <li>If a <code class="language-plaintext highlighter-rouge">leave</code> operation has been staged, <code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code> will undo the staged change and no node will be stopped.</li>
+  <li>If a <code class="language-plaintext highlighter-rouge">join</code> operation has been staged, the joining node will be shut down after its ring has been cleared. When this node restarts, it will behave like a fresh unjoined node and can be joined again.</li>
+  <li>If a <code class="language-plaintext highlighter-rouge">cluster clear</code> operation is staged on a node that remains in the cluster, running <code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code> will leave the node unaffected.</li>
+</ul>
+
+<p>If there is no current cluster plan, the output will be <code class="language-plaintext highlighter-rouge">There are no
+staged changes</code>.</p>
+
+<p>If there is a staged change (or changes), however, you
+will see a detailed listing of what will take place upon commit, what
+the cluster will look like afterward, etc.</p>
+
+<p>For example, if a <code class="language-plaintext highlighter-rouge">cluster leave</code> operation is staged in a 3-node cluster the output will look something like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>=============================== Staged Changes ================================
+Action         Details(s)
+-------------------------------------------------------------------------------
+leave          'dev2@127.0.0.1'
+-------------------------------------------------------------------------------
+
+
+NOTE: Applying these changes will result in 2 cluster transitions
+
+###############################################################################
+                         After cluster transition 1/2
+###############################################################################
+
+================================= Membership ==================================
+Status     Ring    Pending    Node
+-------------------------------------------------------------------------------
+leaving    32.8%      0.0%    'dev2@127.0.0.1'
+valid      34.4%     50.0%    'dev1@127.0.0.1'
+valid      32.8%     50.0%    'dev3@127.0.0.1'
+-------------------------------------------------------------------------------
+Valid:2 / Leaving:1 / Exiting:0 / Joining:0 / Down:0
+
+WARNING: Not all replicas will be on distinct nodes
+
+Transfers resulting from cluster changes: 38
+  6 transfers from 'dev1@127.0.0.1' to 'dev3@127.0.0.1'
+  11 transfers from 'dev3@127.0.0.1' to 'dev1@127.0.0.1'
+  5 transfers from 'dev2@127.0.0.1' to 'dev1@127.0.0.1'
+  16 transfers from 'dev2@127.0.0.1' to 'dev3@127.0.0.1'
+
+###############################################################################
+                        After cluster transition 2/2
+###############################################################################
+
+================================= Membership ==================================
+Status     Ring    Pending    Node
+-------------------------------------------------------------------------------
+valid      50.0%      --      'dev1@127.0.0.1'
+valid      50.0%      --      'dev3@127.0.0.1'
+-------------------------------------------------------------------------------
+Valid:2 / Leaving:0 / Exiting:0 / Joining:0 / Down:0
+
+WARNING: Not all replicas will be on distinct nodes
+</code></pre></div></div>
+
+<p>Notice that there are distinct sections of the output for each of the
+transitions that the cluster will undergo, including warnings, planned
+data transfers, etc.</p>
+
+<h2 id="commit">commit</h2>
+
+<p>Commits the currently staged cluster changes. Staged cluster changes
+must be reviewed using <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster-plan"><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></a> prior to being committed.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster commit
+</code></pre></div></div>
+
+<h2 id="clear">clear</h2>
+
+<p>Clears the currently staged cluster changes.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster clear
+</code></pre></div></div>
+
+<h2 id="partitions">partitions</h2>
+
+<p>Prints primary, secondary, and stopped partition indices and IDs either
+for the current node or for another, specified node. The following
+prints that information for the current node:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster partitions
+</code></pre></div></div>
+
+<p>This would print the partition information for a different node in the
+cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster partitions <span class="nt">--node</span><span class="o">=</span>&lt;node&gt;
+</code></pre></div></div>
+
+<p>Partition information is contained in a table like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Partitions owned by 'dev1@127.0.0.1':
++---------+-------------------------------------------------+--+
+|  type   |                      index                      |id|
++---------+-------------------------------------------------+--+
+| primary |                        0                        |0 |
+| primary | 91343852333181432387730302044767688728495783936 |4 |
+| primary |182687704666362864775460604089535377456991567872 |8 |
+|   ...   |                      ....                       |..|
+| primary |1438665674247607560106752257205091097473808596992|63|
+|secondary|                       --                        |--|
+| stopped |                       --                        |--|
++---------+-------------------------------------------------+--+
+</code></pre></div></div>
+
+<h2 id="partition-count">partition-count</h2>
+
+<p>Displays the current partition count either for the whole cluster or for
+a particular node. This would display the partition count for the
+cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster partition-count
+</code></pre></div></div>
+
+<p>This would display the count for a node:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster partition-count <span class="nt">--node</span><span class="o">=</span>&lt;node&gt;
+</code></pre></div></div>
+
+<p>When retrieving the partition count for a node, you’ll see a table like
+this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+--------------+----------+-----+
+|     node     |partitions| pct |
++--------------+----------+-----+
+|dev1@127.0.0.1|    22    | 34.4|
++--------------+----------+-----+
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">partitions</code> column displays the number of partitions claimed by the
+node, while the <code class="language-plaintext highlighter-rouge">pct</code> column displays the percentage of the ring claimed.</p>
+
+<h2 id="partition">partition</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">cluster partition</code> command enables you to convert partition IDs to
+indexes and vice versa using the <code class="language-plaintext highlighter-rouge">partition id</code> and <code class="language-plaintext highlighter-rouge">partition index</code>
+commands, respectively. Let’s say that you run the <code class="language-plaintext highlighter-rouge">riak-admin cluster
+partitions</code> command and see that you have a variety of partitions, one
+of which has an index of
+<code class="language-plaintext highlighter-rouge">1004782375664995756265033322492444576013453623296</code>. You can convert
+that index to an ID like this:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster partition <span class="nv">index</span><span class="o">=</span>1004782375664995756265033322492444576013453623296
+</code></pre></div></div>
+
+<p>Conversely, if you have a partition with an ID of 20, you can retrieve
+the corresponding index:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster partition <span class="nb">id</span><span class="o">=</span>20
+</code></pre></div></div>

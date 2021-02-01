@@ -1,0 +1,242 @@
+
+<p>Deploying Riak KV to a realtime production environment from a development or testing environment can be a complex process. While the specifics of that process will always depend on your environment and practices, there are some basics for you to consider and a few questions that you will want to ask while making this transition.</p>
+
+<p>We’ve compiled these considerations and questions into separate categories for you to look over.</p>
+
+<h2 id="system">System</h2>
+
+<ul>
+  <li>Are all systems in your cluster as close to identical as possible in
+terms of both hardware and software?</li>
+  <li>Have you set appropriate <a href="/riak/kv/2.2.0/using/performance/open-files-limit">open files limits</a> on all
+of your systems?</li>
+  <li>Have you applied the <a href="/riak/kv/2.2.0/using/performance">Riak KV performance improvement recommendations</a>?</li>
+</ul>
+
+<h2 id="network">Network</h2>
+
+<ul>
+  <li>Are all systems using the same <a href="http://www.ntp.org/">NTP servers</a> to
+synchronize clocks?</li>
+  <li>Are you sure that your NTP clients’ configuration is monotonic (i.e.
+that your clocks will not roll back)?</li>
+  <li>Is DNS correctly configured for all systems’ production deployments?</li>
+  <li>Are connections correctly routed between all Riak nodes?</li>
+  <li>Are connections correctly set up in your load balancer?</li>
+  <li>Are your <a href="/riak/kv/2.2.0/using/security/basics">firewalls</a> correctly configured?</li>
+  <li>Check that network latency and throughput are as expected for all of the
+following (we suggest using <a href="http://www.ntp.org/">iperf</a> to verify):
+    <ul>
+      <li>between nodes in the cluster</li>
+      <li>between the load balancer and all nodes in the cluster</li>
+      <li>between application servers and the load balancer</li>
+    </ul>
+  </li>
+  <li>Do all Riak nodes appear in the load balancer’s rotation?</li>
+  <li>Is the load balancer configured to balance connections with roundrobin
+or a similarly random <a href="/riak/kv/2.2.0/configuring/load-balancing-proxy">distribution scheme</a>?</li>
+</ul>
+
+<h2 id="riak-kv">Riak KV</h2>
+
+<ul>
+  <li>Check <a href="/riak/kv/2.2.0/configuring/reference">configuration files</a>:
+    <ul>
+      <li>Does each machine have the correct name and IP settings in
+<code class="language-plaintext highlighter-rouge">riak.conf</code> (or in <code class="language-plaintext highlighter-rouge">app.config</code> if you’re using the older
+configuration files)?</li>
+      <li>Are all <a href="/riak/kv/2.2.0/configuring/reference">configurable settings</a> identical
+across the cluster?</li>
+      <li>Have all of the settings in your configuration file(s) that were
+changed for debugging purposes been reverted back to production
+settings?</li>
+      <li>If you’re using <a href="/riak/kv/2.2.0/configuring/backend">multiple data backends</a>, are all of your
+bucket types configured to use the correct backend?</li>
+      <li>If you are using Riak Security, have you checked off all items in
+the <a href="/riak/kv/2.2.0/using/security/basics">security checklist</a> and turned on security?</li>
+      <li>If you’re using <a href="/riak/kv/2.2.0/configuring/backend">multiple data backends</a>, do all machines’
+config files agree on their configuration?</li>
+      <li>Do all nodes agree on the value of the [<code class="language-plaintext highlighter-rouge">allow_mult</code>][config basic] setting?</li>
+      <li>Do you have a <a href="/riak/kv/2.2.0/developing/usage/conflict-resolution">sibling resolution</a> strategy in
+place if <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">true</code>?</li>
+      <li>Have you carefully weighed the <a href="/riak/kv/2.2.0/learn/concepts/eventual-consistency">consistency trade-offs</a> that must be made if <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">false</code>?</li>
+      <li>Are all of your <a href="/riak/kv/2.2.0/developing/app-guide/replication-properties">apps replication properties</a> configured correctly and uniformly across the cluster?</li>
+      <li>If you are using <a href="/riak/kv/2.2.0/developing/usage/search">Riak Search</a>, is it enabled on all
+nodes? If you are not, has it been disabled on all nodes?</li>
+      <li>If you are using <a href="/riak/kv/2.2.0/using/reference/strong-consistency">strong consistency</a> for some or all of your
+data:
+        <ul>
+          <li>Does your cluster consist of at least three nodes? If it does
+not, you will not be able to use this feature, and you are
+advised against enabling it.</li>
+          <li>If your cluster does consist of at least three nodes, has the
+strong consistency subsystem been [enabled][config strong consistency] on all nodes?</li>
+          <li>Is the <a href="/riak/kv/2.2.0/configuring/reference"><code class="language-plaintext highlighter-rouge">target_n_val</code></a> that is set on each node higher than any <code class="language-plaintext highlighter-rouge">n_val</code> that you intend to use for strongly consistent bucket types (or any bucket types for that matter)? The default is 4, which will likely need to be raised if you are using strong consistency.</li>
+        </ul>
+      </li>
+      <li>Have all <a href="/riak/kv/2.2.0/using/cluster-operations/bucket-types">bucket types</a> that you intend to use
+been created and successfully activated?</li>
+      <li>If you are using <a href="/riak/kv/2.2.0/using/admin/riak-control"><code class="language-plaintext highlighter-rouge">riak_control</code></a>, is it enabled on the node(s) from which you intend to use it?</li>
+    </ul>
+  </li>
+  <li>Check data mount points:
+    <ul>
+      <li>Is <code class="language-plaintext highlighter-rouge">/var/lib/riak</code> mounted?</li>
+      <li>Can you grow that disk later when it starts filling up?</li>
+      <li>Do all nodes have their own storage systems (i.e. no
+<a href="http://en.wikipedia.org/wiki/Storage_area_network">SANs</a>), or do you have a plan in place for switching to that configuration later?</li>
+    </ul>
+  </li>
+  <li>Are all Riak KV nodes up?
+    <ul>
+      <li>Run <code class="language-plaintext highlighter-rouge">riak ping</code> on all nodes. You should get <code class="language-plaintext highlighter-rouge">pong</code> as a response.</li>
+      <li>
+        <p>Run <code class="language-plaintext highlighter-rouge">riak-admin wait-for-service riak_kv &lt;node_name&gt;@&lt;IP&gt;</code> on each
+node. You should get <code class="language-plaintext highlighter-rouge">riak_kv is up</code> as a response.</p>
+
+        <p>The <code class="language-plaintext highlighter-rouge">&lt;node_name&gt;@&lt;IP&gt;</code> string should come from your [configuration
+file(s)][configure reference].</p>
+      </li>
+    </ul>
+  </li>
+  <li>Do all nodes agree on the ring state?
+    <ul>
+      <li>Run <code class="language-plaintext highlighter-rouge">riak-admin ringready</code>. You should get <code class="language-plaintext highlighter-rouge">TRUE ALL nodes agree on
+the ring [list_of_nodes]</code>.</li>
+      <li>Run <code class="language-plaintext highlighter-rouge">riak-admin member-status</code>. All nodes should be valid (i.e.
+listed as <code class="language-plaintext highlighter-rouge">Valid: 1</code>), and all nodes should appear in the list</li>
+      <li>Run <code class="language-plaintext highlighter-rouge">riak-admin ring-status</code>. The ring should be ready (<code class="language-plaintext highlighter-rouge">Ring Ready:
+true</code>), there should be no unreachable nodes (<code class="language-plaintext highlighter-rouge">All nodes are up and
+reachable</code>), and there should be no pending changes to the ring
+(<code class="language-plaintext highlighter-rouge">No pending changes</code>).</li>
+      <li>Run <code class="language-plaintext highlighter-rouge">riak-admin transfers</code>. There should be no active transfers (<code class="language-plaintext highlighter-rouge">No
+transfers active</code>).</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="operations">Operations</h2>
+
+<ul>
+  <li>Does your monitoring system ensure that <a href="http://www.ntp.org/">NTP</a> is
+running?</li>
+  <li>Are you collecting <a href="/riak/kv/2.2.0/using/cluster-operations/inspecting-node">time series data</a> on
+the whole cluster?
+    <ul>
+      <li>System metrics
+        <ul>
+          <li>CPU load</li>
+          <li>Memory used</li>
+          <li>Network throughput</li>
+          <li>Disk space used/available</li>
+          <li>Disk input/output operations per second (IOPS)</li>
+        </ul>
+      </li>
+      <li>Riak metrics (from the <a href="/riak/kv/2.2.0/using/troubleshooting/http-204"><code class="language-plaintext highlighter-rouge">/stats</code></a> HTTP endpoint or
+using <a href="/riak/kv/2.2.0/using/admin/riak-admin"><code class="language-plaintext highlighter-rouge">riak-admin</code></a>)
+        <ul>
+          <li>Latencies: <code class="language-plaintext highlighter-rouge">GET</code> and <code class="language-plaintext highlighter-rouge">PUT</code> (mean/median/95th/99th/100th)</li>
+          <li>Vnode stats: <code class="language-plaintext highlighter-rouge">GET</code>s, <code class="language-plaintext highlighter-rouge">PUT</code>s, <code class="language-plaintext highlighter-rouge">GET</code> totals, <code class="language-plaintext highlighter-rouge">PUT</code> totals</li>
+          <li>Node stats: <code class="language-plaintext highlighter-rouge">GET</code>s, <code class="language-plaintext highlighter-rouge">PUT</code>s, <code class="language-plaintext highlighter-rouge">GET</code> totals, <code class="language-plaintext highlighter-rouge">PUT</code> totals</li>
+          <li>Finite state machine (FSM) stats:
+            <ul>
+              <li><code class="language-plaintext highlighter-rouge">GET</code>/<code class="language-plaintext highlighter-rouge">PUT</code> FSM <code class="language-plaintext highlighter-rouge">objsize</code> (99th and 100th percentile)</li>
+              <li><code class="language-plaintext highlighter-rouge">GET</code>/<code class="language-plaintext highlighter-rouge">PUT</code> FSM <code class="language-plaintext highlighter-rouge">times</code> (mean/median/95th/99th/100th)</li>
+            </ul>
+          </li>
+          <li>Protocol buffer connection stats
+            <ul>
+              <li><code class="language-plaintext highlighter-rouge">pbc_connects</code></li>
+              <li><code class="language-plaintext highlighter-rouge">pbc_active</code></li>
+              <li><code class="language-plaintext highlighter-rouge">pbc_connects_total</code></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>Are the following being graphed (at least the key metrics)?
+    <ul>
+      <li>Basic system status</li>
+      <li>Median and 95th and 99th percentile latencies (as these tend to be
+leading indicators of trouble)</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="application-and-load">Application and Load</h2>
+
+<ul>
+  <li>Have you benchmarked your cluster with simulated load to confirm that
+your configuration will meet your performance needs?</li>
+  <li>Are the [develop client libraries] in use in your application up to date?</li>
+  <li>Do the client libraries that you’re using support the version of Riak KV
+that you’re deploying?</li>
+</ul>
+
+<h2 id="confirming-configuration-with-riaknostic">Confirming Configuration with Riaknostic</h2>
+
+<p>Recent versions of Riak KV ship with Riaknostic, a diagnostic utility that
+can be invoked by running <code class="language-plaintext highlighter-rouge">riak-admin diag &lt;check&gt;</code>, where <code class="language-plaintext highlighter-rouge">check</code> is
+one of the following:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">disk</code></li>
+  <li><code class="language-plaintext highlighter-rouge">dumps</code></li>
+  <li><code class="language-plaintext highlighter-rouge">memory_use</code></li>
+  <li><code class="language-plaintext highlighter-rouge">nodes_connected</code></li>
+  <li><code class="language-plaintext highlighter-rouge">ring_membership</code></li>
+  <li><code class="language-plaintext highlighter-rouge">ring_preflists</code></li>
+  <li><code class="language-plaintext highlighter-rouge">ring_size</code></li>
+  <li><code class="language-plaintext highlighter-rouge">search</code></li>
+  <li><code class="language-plaintext highlighter-rouge">sysctl</code></li>
+</ul>
+
+<p>Running <code class="language-plaintext highlighter-rouge">riak-admin diag</code> with no additional arguments will run all
+checks and report the findings. This is a good way of verifying that
+you’ve gotten at least some of the configurations mentioned above
+correct, that all nodes in your cluster are up, and that nothing is
+grossly misconfigured. Any warnings produced by <code class="language-plaintext highlighter-rouge">riak-admin diag</code> should
+be addressed before going to production.</p>
+
+<h2 id="troubleshooting-and-support">Troubleshooting and Support</h2>
+
+<ul>
+  <li>Does your team, including developing and operations, know how to open
+support requests with Basho?</li>
+  <li>Is your team familiar with Basho Support’s Service-Level Agreement
+(SLA) levels?
+    <ul>
+      <li>Normal and Low are for issues not immediately impacting production
+systems</li>
+      <li>High is for problems that impact production or soon-to-be-production
+systems, but where stability is not currently compromised</li>
+      <li>Urgent is for problems causing production outages or for those
+issues that are likely to turn into production outages very soon.
+On-call engineers respond to urgent requests within 30 minutes,
+24 / 7.</li>
+    </ul>
+  </li>
+  <li>Does your team know how to gather <code class="language-plaintext highlighter-rouge">riak-debug</code> results from the whole
+cluster when opening tickets? If not, that process goes something like
+this:
+    <ul>
+      <li>SSH into each machine, run <code class="language-plaintext highlighter-rouge">riak-debug</code>, and grab the resultant
+<code class="language-plaintext highlighter-rouge">.tar.gz</code> file</li>
+      <li>Attach all debug tarballs from the whole cluster each time you open
+a new High- or Urgent-priority ticket</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="the-final-step-taking-it-to-production">The Final Step: Taking it to Production</h2>
+
+<p>Once you’ve been running in production for a month or so, look back at
+the metrics gathered above. Based on the numbers you’re seeing so far,
+configure alerting thresholds on your latencies, disk consumption, and
+memory. These are the places most likely to give you advance warning of
+trouble.</p>
+
+<p>When you go to increase capacity down the line, having historic metrics
+will give you very clear indicators of having resolved scaling problems,
+as well as metrics for understanding what to upgrade and when.</p>

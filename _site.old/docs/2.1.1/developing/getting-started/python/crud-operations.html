@@ -1,0 +1,117 @@
+<h2 id="creating-objects-in-riak">Creating Objects In Riak</h2>
+
+<p>First, let’s create a few objects and a bucket to keep them in.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">myBucket</span> <span class="o">=</span> <span class="n">myClient</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'test'</span><span class="p">)</span>
+
+<span class="n">val1</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">key1</span> <span class="o">=</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="s">'one'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">val1</span><span class="p">)</span>
+<span class="n">key1</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>In this first example, we have stored the integer 1 with the lookup key
+of <code class="language-plaintext highlighter-rouge">one</code>.  Next let’s store a simple string value of <code class="language-plaintext highlighter-rouge">two</code> with a
+matching key.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">val2</span> <span class="o">=</span> <span class="s">"two"</span>
+<span class="n">key2</span> <span class="o">=</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="s">'two'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">val2</span><span class="p">)</span>
+<span class="n">key2</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>That was easy. Finally, let’s store a bit of JSON. You will probably
+recognize the pattern by now.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">val3</span> <span class="o">=</span> <span class="p">{</span><span class="s">"myValue"</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+<span class="n">key3</span> <span class="o">=</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="s">'three'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">val3</span><span class="p">)</span>
+<span class="n">key3</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h2 id="reading-objects-from-riak">Reading Objects From Riak</h2>
+
+<p>Now that we have a few objects stored, let’s retrieve them and make sure
+they contain the values we expect.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetched1</span> <span class="o">=</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'one'</span><span class="p">)</span>
+<span class="n">fetched2</span> <span class="o">=</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'two'</span><span class="p">)</span>
+<span class="n">fetched3</span> <span class="o">=</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'three'</span><span class="p">)</span>
+
+<span class="k">assert</span> <span class="n">val1</span> <span class="o">==</span> <span class="n">fetched1</span><span class="p">.</span><span class="n">data</span>
+<span class="k">assert</span> <span class="n">val2</span> <span class="o">==</span> <span class="n">fetched2</span><span class="p">.</span><span class="n">data</span>
+<span class="k">assert</span> <span class="n">val3</span> <span class="o">==</span> <span class="n">fetched3</span><span class="p">.</span><span class="n">data</span>
+</code></pre></div></div>
+
+<p>That was easy. We simply request the objects by key.</p>
+
+<h2 id="updating-objects-in-riak">Updating Objects In Riak</h2>
+
+<p>While some data may be static, other forms of data may need to be
+updated. This is also easy to accomplish. Let’s update the value of
+myValue in the 3rd example to <code class="language-plaintext highlighter-rouge">42</code>.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetched3</span><span class="p">.</span><span class="n">data</span><span class="p">[</span><span class="s">"myValue"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">42</span>
+<span class="n">fetched3</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h2 id="deleting-objects-from-riak">Deleting Objects From Riak</h2>
+
+<p>Nothing is complete without a delete. Fortunately, that’s easy too.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetched1</span><span class="p">.</span><span class="n">delete</span><span class="p">()</span>
+<span class="n">fetched2</span><span class="p">.</span><span class="n">delete</span><span class="p">()</span>
+<span class="n">fetched3</span><span class="p">.</span><span class="n">delete</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>Now we can verify that the objects have been removed from Riak.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">assert</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'one'</span><span class="p">).</span><span class="n">exists</span> <span class="o">==</span> <span class="bp">False</span>
+<span class="k">assert</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'two'</span><span class="p">).</span><span class="n">exists</span> <span class="o">==</span> <span class="bp">False</span>
+<span class="k">assert</span> <span class="n">myBucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'three'</span><span class="p">).</span><span class="n">exists</span> <span class="o">==</span> <span class="bp">False</span>
+</code></pre></div></div>
+
+<h2 id="working-with-complex-objects">Working With Complex Objects</h2>
+
+<p>Since the world is a little more complicated than simple integers and
+bits of strings, let’s see how we can work with more complex objects.
+Take for example, this object that encapsulates some knowledge about a
+book.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">book</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="s">'isbn'</span><span class="p">:</span> <span class="s">"1111979723"</span><span class="p">,</span>
+  <span class="s">'title'</span><span class="p">:</span> <span class="s">"Moby Dick"</span><span class="p">,</span>
+  <span class="s">'author'</span><span class="p">:</span> <span class="s">"Herman Melville"</span><span class="p">,</span>
+  <span class="s">'body'</span><span class="p">:</span> <span class="s">"Call me Ishmael. Some years ago..."</span><span class="p">,</span>
+  <span class="s">'copies_owned'</span><span class="p">:</span> <span class="mi">3</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>All right, so we have some information about our Moby Dick collection
+that we want to save. Storing this to Riak should look familiar by now:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">booksBucket</span> <span class="o">=</span> <span class="n">myClient</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'books'</span><span class="p">)</span>
+<span class="n">newBook</span> <span class="o">=</span> <span class="n">booksBucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="n">book</span><span class="p">[</span><span class="s">'isbn'</span><span class="p">],</span> <span class="n">data</span><span class="o">=</span><span class="n">book</span><span class="p">)</span>
+<span class="n">newBook</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>Some of you may be thinking, “But how does the Python Riak client
+encode/decode my object?” If we fetch our book back and print the raw
+encoded data, we shall know:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetchedBook</span> <span class="o">=</span> <span class="n">booksBucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="n">book</span><span class="p">[</span><span class="s">'isbn'</span><span class="p">])</span>
+
+<span class="k">print</span><span class="p">(</span><span class="n">fetchedBook</span><span class="p">.</span><span class="n">encoded_data</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>JSON! The Riak Python client library encodes things as JSON when it can.</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="nl">"body"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Call me Ishmael. Some years ago..."</span><span class="p">,</span><span class="w">
+</span><span class="nl">"author"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Herman Melville"</span><span class="p">,</span><span class="w"> </span><span class="nl">"isbn"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1111979723"</span><span class="p">,</span><span class="w">
+</span><span class="nl">"copies_owned"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nl">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Moby Dick"</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>If we wanted to get a deserialized object back we would just use the
+regular <code class="language-plaintext highlighter-rouge">fetchedBook.data</code> method.</p>
+
+<p>Finally, let’s clean up our mess:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fetchedBook</span><span class="p">.</span><span class="n">delete</span><span class="p">()</span>
+</code></pre></div></div>

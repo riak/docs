@@ -1,0 +1,116 @@
+<p>The <code class="language-plaintext highlighter-rouge">riak-admin repair-2i</code> command can be used to repair any stale or missing secondary indexes.  This command scans and repairs any mismatches between the secondary index data used for querying and the secondary index data stored in the Riak objects. It can be run on all partitions of a node or on a subset of them.  We recommend scheduling these repairs outside of peak load time.</p>
+
+<h3 id="running-a-repair">Running a Repair</h3>
+
+<p>The secondary indexes of a single partition can be repaired by executing:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i &lt;Partition_ID&gt;
+</code></pre></div></div>
+
+<p>The secondary indexes of every partition can be repaired by executing the same command, without a partition ID:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i
+</code></pre></div></div>
+
+<h3 id="monitoring-a-repair">Monitoring a Repair</h3>
+
+<p>Repairs can be monitored using the below command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i status
+</code></pre></div></div>
+
+<h3 id="killing-a-repair">Killing a Repair</h3>
+
+<p>In the event the secondary index repair operation needs to be halted, all repairs can be killed with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i <span class="nb">kill</span>
+</code></pre></div></div>
+
+<hr />
+
+<h2 id="repairing-search-indexes">Repairing Search Indexes</h2>
+
+<p>Riak Search indexes currently have no form of anti-entropy (such as read-repair). Furthermore, for performance and load balancing reasons, Search reads from one random node. This means that when a replica loss has occurred, inconsistent results may be returned.</p>
+
+<h3 id="running-a-repair-1">Running a Repair</h3>
+
+<p>If a replica loss has occurred, you need to run the repair command. This command repairs objects from a node’s adjacent partitions on the ring, consequently fixing the search index.</p>
+
+<p>This is done as efficiently as possible by generating a hash range for all the buckets and thus avoiding a preflist calculation for each key. Only a hash of each key is done, its range determined from a bucket→range map, and then the hash is checked against the range.</p>
+
+<p>This code will force all keys in each partition on a node to be reread, thus rebuilding the search index properly.</p>
+
+<ol>
+  <li>
+    <p>From a cluster node with Riak installed, attach to the Riak console:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak attach
+</code></pre></div>    </div>
+
+    <p>You may have to hit enter again to get a console prompt.</p>
+  </li>
+  <li>
+    <p>Get a list of partitions owned by the node that needs repair:</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Ring</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riak_core_ring_manager</span><span class="p">:</span><span class="nf">get_my_ring</span><span class="p">().</span>
+</code></pre></div>    </div>
+
+    <p>You will get a lot of output with Ring record information. You can safely ignore it.</p>
+  </li>
+  <li>
+    <p>Then run the following code to get a list of partitions. Replace ‘dev1@127.0.0.1’ with the name of the node you need to repair.</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nv">Partitions</span> <span class="o">=</span> <span class="p">[</span><span class="nv">P</span> <span class="p">||</span> <span class="p">{</span><span class="nv">P</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">}</span> <span class="o">&lt;-</span> <span class="nn">riak_core_ring</span><span class="p">:</span><span class="nf">all_owners</span><span class="p">(</span><span class="nv">Ring</span><span class="p">)].</span>
+</code></pre></div>    </div>
+
+    <p><em>Note: The above is an <a href="http://www.erlang.org/doc/programming_examples/list_comprehensions.html">Erlang list comprehension</a>, that loops over each <code class="language-plaintext highlighter-rouge">{Partition, Node}</code> tuple in the Ring, and extracts only the partitions that match the given node name, as a list.</em></p>
+  </li>
+  <li>
+    <p>Execute repair on all the partitions. Executing them all at once like this will cause a lot of <code class="language-plaintext highlighter-rouge">{shutdown,max_concurrency}</code> spam but it’s not anything to worry about. That is just the transfers mechanism enforcing an upper limit on the number of concurrent transactions.</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="p">[</span><span class="nn">riak_search_vnode</span><span class="p">:</span><span class="nf">repair</span><span class="p">(</span><span class="nv">P</span><span class="p">)</span> <span class="p">||</span> <span class="nv">P</span> <span class="o">&lt;-</span> <span class="nv">Partitions</span><span class="p">].</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>When you’re done, press <code class="language-plaintext highlighter-rouge">Ctrl-D</code> to disconnect the console. DO NOT RUN q() which will cause the running Riak node to quit. Note that <code class="language-plaintext highlighter-rouge">Ctrl-D</code> merely disconnects the console from the service, it does not stop the code from running.</p>
+  </li>
+</ol>
+
+<h3 id="monitoring-a-repair-1">Monitoring a Repair</h3>
+
+<p>The above Repair command can be slow, so if you reattach to the console, you can run the repair_status function. You can use the <code class="language-plaintext highlighter-rouge">Partitions</code> variable defined above to get the status of every partition.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[{</span><span class="nv">P</span><span class="p">,</span> <span class="nn">riak_search_vnode</span><span class="p">:</span><span class="nf">repair_status</span><span class="p">(</span><span class="nv">P</span><span class="p">)}</span> <span class="p">||</span> <span class="nv">P</span> <span class="o">&lt;-</span> <span class="nv">Partitions</span><span class="p">].</span>
+</code></pre></div></div>
+
+<p>When you’re done, press <code class="language-plaintext highlighter-rouge">Ctrl-D</code> to disconnect the console.</p>
+
+<h3 id="killing-a-repair-1">Killing a Repair</h3>
+
+<p>Currently there is no easy way to kill an individual repair.  The only
+option is to kill all repairs targeting a given node.  This is done by
+running <code class="language-plaintext highlighter-rouge">riak_core_vnode_manager:kill_repairs(Reason)</code> on the node
+undergoing repair.  This means you’ll either have to be attached to
+that node’s console or you can use the <code class="language-plaintext highlighter-rouge">rpc</code> module to make a remote
+call.  Here is an example of killing all repairs targeting partitions
+on the local node.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riak_core_vnode_manager</span><span class="p">:</span><span class="nf">kill_repairs</span><span class="p">(</span><span class="n">killed_by_user</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>Log entries will reflect that repairs were killed manually, something akin to this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>2012-08-10 10:14:50.529 [warning] &lt;0.154.0&gt;@riak_core_vnode_manager:handle_cast:395 Killing all repairs: killed_by_user
+</code></pre></div></div>
+
+<p>Here is an example of executing the call remotely.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">rpc</span><span class="p">:</span><span class="nf">call</span><span class="p">(</span><span class="n">'dev1@127.0.0.1'</span><span class="p">,</span> <span class="n">riak_core_vnode_manager</span><span class="p">,</span> <span class="n">kill_repairs</span><span class="p">,</span> <span class="p">[</span><span class="n">killed_by_user</span><span class="p">]).</span>
+</code></pre></div></div>
+
+<p>When you’re done, press <code class="language-plaintext highlighter-rouge">Ctrl-D</code> to disconnect the console.</p>
+
+<p>Repairs are not allowed to occur during ownership changes.  Since
+ownership entails the moving of partition data it is safest to make
+them mutually exclusive events.  If you join or remove a node all
+repairs across the entire cluster will be killed.</p>

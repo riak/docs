@@ -1,0 +1,95 @@
+<p>This tutorial shows you how to set up a Riak Java client to authenticate
+itself when connecting to Riak.</p>
+
+<p>If you are using <a href="/riak/kv/2.1.1/using/security/managing-sources/#trust-based-authentication">trust-</a> or <a href="/riak/kv/2.1.1/using/security/managing-sources/#pam-based-authentication">PAM</a>-based authentication, you can use the
+security setup described <a href="#java-client-basics">below</a>. <a href="/riak/kv/2.1.1/using/security/managing-sources/#certificate-based-authentication">Certificate</a>-based authentication is not
+yet supported in the Java client.</p>
+
+<p>This tutorial does not cover certificate generation. It assumes that all
+necessary certificates have already been created and are stored in a directory
+called <code class="language-plaintext highlighter-rouge">/ssl_dir</code>. This directory name is used only for example purposes.</p>
+
+<h2 id="java-client-basics">Java Client Basics</h2>
+
+<p>When connecting to Riak using a Java-based client, you typically do so
+by instantiating separate <code class="language-plaintext highlighter-rouge">RiakNode</code> objects for each node in your
+cluster, a <code class="language-plaintext highlighter-rouge">RiakCluster</code> object registering those <code class="language-plaintext highlighter-rouge">RiakNode</code> objects,
+and finally a <code class="language-plaintext highlighter-rouge">RiakClient</code> object that registers the general cluster
+configuration. In this document, we will be working with only one node.</p>
+
+<p>If you are using Riak security, <em>all</em> connecting clients should have
+access to the same Certificate Authority (CA) used on the server side,
+regardless of which <a href="/riak/kv/2.1.1/using/security/managing-sources/">security source</a> you
+choose. All clients should also provide a username, regardless of
+security source. The example below sets up a single node object (we’ll
+simply call it <code class="language-plaintext highlighter-rouge">node</code>) that connects to Riak on <code class="language-plaintext highlighter-rouge">localhost</code> and on port
+8087 and specifies <code class="language-plaintext highlighter-rouge">riakuser</code> as a username. That object will be used to
+create a cluster object (we’ll call it <code class="language-plaintext highlighter-rouge">cluster</code>), which will in turn be
+used to create a <code class="language-plaintext highlighter-rouge">client</code> object. The setup below does not specify a CA:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">com.basho.riak.client.api.RiakClient</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.api.RiakCluster</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.basho.riak.client.api.RiakNode</span><span class="o">;</span>
+
+<span class="nc">RiakNode</span> <span class="n">node</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakNode</span><span class="o">.</span><span class="na">Builder</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">withRemoteAddress</span><span class="o">(</span><span class="s">"127.0.0.1"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withRemotePort</span><span class="o">(</span><span class="mi">8087</span><span class="o">)</span>
+        <span class="c1">// This will specify a username but no password or keystore:</span>
+        <span class="o">.</span><span class="na">withAuth</span><span class="o">(</span><span class="s">"riakuser"</span><span class="o">,</span> <span class="kc">null</span><span class="o">,</span> <span class="kc">null</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+
+<span class="nc">RiakCluster</span> <span class="n">cluster</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakCluster</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">node</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+
+<span class="nc">RiakClient</span> <span class="n">client</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakClient</span><span class="o">(</span><span class="n">cluster</span><span class="o">);</span>
+</code></pre></div></div>
+
+<p>This client object is not currently set up to use any of the available
+security sources. This will change in the sections below.</p>
+
+<h2 id="password-based-authentication">Password-based Authentication</h2>
+
+<p>To enable our client to use password-based auth, we can use most of the
+setup from the example above, with the exception that we will specify a
+password for the client in the <code class="language-plaintext highlighter-rouge">withAuth</code> method in the <code class="language-plaintext highlighter-rouge">node</code> object’s
+constructor rather than leaving it as <code class="language-plaintext highlighter-rouge">null</code>. We will also pass a
+<code class="language-plaintext highlighter-rouge">KeyStore</code> object into that method.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">java.io.FileInputStream</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.io.InputStream</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.security.KeyStore</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.security.cert.CertificateFactory</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.security.cert.X509Certificate</span><span class="o">;</span>
+
+<span class="c1">// Generate an InputStream from the CA cert</span>
+<span class="nc">InputStream</span> <span class="n">inputStream</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">InputStream</span><span class="o">(</span><span class="s">"/ssl_dir/cacertfile.pem"</span><span class="o">);</span>
+
+<span class="c1">// Generate an X509Certificate from the InputStream and close the stream</span>
+<span class="nc">CertificateFactory</span> <span class="n">certFactory</span> <span class="o">=</span> <span class="nc">CertificateFactory</span><span class="o">.</span><span class="na">getInstance</span><span class="o">(</span><span class="s">"X.509"</span><span class="o">);</span>
+<span class="nc">X509Certificate</span> <span class="n">caCert</span> <span class="o">=</span> <span class="o">(</span><span class="nc">X509Certificate</span><span class="o">)</span> <span class="n">certFactory</span><span class="o">.</span><span class="na">generateCertificate</span><span class="o">(</span><span class="n">inputStream</span><span class="o">);</span>
+<span class="n">inputStream</span><span class="o">.</span><span class="na">close</span><span class="o">();</span>
+
+<span class="c1">// Generate a KeyStore object</span>
+<span class="nc">KeyStore</span> <span class="n">ks</span> <span class="o">=</span> <span class="nc">KeyStore</span><span class="o">.</span><span class="na">getInstance</span><span class="o">(</span><span class="nc">KeyStore</span><span class="o">.</span><span class="na">getDefaultType</span><span class="o">());</span>
+<span class="n">ks</span><span class="o">.</span><span class="na">load</span><span class="o">(</span><span class="kc">null</span><span class="o">,</span> <span class="s">"password"</span><span class="o">.</span><span class="na">toCharArray</span><span class="o">());</span>
+<span class="n">ks</span><span class="o">.</span><span class="na">setCertificateEntry</span><span class="o">(</span><span class="s">"cacert"</span><span class="o">,</span> <span class="n">caCert</span><span class="o">);</span>
+
+<span class="nc">RiakNode</span> <span class="n">node</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakNode</span><span class="o">.</span><span class="na">Builder</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">withRemoteAddress</span><span class="o">(</span><span class="s">"127.0.0.1"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withRemotePort</span><span class="o">(</span><span class="mi">8087</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withAuth</span><span class="o">(</span><span class="s">"riakuser"</span><span class="o">,</span> <span class="s">"rosebud"</span><span class="o">,</span> <span class="n">ks</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+
+<span class="c1">// Construct the cluster and client object in the same fashion as above</span>
+</code></pre></div></div>
+
+<h2 id="pam--and-trust-based-authentication">PAM- and Trust-based Authentication</h2>
+
+<p>If you are using PAM- or trust-based authentication, the only difference
+from password-based authentication is that you do not need to specify a
+password.</p>
+
+<h2 id="certificate-based-authentication">Certificate-based Authentication</h2>
+
+<p>Certificate-based authentication is not currently supported in the
+official Riak Java client.</p>

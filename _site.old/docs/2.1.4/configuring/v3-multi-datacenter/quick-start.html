@@ -1,0 +1,181 @@
+
+<p>This guide will walk you through the process of configuring Riak’s v3
+Replication to perform replication between two sample Riak clusters on
+separate networks. This guide will also cover bidirectional replication,
+which is accomplished by setting up unidirectional replication in both
+directions between the clusters.  It is important to note that both
+clusters must have the same ring size, but can have a different number
+of nodes.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>This guide assumes that you have completed the following steps:</p>
+
+<ul>
+  <li>Install <a href="http://basho.com/riak-enterprise/">Riak Enterprise</a></li>
+  <li>Perform <a href="/riak/kv/2.1.4/using/performance">System Tuning</a></li>
+  <li>Review <a href="/riak/kv/2.1.4/configuring/v3-multi-datacenter">Configuration</a></li>
+</ul>
+
+<h2 id="about-v3-replication-in-13">About v3 Replication in 1.3</h2>
+
+<p>In Riak’s v3 Replication in 1.3, the nomenclature for Source and Site
+clusters has changed. To more accurately reflect the behavior of each of
+the clusters, “listeners” and “sites” are now known as “sources” and
+“sinks.” Data transfer now originates at the “source” and replicates to
+the “sink;” initiation is always from the primary (source) to the backup
+(sink) data center.</p>
+
+<p>Additionally, knowledge of the state of each cluster is now managed by a
+<strong>cluster manager</strong> process, which greatly simplifies the setup and
+maintenance of Multi-Datacenter replication.</p>
+
+<h2 id="scenario">Scenario</h2>
+
+<p>Configure Riak MDC to perform replication, given the following two
+Riak Enterprise Clusters, each of which consists of three nodes:</p>
+
+<h3 id="cluster-1">Cluster 1</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Name</th>
+      <th style="text-align: left">IP</th>
+      <th>Node name</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node1</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">10.60.67.149</code></td>
+      <td><code class="language-plaintext highlighter-rouge">riak@10.60.67.149</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node2</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">10.60.83.39</code></td>
+      <td><code class="language-plaintext highlighter-rouge">riak@10.60.83.39</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node3</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">10.60.90.252</code></td>
+      <td><code class="language-plaintext highlighter-rouge">riak@10.60.90.252</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="cluster-2">Cluster 2</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Name</th>
+      <th style="text-align: left">IP</th>
+      <th style="text-align: left">Node name</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node4</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">10.60.77.10</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">riak@10.60.77.10</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node5</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">10.60.84.41</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">riak@10.60.84.41</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">node6</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">10.60.92.44</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">riak@10.60.92.44</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="set-up-cluster1--cluster2-connection">Set up Cluster1 → Cluster2 Connection</h3>
+
+<h4 id="set-up-the-source-on-cluster1">Set up the Source on Cluster1</h4>
+
+<p>On a node in Cluster1, <code class="language-plaintext highlighter-rouge">node1</code> for example, initiate and name this
+cluster with <code class="language-plaintext highlighter-rouge">riak-repl clustername &lt;name&gt;</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl clustername Cluster1
+</code></pre></div></div>
+
+<h4 id="setup-the-sink-on-cluster2">Setup the Sink on Cluster2</h4>
+
+<p>On a node in Cluster2, <code class="language-plaintext highlighter-rouge">node4</code> for example, initiation and name this
+cluster with <code class="language-plaintext highlighter-rouge">riak-repl clustername &lt;name&gt;</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl clustername Cluster2
+</code></pre></div></div>
+
+<h4 id="connect-the-source-to-the-sink">Connect the Source to the Sink</h4>
+
+<p>From Cluster1, connect to the IP and port of Cluster2 with <code class="language-plaintext highlighter-rouge">riak-repl
+connect &lt;sink_ip&gt;:&lt;port&gt;</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl connect 10.60.77.10:9080
+</code></pre></div></div>
+
+<blockquote>
+  <p>The port can be found in the <code class="language-plaintext highlighter-rouge">riak_core</code> section of the <code class="language-plaintext highlighter-rouge">advanced.config</code>
+under <code class="language-plaintext highlighter-rouge">cluster_mgr</code>.</p>
+</blockquote>
+
+<h4 id="view-your-active-connections">View your active connections</h4>
+
+<p>From Cluster1, view your active connections with <code class="language-plaintext highlighter-rouge">riak-repl
+connections</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Sink             Cluster Name         &lt;Ctrl-Pid&gt;      [Members]
+----             ------------         ----------      ---------
+Cluster2          Cluster2            &lt;0.7985.0&gt;      ["10.60.77.10:9080"] (via 10.60.77.10:9080)
+</code></pre></div></div>
+
+<h3 id="set-up-cluster2--cluster1-connection-if-bidirectional-replication-is-desired">Set up Cluster2 → Cluster1 Connection (if bidirectional replication is desired)</h3>
+
+<h4 id="connect-the-source-to-the-sink-1">Connect the Source to the Sink</h4>
+
+<p>From Cluster2, connect to the IP and port of Cluster1 with <code class="language-plaintext highlighter-rouge">riak-repl
+connect &lt;sink_ip&gt;:&lt;port&gt;</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl connect 10.60.67.149:9080
+</code></pre></div></div>
+
+<h4 id="view-your-active-connections-1">View Your Active Connections</h4>
+
+<p>From Cluster2, view your active connections with <code class="language-plaintext highlighter-rouge">riak-repl
+connections</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Sink             Cluster Name         &lt;Ctrl-Pid&gt;      [Members]
+----             ------------         ----------      ---------
+Cluster1          Cluster1            &lt;0.4456.0&gt;      ["10.60.67.149:9080"] (via 10.60.67.149:9080)
+</code></pre></div></div>
+
+<p>At this point, if you do not have connections, replication will not work.
+Check your IP bindings by running <code class="language-plaintext highlighter-rouge">netstat -a</code> on all nodes. You should see
+<code class="language-plaintext highlighter-rouge">*:9080 LISTENING</code>. If not, you have configuration problems.</p>
+
+<h3 id="enable-realtime-replication">Enable Realtime Replication</h3>
+
+<p>From Cluster1, run <code class="language-plaintext highlighter-rouge">riak-repl realtime enable &lt;clustername&gt;</code> to start
+queuing updates on Cluster1 for replication:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl realtime <span class="nb">enable </span>Cluster2
+</code></pre></div></div>
+
+<p>Also on Cluster1, run <code class="language-plaintext highlighter-rouge">riak-repl realtime start &lt;clustername&gt;</code> to
+establish connectivity from Cluster1 to Cluster2 to push queued updates:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-repl realtime start Cluster2
+</code></pre></div></div>
+
+<p>To enable bidirectional replication, do the reverse from Cluster2.
+Once this is done, bidirectional replication should be operating.</p>
+
+<h2 id="more-information">More information</h2>
+
+<p>For a full list of commands, you may enter <code class="language-plaintext highlighter-rouge">riak-repl</code> to see full
+instructions on usage, or check the <a href="/riak/kv/2.1.4/using/cluster-operations/v3-multi-datacenter">Operations</a> documentation.</p>

@@ -1,0 +1,35 @@
+<p>Creates a new Riak <a href="/riak/kv/2.2.0/developing/usage/search-schemas">Search schema</a>.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PUT /search/schema/&lt;schema_name&gt;
+</code></pre></div></div>
+
+<h2 id="required-form-data">Required Form Data</h2>
+
+<p>In order to create a new Search schema, you must pass Riak a properly
+formed XML schema. More information can be found in the <a href="/riak/kv/2.2.0/developing/usage/search-schemas">Search Schema</a> document. If you’ve created a schema and stored it in the filed
+<code class="language-plaintext highlighter-rouge">my_schema.xml</code> and would like to create a new schema called
+<code class="language-plaintext highlighter-rouge">my_custom_schema</code>, you would use the following HTTP request:</p>
+
+<pre><code class="language-curl">curl -XPUT http://localhost:8098/search/schema/my_custom_schema \
+  -H "Content-Type: application/xml" \
+  --data-binary @my_schema.xml
+</code></pre>
+
+<h2 id="normal-response">Normal Response</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">204 No Content</code> — The schema has been successfully created</li>
+</ul>
+
+<h2 id="typical-error-codes">Typical Error Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">400 Bad Request</code> — The schema cannot be created because there is
+  something wrong with the schema itself, e.g. an XML formatting error
+  that makes Riak Search unable to parse the schema</li>
+  <li><code class="language-plaintext highlighter-rouge">409 Conflict</code> — The schema cannot be created because there is
+  already a schema with that name</li>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> — The request timed out internally</li>
+</ul>

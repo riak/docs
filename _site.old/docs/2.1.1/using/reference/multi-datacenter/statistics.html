@@ -1,0 +1,647 @@
+<p>The following definitions describe the output of <code class="language-plaintext highlighter-rouge">riak-repl status</code>.
+Both Version 2 and Version 3 Replication statistics can be obtained
+using the <code class="language-plaintext highlighter-rouge">riak-repl status</code> command.</p>
+
+<p>There are two things that you should note:</p>
+
+<ol>
+  <li>Many of these statistics will appear only on the current
+leader node</li>
+  <li>The counts for all statistics will be reset to 0 upon restarting Riak
+Riak Enterprise unless otherwise noted</li>
+</ol>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cluster_leader</code></td>
+      <td style="text-align: left">Which node is the current leader of the cluster</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">connected_clusters</code></td>
+      <td style="text-align: left">A list of all sink clusters to which this source is connected</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="performance">Performance</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak-repl status</code> command should not be executed more than once a
+minute, as statistics are recalculated every time the command is
+executed, and some statistics require network communication between
+nodes. This performance note also applies to the HTTP <code class="language-plaintext highlighter-rouge">/riak-repl/stats</code>
+endpoint.</p>
+
+<h2 id="realtime-replication-statistics">Realtime Replication Statistics</h2>
+
+<p>Statistics for both the source or sink sides of realtime replication.
+These values can be found under either <code class="language-plaintext highlighter-rouge">sources.source_stats</code> or
+<code class="language-plaintext highlighter-rouge">sinks.sink_stats</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">realtime_enabled</code></td>
+      <td>A list of all realtime sinks that are enabled</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">realtime_started</code></td>
+      <td>A list of all realtime sinks that are started</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rt_dirty</code></td>
+      <td>The number of errors detected that can prevent objects from being replicated via realtime. These include errors on the source or sink connection, or realtime queue overload resulting in objects being dropped from the queue. <em>This value will persist across restarts until a fullsync is complete.</em></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rt_sink_errors</code></td>
+      <td>A sink error has been detected on the source node. This value will be reset to 0 after a node restarts.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rt_sink_connected_to.source_drops</code></td>
+      <td>The number of dropped put transfers from the perspective of the sink cluster</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rt_source_errors</code></td>
+      <td>A source error has been detected on the source node. This value will be reset to 0 after a node restarts.</td>
+    </tr>
+  </tbody>
+</table>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rt_source_connected_to</code></td>
+      <td>The name of the sink cluster to which the source cluster is connected</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rt_sink_connected_to</code></td>
+      <td>The name of the source cluster to which the sink cluster is connected</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">connected</code></td>
+      <td>If <code class="language-plaintext highlighter-rouge">true</code>, then the source is connected to a sink (or vice versa)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">objects</code></td>
+      <td>The number of realtime replication objects that have been successfully transmitted to the sink cluster</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sent_seq</code></td>
+      <td>The last realtime queue sequence number that has been transmitted</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">acked_seq</code></td>
+      <td>The last realtime queue sequence number that has been acknowledged</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">expect_seq</code></td>
+      <td>The next realtime queue sequence number that is expected</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hb_rtt</code></td>
+      <td>Realtime replication heartbeat round-trip time in milliseconds, recorded on the replication source</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hb_last</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{MegaSeconds, Seconds, MicroSeconds}</code> since a heartbeat message was received on the realtime sink</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>These values are under <code class="language-plaintext highlighter-rouge">realtime_queue_stats</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bytes</code></td>
+      <td>The size in bytes of all objects currently in the realtime queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">consumers</code></td>
+      <td>A list of source consumers of the realtime queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">consumers.&lt;clustername&gt;.drops</code></td>
+      <td>The number of dropped realtime sync put transfers per sink cluster, from the perspective of the source cluster (“dropped” in this context meaning either that the outgoing data queue was full or that there was a connection error)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">drops</code></td>
+      <td>The number of objects dropped from the realtime queue as the result of the queue being full or other errors</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">errs</code></td>
+      <td>The number of errors while pushing/popping from the realtime queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">overload_drops</code></td>
+      <td>The number of put transfers that have been dropped due to an overload of the message queue of the Erlang process responsible for processing outgoing transfers</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pending</code></td>
+      <td>The number of objects waiting to be sent to the sink cluster</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sinkclustername</code></td>
+      <td>A consumer of the realtime queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">unacked</code></td>
+      <td>The number of objects waiting to be acknowledged by a queue consumer</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="fullsync-replication-statistics">Fullsync Replication Statistics</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_enabled</code></td>
+      <td>A list of all sinks that are enabled</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_running</code></td>
+      <td>A list of all sinks that are running</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_fullsyncs</code></td>
+      <td>The number of fullsync operations that have occurred since the server was started</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsyncs_completed</code></td>
+      <td>The number of fullsyncs that have been completed to the specified sink cluster.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_start_time</code></td>
+      <td>The time the current fullsink to the specified cluster began.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">last_fullsync_duration </code></td>
+      <td>The duration (in seconds) of the last completed fullsync.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>If this cluster is acting as a <strong>source</strong>, the <code class="language-plaintext highlighter-rouge">fullsync_coordinator</code> field returns a list of <code class="language-plaintext highlighter-rouge">{&lt;sink_clustername&gt;:&lt;fullsync_stats&gt;}</code>. If this cluster is acting as a <strong>sink</strong>, the <code class="language-plaintext highlighter-rouge">fullsync_coordinator_srv</code> field returns a list of <code class="language-plaintext highlighter-rouge">{&lt;LocalIP:Port&gt;:&lt;fullsync_coordinator_srv_stats&gt;}</code>.</p>
+
+<p>Those fields are described in the following tables.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cluster</code></td>
+      <td>The name of the sink cluster</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queued</code></td>
+      <td>The number of partitions that are waiting for an available process</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">in_progress</code></td>
+      <td>The number of partitions that are being synced</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">starting</code></td>
+      <td>The number of partitions connecting to remote cluster</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">successful_exits</code></td>
+      <td>The number of partitions successfully synced. When completed, this will be the same number as total number of partitions in the ring.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">error_exits</code></td>
+      <td>If a sync failed or was aborted, the partition will be queued again and try again later</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">running_stats</code></td>
+      <td><code class="language-plaintext highlighter-rouge">[{&lt;PID&gt;, &lt;stats&gt;},…]</code> Any running sync processes are listed here, and described in the table below</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">socket</code></td>
+      <td>See <a href="#socket-statistics">Socket Statistics</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_suggested</code></td>
+      <td>Realtime replication errors occurred on these nodes, a fullsync is suggested</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_suggested_during_fs</code></td>
+      <td>Realtime replication errors occurred on these nodes while a fullsync is already in progress. A fullsync is suggested after the current fullsync completes. These value will be moved to the <code class="language-plaintext highlighter-rouge">fullsync_suggested</code> value when the current fullsync completes.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">socket</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{peername: &lt;RemoteIP:Port&gt;</code>, <code class="language-plaintext highlighter-rouge">sockname: &lt;LocalIP:Port&gt;}</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The <code class="language-plaintext highlighter-rouge">running_stats</code> field contains the following fields.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node</code></td>
+      <td>The local cluster source node currently participating in fullsync replication</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">site</code></td>
+      <td>The name of the sink cluster. <em>Warning: This will be renamed in future versions of Riak</em>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">strategy</code></td>
+      <td>The strategy that fulfills fullsync replication. In previous versions of replication, different values could be configured. This value could be changed depending on your replication needs.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_worker</code></td>
+      <td>The Erlang process id of the fullsync worker.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">socket</code></td>
+      <td>See <a href="#socket-statistics">Socket Statistics</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">state</code></td>
+      <td>The current state of fullsync replication. This can be used by Basho support to identify replication issues.&lt;ul&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">wait_for_partition</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">build_keylist</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">wait_keylist</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">diff_bloom</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">diff_keylist</code></strong>&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync</code></td>
+      <td>The partition that is currently being synchronized with the sink cluster</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">partition_start</code></td>
+      <td>Elapsed time in seconds since the <em>fullsync</em> partition started replication to a sink</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">stage_start</code></td>
+      <td>Elapsed time in seconds since the <code class="language-plaintext highlighter-rouge">state</code> started running on the source</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">get_pool_size</code></td>
+      <td>The number of workers that are used to read data from Riak during a fullsync</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="socket-statistics">Socket Statistics</h2>
+
+<p>Many sections of the status output include a <code class="language-plaintext highlighter-rouge">socket</code> section. A reading is taken once every 10 seconds, and the last 7 readings are stored.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">peername</code></td>
+      <td><code class="language-plaintext highlighter-rouge">&lt;ip:port&gt;</code> The address and port for the other end of a connection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">recv_avg</code></td>
+      <td>The average size of packets in bytes received to the socket</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">recv_cnt</code></td>
+      <td>The number of packets received by the socket</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">recv_dvi</code></td>
+      <td>The average packet size deviation in bytes received by the socket</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">recv_kbps</code></td>
+      <td>Socket kilobits/second received</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">recv_max</code></td>
+      <td>Size of the largest packet in bytes received to the socket</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">send_cnt</code></td>
+      <td>Number of packets sent from the socket</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">send_kbps</code></td>
+      <td>Socket kilobits/second sent</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">send_pend</code></td>
+      <td>The number of bytes in the Erlang VM to be sent over the socket</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sockname</code></td>
+      <td><code class="language-plaintext highlighter-rouge">&lt;host:port&gt;</code> The address and port for “this end” of the connection</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="version-2-replication-statistics">Version 2 Replication Statistics</h2>
+
+<p>The following definitions describe the output of <code class="language-plaintext highlighter-rouge">riak-repl status</code>.
+Please note that many of these statistics will only appear on the
+current leader node.</p>
+
+<p><strong>Note</strong>: All counts will be reset to 0 upon restarting Riak Enterprise.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">listener_[nodeid]</code></td>
+      <td>Defines a replication listener (primary) that is running on node <code class="language-plaintext highlighter-rouge">[nodeid]</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">[sitename]_ips</code></td>
+      <td>Defines a replication skin</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_bytes_recv</code></td>
+      <td>The total number of bytes the client has received since the server has been started</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_bytes_sent</code></td>
+      <td>The total number of bytes sent to all connected secondaries</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_connect_errors</code></td>
+      <td>The number of TCP/IP connection errors</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_connects</code></td>
+      <td>A count of the number of sink connections made to this node.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_redirect</code></td>
+      <td>If a client connects to a non-leader node, it will be redirected to a leader node</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_rx_kbps</code></td>
+      <td>A snapshot of the sink received kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_tx_kbps</code></td>
+      <td>A snapshot of the sink sent kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">elections_elected</code></td>
+      <td>If the replication leader node becomes unresponsive or unavailable, a new leader node in the cluster will be elected</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">elections_leader_changed</code></td>
+      <td>The number of times a Riak node has surrendered leadership</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">objects_dropped_no_clients</code></td>
+      <td>If the realtime replication work queue is full and there are no clients to receive objects, then objects will be dropped from the queue. These objects will be synchronized during a fullsync operation.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">objects_dropped_no_leader</code></td>
+      <td>If a sink cannot connect to a leader, objects will be dropped during realtime replication</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">objects_forwarded</code></td>
+      <td>The number of Riak objects forwarded to the leader the participate in replication. <em>Please note that this value will only be accurate on a non-leader node</em>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">objects_sent</code></td>
+      <td>The number of objects sent via realtime replication</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_bytes_recv</code></td>
+      <td>The total number of bytes the primary has received</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_bytes_sent</code></td>
+      <td>The total number of bytes the primary has sent</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_connect_errors</code></td>
+      <td>The number of primary to sink connection errors</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_connects</code></td>
+      <td>The number of times the primary connects to the client sink</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_rx_kbps</code></td>
+      <td>A snapshot of the primary received kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_tx_kbps</code></td>
+      <td>A snapshot of the primary sent kilobits/second taken once a minute. The past 8 snapshots are stored in this list. Newest snapshots appear on the left side of the list.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">leader</code></td>
+      <td>Which node is the current leader of the cluster for Version 2 Replication</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">local_leader_message_queue_len</code></td>
+      <td>The length of the object queue on the leader</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">local_leader_heap_size</code></td>
+      <td>The amount of memory the leader is using</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">client_stats</code></td>
+      <td>See <a href="#client-statistics">Client Statistics</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">server_stats</code></td>
+      <td>See <a href="#server-statistics">Server Statistics</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="client-statistics">Client Statistics</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node</code></td>
+      <td>A unique ID for the Riak node that the sink in running on</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">site</code></td>
+      <td>The connected site (sink) name. <strong>Warning</strong>: This will be renamed in a future version of Riak.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">strategy</code></td>
+      <td>A replication strategy defines an implementation of the Riak Replication protocol. Valid values: <code class="language-plaintext highlighter-rouge">keylist</code>, <code class="language-plaintext highlighter-rouge">syncv1</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_worker</code></td>
+      <td>The Erlang process ID of the fullsync worker</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">waiting_to_retry</code></td>
+      <td>The primaries currently waiting to retry replication after a failure</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">connected</code></td>
+      <td>A list of connected clients&lt;ul&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">connected</code></strong> The IP address and port of a connected sink&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">cluster_name</code></strong> The name of the connected sink&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">connecting</code></strong> The PID, IP address, and port of a client currently establishing a connection&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">state</code></td>
+      <td>State shows what the current replication strategy is currently processing. The following definitions appear in the status output if keylist strategy is being used. They can be used by Basho support to identify replication issues.&lt;ul&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">request_partition</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">wait_for_fullsync</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">send_keylist</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">wait_ack</code></strong>&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="server-statistics">Server Statistics</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">node</code></td>
+      <td>A unique ID for the Riak node that the source is running on</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">site</code></td>
+      <td>The connected site (sink) name configured with. <em>Warning: This will be renamed in a future version of Riak</em>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">strategy</code></td>
+      <td>A replication strategy defines an implementation of the Riak Replication protocol. Valid values: <code class="language-plaintext highlighter-rouge">keylist</code>, <code class="language-plaintext highlighter-rouge">syncv1</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fullsync_worker</code></td>
+      <td>The Erlang process ID of the fullsync worker</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bounded_queue</code></td>
+      <td>See <a href="#bounded-queue">Bounded Queue</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">state</code></td>
+      <td>State shows what the current replication strategy is currently processing. The following definitions appear in the status output if keylist strategy is being used. They can be used by Basho support to identify replication issues.&lt;ul&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">wait_for_partition</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">build_keylist</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">wait_keylist</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">diff_bloom</code></strong>&lt;/li&gt;&lt;li&gt;<strong><code class="language-plaintext highlighter-rouge">diff_keylist</code></strong>&lt;/li&gt;&lt;/ul&gt;</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">message_queue_len</code></td>
+      <td>The number of Erlang messages that are waiting to be processed by the server</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="bounded-queue">Bounded Queue</h2>
+
+<p>The bounded queue is responsible for holding objects that are waiting to
+participate in realtime replication. Please see the [Riak Enterprise V2 MDC Replication Configuration][config v2 mdc] or [Riak Enterprise V3 MDC Replication Configuration][config v3 mdc] guides for
+more information.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_pid</code></td>
+      <td>The Erlang process ID of the bounded queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">dropped_count</code></td>
+      <td>The number of objects that failed to be enqueued in the bounded queue due to the queue being full. <em>These objects will be replicated during the next fullsync operation</em>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_length</code></td>
+      <td>The number of Riak objects currently in the bounded queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_byte_size</code></td>
+      <td>The size of all objects currently in the queue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_max_size </code></td>
+      <td>The number of bytes the queue can hold before objects are dropped. <em>These objects will be replicated during the next fullsync operation</em>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_percentage</code></td>
+      <td>The percentage of the queue that is full</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_pending</code></td>
+      <td>The current count of “in-flight” objects we’ve sent that the client has not acknowledged</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queue_max_pending</code></td>
+      <td>The maximum number of objects that can be “in flight” before we refuse to send any more.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="accessing-replication-web-based-statistics">Accessing Replication Web-Based Statistics</h2>
+
+<p>These stats can be accessed via the command line with the following
+command:</p>
+
+<pre><code class="language-curl">curl -q http://127.0.0.1:8098/riak-repl/stats
+</code></pre>
+
+<p>A simple way to view formatted statistics is to use a command such as:</p>
+
+<pre><code class="language-curl">curl -q http://127.0.0.1:8098/riak-repl/stats | jsonpp
+</code></pre>

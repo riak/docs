@@ -1,0 +1,82 @@
+<p>At some point, for various reasons, you might need to replace a node in
+your Riak cluster (which is different from <a href="/riak/kv/2.1.4/using/repair-recovery">recovering a failed node</a>). Here is the recommended way to go
+about replacing a node.</p>
+
+<ol>
+  <li>
+    <p>Back up your data directory on the node in question. In this example
+scenario, we’ll call the node <code class="language-plaintext highlighter-rouge">riak4</code>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nb">sudo tar</span> <span class="nt">-czf</span> riak_backup.tar.gz /var/lib/riak /etc/riak
+</code></pre></div>    </div>
+
+    <p>If you have any unforeseen issues at any point in the node
+ replacement process, you can restore the node’s data from this
+ backup.</p>
+  </li>
+  <li>
+    <p>Download and install Riak on the new node you wish to bring into the
+cluster and have it replace the <code class="language-plaintext highlighter-rouge">riak4</code> node. We’ll call the new node
+<code class="language-plaintext highlighter-rouge">riak7</code> for the purpose of this example.</p>
+  </li>
+  <li>
+    <p>Start the new <code class="language-plaintext highlighter-rouge">riak7</code> node with <a href="/riak/kv/2.1.4/using/admin/riak-cli/#start"><code class="language-plaintext highlighter-rouge">riak start</code></a>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak start
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Plan the join of the new <code class="language-plaintext highlighter-rouge">riak7</code> node to an existing node already
+participating in the cluster; for example <code class="language-plaintext highlighter-rouge">riak0</code> with the <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster"><code class="language-plaintext highlighter-rouge">riak-admin cluster join</code></a> command executed on the new <code class="language-plaintext highlighter-rouge">riak7</code> node:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster <span class="nb">join </span>riak0
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Plan the replacement of the existing <code class="language-plaintext highlighter-rouge">riak4</code> node with the new
+<code class="language-plaintext highlighter-rouge">riak7</code> node using the <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster"><code class="language-plaintext highlighter-rouge">riak-admin cluster replace</code></a> command:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster replace riak4 riak7
+</code></pre></div>    </div>
+
+    <div class="info">
+ <div class="title">Single Nodes</div>
+ If a node is started singly using default settings (as, for example,
+ you might do when you are building your first test environment), you
+ will need to remove the ring files from the data directory after you
+ edit `/etc/vm.args`. `riak-admin cluster replace` will not work as
+ the node has not been joined to a cluster.
+ </div>
+  </li>
+  <li>
+    <p>Examine the proposed cluster changes with the <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster"><code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code></a> command executed on the new
+<code class="language-plaintext highlighter-rouge">riak7</code> node:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster plan
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>If the changes are correct, you can commit them with the
+<a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster"><code class="language-plaintext highlighter-rouge">riak-admin cluster commit</code></a> command:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster commit
+</code></pre></div>    </div>
+
+    <p>If you need to clear the proposed plan and start over, use <a href="/riak/kv/2.1.4/using/admin/riak-admin/#cluster"><code class="language-plaintext highlighter-rouge">riak-admin cluster clear</code></a>:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak-admin cluster clear
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>Once you have successfully replaced the node, it should begin leaving
+the cluster. You can check on ring readiness after replacing the node
+with the <a href="/riak/kv/2.1.4/using/admin/riak-admin/#ringready"><code class="language-plaintext highlighter-rouge">riak-admin ringready</code></a>
+and <a href="/riak/kv/2.1.4/using/admin/riak-admin/#member-status"><code class="language-plaintext highlighter-rouge">riak-admin member-status</code></a>
+commands.</p>
+
+<p>You’ll need to make sure that no other ring changes occur between the time
+when you start the new node and the ring settles with the new IP info.</p>
+
+<p>The ring is considered settled when the new node reports <code class="language-plaintext highlighter-rouge">true</code> when you run
+the <code class="language-plaintext highlighter-rouge">riak-admin ringready</code> command.</p>

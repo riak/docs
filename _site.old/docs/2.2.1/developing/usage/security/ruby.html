@@ -1,0 +1,133 @@
+<p>This tutorial shows you how to set up a Riak Ruby client to authenticate
+itself when connecting to Riak.</p>
+
+<p>If you are using <a href="/riak/kv/2.2.1/using/security/managing-sources/">trust-</a> or <a href="/riak/kv/2.2.1/using/security/managing-sources/#pam-based-authentication">PAM</a>-based authentication, you
+can use the security setup described in the <a href="#ruby-client-basics">Ruby Client Basics</a> section.
+<a href="/riak/kv/2.2.1/using/security/managing-sources/#password-based-authentication">Password</a>-based authentication is covered
+in a <a href="#password-based-authentication">later section</a>, while <a href="/riak/kv/2.2.1/using/security/managing-sources/#certificate-based-authentication">certificate</a>-based authentication
+is covered <a href="#certificate-based-authentication">further down</a>.</p>
+
+<p>This tutorial does not cover certificate generation. It assumes that all
+necessary certificates have already been created and are stored in a directory
+called <code class="language-plaintext highlighter-rouge">/ssl_dir</code>. This directory name is used only for example purposes.</p>
+
+<h2 id="ruby-client-basics">Ruby Client Basics</h2>
+
+<p>When connecting to Riak using a Ruby-based client, you must instantiate
+an object from the <code class="language-plaintext highlighter-rouge">Riak::Client</code> class that then handles interactions
+with Riak (you may have more than one client object active in an
+application if you wish). All authentication-related information that
+needs to be used can be passed to the object upon instantiation in an
+<code class="language-plaintext highlighter-rouge">authentication</code> hash.</p>
+
+<p>If you are using Riak Security, <em>all</em> connecting clients should have
+access to the same Certificate Authority (CA) used on the server side,
+regardless of which <a href="/riak/kv/2.2.1/using/security/managing-sources/">security source</a> you choose. All clients should also provide a username. The example below sets up a client object (we’ll simply call it <code class="language-plaintext highlighter-rouge">client</code>) that connects
+to Riak on <code class="language-plaintext highlighter-rouge">localhost</code> and on port 8087, specifies <code class="language-plaintext highlighter-rouge">riakuser</code> as a
+username, and points the client to a CA located at
+<code class="language-plaintext highlighter-rouge">/ssl_dir/cacertfile.pem</code>.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">require</span> <span class="s1">'riak'</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Client</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span>
+  <span class="ss">host: </span><span class="s1">'127.0.0.1'</span><span class="p">,</span>
+  <span class="ss">pb_port: </span><span class="mi">8087</span><span class="p">,</span>
+  <span class="ss">authentication: </span><span class="p">{</span>
+    <span class="ss">ca_file: </span><span class="s1">'/ssl_dir/cacertfile.pem'</span><span class="p">,</span>
+    <span class="ss">user: </span><span class="s1">'riakuser'</span>
+  <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<p>This client object is currently not set up to use any of the available
+security sources, except trust-based auth, provided that the CIDR from
+which the client is connecting has been specified as trusted. More on
+this in <a href="/riak/kv/2.2.1/using/security/managing-sources/#trust-based-authentication">Trust-based Authentication</a>.</p>
+
+<h2 id="password-based-authentication">Password-based Authentication</h2>
+
+<p>To enable our client to use password-based auth, we can use most of the
+information from the example above, with the exception that we will
+specify a password for the client in the <code class="language-plaintext highlighter-rouge">authentication</code> hash. We’ll
+use the password <code class="language-plaintext highlighter-rouge">rosebud</code> here and in the rest of the examples.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Client</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span>
+  <span class="c1"># Using the host and pb_port from above</span>
+  <span class="ss">authentication: </span><span class="p">{</span>
+    <span class="ss">ca_file: </span><span class="s1">'/ssl_dir/cacertfile.pem'</span><span class="p">,</span>
+    <span class="ss">user: </span><span class="s1">'riakuser'</span><span class="p">,</span>
+    <span class="ss">password: </span><span class="s1">'rosebud'</span>
+  <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="pam-based-authentication">PAM-based Authentication</h2>
+
+<p>If you have specified that a specific client be authenticated using
+<a href="/riak/kv/2.2.1/using/security/managing-sources/#pam-based-authentication">PAM</a>, you will
+need to provide a CA as well as the username and password that you
+specified when creating the user in Riak. For more, see our
+documentation on <a href="/riak/kv/2.2.1/using/security/basics#user-management">User Management</a>.</p>
+
+<h2 id="certificate-based-authentication">Certificate-based Authentication</h2>
+
+<p>Using certificate-based authentication requires us to specify the
+location of a CA (as with all security sources), a username, a
+client-specific CA, a CA-generated cert, and a private key. We’ll assume
+that all certs are stored in <code class="language-plaintext highlighter-rouge">/ssl_dir</code>, as in the previous examples.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Client</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span>
+  <span class="c1"># Using the host and pb_port from above</span>
+  <span class="ss">authentication: </span><span class="p">{</span>
+    <span class="ss">ca_file: </span><span class="s1">'/path/to/cacertfile.pem'</span><span class="p">,</span>
+    <span class="ss">user: </span><span class="s1">'riakuser'</span><span class="p">,</span>
+    <span class="ss">client_ca: </span><span class="s1">'/path/to/client_cert.pem'</span><span class="p">,</span>
+    <span class="ss">cert: </span><span class="s1">'/path/to/cert.pem'</span><span class="p">,</span>
+    <span class="ss">key: </span><span class="s1">'/path/to/key.pem'</span>
+  <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">client_ca</code> must be specified if you intend to use a CA that is
+different from the CA used by Riak, e.g. if you are integrating with
+an existing single sign-on (SSO) system. If the client and server CA are
+the same, you don’t need to specify <code class="language-plaintext highlighter-rouge">client_ca</code>. The client cert and
+key, however, must always be specified.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">client_ca</code>, <code class="language-plaintext highlighter-rouge">cert</code>, and <code class="language-plaintext highlighter-rouge">key</code> fields are all flexible in their
+usage. You can use a string specifying a filename (as in the example
+above), or you can pass in an appropriate OpenSSL object, e.g. an SSL
+object created using the
+<a href="http://ruby-doc.org/stdlib-2.0/libdoc/openssl/rdoc/OpenSSL.html">OpenSSL</a>
+gem. If you use specify filenames, those files will be loaded and
+converted into the appropriate OpenSSL object.</p>
+
+<h2 id="specifying-a-certificate-revocation-list">Specifying a Certificate Revocation List</h2>
+
+<p>If you create certificates specifying a CA-signed Certificate Revocation
+List (CRL), those certs will be checked against the CRLs specified. You
+can specify the location of the list in the <code class="language-plaintext highlighter-rouge">authentication</code> hash:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Client</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span>
+  <span class="c1"># Using the host and pb_port from above</span>
+  <span class="ss">authentication: </span><span class="p">{</span>
+    <span class="ss">ca_file: </span><span class="s1">'/ssl_dir/cacertfile.pem'</span><span class="p">,</span>
+    <span class="ss">user: </span><span class="s1">'riakuser'</span><span class="p">,</span>
+    <span class="c1"># Using the cert paths from above</span>
+    <span class="ss">crl_file: </span><span class="s1">'/ssl_dir/revocation.crl'</span>
+  <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<p>CRL checking can sometimes be a slow process. To disable it, you can set
+<code class="language-plaintext highlighter-rouge">crl</code> to <code class="language-plaintext highlighter-rouge">false</code> in the <code class="language-plaintext highlighter-rouge">authentication</code> hash when instantiating your
+client object.</p>
+
+<h2 id="online-certificate-status-protocol">Online Certificate Status Protocol</h2>
+
+<p>If you create certificates with a specified Online Certificate Status
+Protocol
+(<a href="http://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol">OCSP</a>),
+the OCSP endpoint will automatically be checked. If that endpoint is not
+available or if checking is running slowly, you can disable OCSP
+checking by setting <code class="language-plaintext highlighter-rouge">ocsp</code> to <code class="language-plaintext highlighter-rouge">false</code> in the <code class="language-plaintext highlighter-rouge">authentication</code> hash.</p>

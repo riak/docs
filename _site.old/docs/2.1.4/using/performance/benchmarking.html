@@ -1,0 +1,584 @@
+<p>Basho Bench is a benchmarking tool created to conduct accurate and
+repeatable performance tests and stress tests, and to produce
+performance graphs.</p>
+
+<p>Basho Bench exposes a pluggable driver interface and has been extended
+to serve as a benchmarking tool against a variety of projects. New
+drivers can be written in Erlang and are generally less than 200 lines
+of code.</p>
+
+<h2 id="installation">Installation</h2>
+
+<p>You will need:</p>
+
+<ol>
+  <li>One or more load-generating machines on which to install
+ <code class="language-plaintext highlighter-rouge">basho_bench</code>.  Especially when testing larger clusters, a
+ single machine cannot generate enough load to properly exercise
+ the cluster.  Do not run the <code class="language-plaintext highlighter-rouge">basho_bench</code> instances on the
+ Riak nodes themselves, since the load generation will compete with
+ Riak for resources.</li>
+  <li>The <a href="http://www.r-project.org/">R statistics language</a> must be
+ installed (somewhere available to you) if you wish to generate
+ graphs (see the <a href="#generating-benchmark-graphs">Generating Benchmark Graphs</a> section, below).</li>
+</ol>
+
+<h3 id="download-basho_bench">Download <code class="language-plaintext highlighter-rouge">basho_bench</code></h3>
+
+<p>You can download the pre-built packages below, or build it from source.</p>
+
+<ul>
+  <li><strong>Ubuntu 14.04 LTS:</strong>
+  <a href="http://ps-tools.s3.amazonaws.com/basho-bench_0.10.0.53.g0e15158-ubuntu14.04LTS-1_amd64.deb">basho-bench_0.10.0.53-1_amd64.deb</a></li>
+  <li><strong>CentOS 7:</strong>
+  <a href="http://ps-tools.s3.amazonaws.com/basho-bench-0.10.0.53.g0e15158-1.el7.centos.x86_64.rpm">basho-bench-0.10.0.53-1.el7.centos.x86_64.rpm</a></li>
+</ul>
+
+<h3 id="building-from-source">Building from Source</h3>
+
+<h4 id="prerequisites">Prerequisites</h4>
+
+<ul>
+  <li>Erlang must be installed. See <a href="/riak/kv/2.1.4/setup/installing/source/erlang">Installing Erlang</a> for instructions
+  and versioning requirements. Note: Unless you’re an experienced
+  Erlang developer, we recommend that you use Ubuntu 14.04 LTS (and
+  not CentOS), when building <code class="language-plaintext highlighter-rouge">basho_bench</code> from source.  Later
+  versions of CentOS (6 and 7) have difficulty with installing and
+  enabling certain parts of the <code class="language-plaintext highlighter-rouge">erlang-crypto</code> package, which
+  is required by <code class="language-plaintext highlighter-rouge">basho_bench</code>.</li>
+  <li>Install <code class="language-plaintext highlighter-rouge">git</code> (to check out the <code class="language-plaintext highlighter-rouge">basho_bench</code> code)</li>
+</ul>
+
+<h4 id="compiling">Compiling</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git clone git://github.com/basho/basho_bench.git
+<span class="nb">cd </span>basho_bench
+make
+</code></pre></div></div>
+
+<h2 id="usage">Usage</h2>
+
+<p>Run the <code class="language-plaintext highlighter-rouge">basho_bench</code> script, pass in the config file and the
+directory to generate the results into:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>basho_bench <span class="nt">--results-dir</span> &lt;results <span class="nb">dir</span><span class="o">&gt;</span> &lt;config file&gt;
+</code></pre></div></div>
+
+<p>If you’ve installed <code class="language-plaintext highlighter-rouge">basho_bench</code> from a pre-built package, you
+must specify full paths for the test results directory and config
+file. (Also, don’t use the common <code class="language-plaintext highlighter-rouge">~/</code> shell notation, specify the
+user’s home directory explicitly)</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>basho_bench <span class="nt">--results-dir</span> /home/username/bench_results/ /etc/basho_bench/riakc_pb.config 
+</code></pre></div></div>
+
+<p>The example above will generate results in</p>
+<pre><code class="language-/home/username/bench_results/current/```.">
+If you built ```basho_bench``` from source, you can get away with
+relative paths (and the results directory will be created in the
+current directory):
+
+```bash
+./basho_bench myconfig.config
+</code></pre>
+
+<p>This will generate results in <code class="language-plaintext highlighter-rouge">tests/current/</code>. You will need to
+create a configuration file. The recommended approach is to start from
+a file in the <code class="language-plaintext highlighter-rouge">examples</code> directory and modify settings using the
+<a href="#configuration">Configuration</a> section below for
+reference.</p>
+
+<h2 id="generating-benchmark-graphs">Generating Benchmark Graphs</h2>
+
+<p>The output of from running the <code class="language-plaintext highlighter-rouge">basho_bench</code> script can be used to
+create graphs showing the following:</p>
+
+<ul>
+  <li>Throughput — Operations per second over the duration of the test.</li>
+  <li>Latency at 99th percentile, 99.9th percentile and max latency for
+  the selected operations.</li>
+  <li>Median latency, mean latency, and 95th percentile latency for the
+  selected operations.</li>
+</ul>
+
+<h3 id="prerequisites-1">Prerequisites</h3>
+
+<p>The R statistics language is needed to generate graphs. Note: If
+necessary, R can be installed on a different machine than the one
+running basho_bench, and the performance data can be copied (via
+rsync, for example) from the load testing machine to the one that will
+be generating and viewing the graphs (such as a desktop).</p>
+
+<h4 id="installing-r-on-ubuntu">Installing R on Ubuntu</h4>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sudo apt-get install r-base
+</code></pre></div></div>
+
+<h4 id="installing-r-on-other-platforms">Installing R on Other Platforms</h4>
+
+<ul>
+  <li><a href="http://www.r-project.org/">More information</a></li>
+  <li><a href="http://cran.r-project.org/mirrors.html">Download R</a></li>
+</ul>
+
+<p>Follow the instructions for your platform to install R.</p>
+
+<h3 id="generating-graphs">Generating Graphs</h3>
+
+<p>If you have installed <code class="language-plaintext highlighter-rouge">basho_bench</code> from a pre-built package, and
+you also have R installed on the same machine, you can generate the
+current result graph with the following:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Rscript <span class="nt">--vanilla</span> /usr/lib/basho_bench/lib/basho_bench<span class="k">*</span>/priv/summary.r <span class="nt">-i</span> /home/username/bench_results/current/
+</code></pre></div></div>
+
+<p>This will create a results file in</p>
+<pre><code class="language-/home/username/bench_results/summary.png```.">
+If you have built ```basho_bench``` from source, you can just use
+```make```.  To generate a benchmark graph against the current
+results, run:
+
+```bash
+make results
+</code></pre>
+
+<p>This will create a results file in <code class="language-plaintext highlighter-rouge">tests/current/summary.png</code>.</p>
+
+<p>You can also run this manually:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>priv/summary.r <span class="nt">-i</span> tests/current
+</code></pre></div></div>
+
+<h3 id="troubleshooting-graph-generation">Troubleshooting Graph Generation</h3>
+
+<p>For additional help, see the <a href="https://github.com/basho/basho_bench#troubleshooting-graph-generation">Troubleshooting Graph Generation</a>
+section of the <code class="language-plaintext highlighter-rouge">basho_bench/README</code>.</p>
+
+<h2 id="how-does-it-work">How does it work?</h2>
+
+<p>When Basho Bench starts (<code class="language-plaintext highlighter-rouge">basho_bench.erl</code>), it reads the
+configuration (<code class="language-plaintext highlighter-rouge">basho_bench_config.erl</code>), creates a new results
+directory, and then sets up the test (<code class="language-plaintext highlighter-rouge">basho_bench_app.erl</code> and
+<code class="language-plaintext highlighter-rouge">basho_bench_sup.erl</code>).</p>
+
+<p>During test setup, Basho Bench creates the following:</p>
+
+<ul>
+  <li>One <strong>stats process</strong> (<code class="language-plaintext highlighter-rouge">basho_bench_stats.erl</code>). This process
+  receives notifications when an operation completes, plus the
+  elapsed time of the operation, and stores it in a histogram. At
+  regular intervals, the histograms are dumped to <code class="language-plaintext highlighter-rouge">summary.csv</code> as
+  well as operation-specific latency CSVs (e.g. <code class="language-plaintext highlighter-rouge">put_latencies.csv</code>
+  for the PUT operation).</li>
+  <li>N <strong>workers</strong>, where N is specified by the <a href="#concurrent">concurrent</a> configuration setting
+  (<code class="language-plaintext highlighter-rouge">basho_bench_worker.erl</code>). The worker process wraps a driver
+  module, specified by the <a href="#driver">driver</a>
+  configuration setting. The driver is randomly invoked using the
+  distribution of operations as specified by the <a href="#operations">operations</a> configuration setting. The rate at which the
+  driver invokes operations is governed by the <a href="#mode">mode</a> setting.</li>
+</ul>
+
+<p>Once these processes have been created and initialized, Basho Bench
+sends a run command to all worker processes, causing them to begin the
+test. Each worker is initialized with a common seed value for random
+number generation to ensure that the generated workload is reproducible
+at a later date.</p>
+
+<p>During the test, the workers repeatedly call <code class="language-plaintext highlighter-rouge">driver:run/4</code>, passing in
+the next operation to run, a keygen function, a valuegen function, and
+the last state of the driver. The worker process times the operation,
+and reports this to the stats process when the operation has completed.</p>
+
+<p>Finally, once the test has been run for the duration specified in the
+config file, all workers and stats processes are terminated and the
+benchmark ends. The measured latency and throughput of the test can be
+found in <code class="language-plaintext highlighter-rouge">./tests/current/</code>. Previous results are in timestamped
+directories of the form <code class="language-plaintext highlighter-rouge">./tests/YYYYMMDD-HHMMSS/</code>.</p>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>Basho Bench ships with a number of sample configuration files, available
+in the <code class="language-plaintext highlighter-rouge">/examples</code> directory.</p>
+
+<h3 id="global-config-settings">Global Config Settings</h3>
+
+<h4 id="mode">mode</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">mode</code> setting controls the rate at which workers invoke the
+<code class="language-plaintext highlighter-rouge">{driver:run/4}</code> function with a new operation. There are two possible
+values:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">{max}</code> — generate as many ops per second as possible</li>
+  <li><code class="language-plaintext highlighter-rouge">{rate, N}</code> — generate N ops per second, with exponentially distributed interarrival times</li>
+</ul>
+
+<p>Note that this setting is applied to each driver independently. For
+example, if <code class="language-plaintext highlighter-rouge">{rate, 5}</code> is used with 3 concurrent workers, Basho Bench
+will be generating 15 (i.e. 5 * 3) operations per second.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Run at max, i.e.: as quickly as possible
+</span><span class="p">{</span><span class="n">mode</span><span class="p">,</span> <span class="n">max</span><span class="p">}</span>
+
+<span class="c">% Run 15 operations per second per worker
+</span><span class="p">{</span><span class="n">mode</span><span class="p">,</span> <span class="p">{</span><span class="n">rate</span><span class="p">,</span> <span class="mi">15</span><span class="p">}}</span>
+</code></pre></div></div>
+
+<h4 id="concurrent">concurrent</h4>
+
+<p>The number of concurrent worker processes. The default is 3 worker
+processes. This determines the number of concurrent clients running
+requests on API under test.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Run 10 concurrent processes
+</span><span class="p">{</span><span class="n">concurrent</span><span class="p">,</span> <span class="mi">10</span><span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="duration">duration</h4>
+
+<p>The duration of the test, in minutes. The default is 5 minutes.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Run the test for one hour
+</span><span class="p">{</span><span class="n">duration</span><span class="p">,</span> <span class="mi">60</span><span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="operations">operations</h4>
+
+<p>The possible operations that the driver will run, plus their “weight,”
+or likelihood of being run. The default is <code class="language-plaintext highlighter-rouge">[{get,4},{put,4},{delete,
+1}]</code>, which means that out of every 9 operations, GET will be called
+four times, PUT will be called four times, and DELETE will be called
+once, on average.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">operations</span><span class="p">,</span> <span class="p">[{</span><span class="nb">get</span><span class="p">,</span> <span class="mi">4</span><span class="p">},</span> <span class="p">{</span><span class="nb">put</span><span class="p">,</span> <span class="mi">1</span><span class="p">}]}.</span>
+</code></pre></div></div>
+
+<p>Operations are defined on a <strong>per-driver</strong> basis. Not all drivers will
+implement the GET/PUT operations discussed above. Consult the driver
+source to determine the valid operations. If you’re testing the HTTP
+interface, for example, the corresponding operations are GET and
+UPDATE, respectively.</p>
+
+<p>If a driver does not support a specified operation (<code class="language-plaintext highlighter-rouge">asdfput</code> in this
+example), you may see errors like this:</p>
+
+<pre><code class="language-log">DEBUG:Driver basho_bench_driver_null crashed: {function_clause,
+                                          [},
+                                           },
+                                           }]}
+</code></pre>
+
+<h4 id="driver">driver</h4>
+
+<p>The module name of the driver that Basho Bench will use to generate
+load. A driver may simply invoke code in-process (such as when
+measuring the performance of DETS) or may open network connections and
+generate load on a remote system (such as when testing a Riak
+server/cluster).</p>
+
+<p>Available drivers include:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">basho_bench_driver_http_raw</code> — Uses Riak’s HTTP interface to
+  get/update/insert data on a Riak server</li>
+  <li><code class="language-plaintext highlighter-rouge">basho_bench_driver_riakc_pb</code> — Uses Riak’s Protocol Buffers
+  interface to get/put/update/delete data on a Riak serve</li>
+  <li><code class="language-plaintext highlighter-rouge">basho_bench_driver_riakclient</code> — Uses Riak’s Distributed Erlang
+  interface to get/put/update/delete data on a Riak server</li>
+  <li><code class="language-plaintext highlighter-rouge">basho_bench_driver_bitcask</code> — Directly invokes the Bitcask API</li>
+  <li><code class="language-plaintext highlighter-rouge">basho_bench_driver_dets</code> — Directly invokes the DETS API</li>
+</ul>
+
+<p>On invocation of the <code class="language-plaintext highlighter-rouge">driver:run/4</code> method, the driver may return one of
+the following results:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">{ok, NewState}</code> — operation completed successfully</li>
+  <li><code class="language-plaintext highlighter-rouge">{error, Reason, NewState}</code> — operation failed but the driver can
+  continue processing (i.e. recoverable error)</li>
+  <li><code class="language-plaintext highlighter-rouge">{stop, Reason}</code> — operation failed; driver can’t/won’t continue
+  processing</li>
+  <li><code class="language-plaintext highlighter-rouge">{'EXIT', Reason}</code> — operation failed; driver crashed</li>
+</ul>
+
+<h4 id="code_paths">code_paths</h4>
+
+<p>Some drivers need additional Erlang code in order to run. Specify the
+paths to this code using the <code class="language-plaintext highlighter-rouge">code_paths</code> configuration setting.</p>
+
+<h4 id="key_generator">key_generator</h4>
+
+<p>The generator function to use for creating keys. Generators are defined
+in <code class="language-plaintext highlighter-rouge">basho_bench_keygen.erl</code>. Available generators include:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">{sequential_int, MaxKey}</code> — generates integers from 0..<code class="language-plaintext highlighter-rouge">MaxKey</code>
+  in order and then stops the system. Note that each instance of
+  this keygen is specific to a worker.</li>
+  <li><code class="language-plaintext highlighter-rouge">{partitioned_sequential_int, MaxKey}</code> — the same as
+  <code class="language-plaintext highlighter-rouge">{sequential_int}</code>, but splits the keyspace evenly among the
+  worker processes. This is useful for pre-loading a large dataset.</li>
+  <li><code class="language-plaintext highlighter-rouge">{partitioned_sequential_int, StartKey, NumKeys}</code> — the same as
+  <code class="language-plaintext highlighter-rouge">partitioned_sequential_int</code>, but starting at the defined
+  <code class="language-plaintext highlighter-rouge">StartKey</code> and going up to <code class="language-plaintext highlighter-rouge">StartKey + NumKeys</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">{uniform_int, MaxKey}</code> — selects an integer from uniform
+  distribution of 0..<code class="language-plaintext highlighter-rouge">MaxKey</code>, i.e. all integers are equally probable.</li>
+  <li><code class="language-plaintext highlighter-rouge">{pareto_int, MaxKey}</code> — selects an integer from a Pareto
+  distribution, such that 20% of the available keys get selected 80%
+  of the time. Note that the current implementation of this
+  generator <em>may</em> yield values larger than <code class="language-plaintext highlighter-rouge">MaxKey</code> due to the
+  mathematical properties of the Pareto distribution.</li>
+  <li><code class="language-plaintext highlighter-rouge">{truncated_pareto_int, MaxKey}</code> — the same as <code class="language-plaintext highlighter-rouge">{pareto_int}</code>, but
+  will _not&gt; yield values above <code class="language-plaintext highlighter-rouge">MaxKey</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">{function, Module, Function, Args}</code> — specifies an external
+  function that should return a key generator function. The worker
+  <code class="language-plaintext highlighter-rouge">Id</code> will be prepended to <code class="language-plaintext highlighter-rouge">Args</code> when the function is called.</li>
+  <li><code class="language-plaintext highlighter-rouge">{int_to_bin, Generator}</code> — takes any of the above <code class="language-plaintext highlighter-rouge">_int</code>
+  generators and converts the number to a 32-bit binary. This is
+  needed for some drivers that require a binary key.</li>
+  <li><code class="language-plaintext highlighter-rouge">{int_to_str, Generator}</code> — takes any of the above <code class="language-plaintext highlighter-rouge">_int</code>
+  generators and converts the number to a string. This is needed for
+  some drivers that require a string key.</li>
+</ul>
+
+<p>The default key generator is <code class="language-plaintext highlighter-rouge">{uniform_int, 100000}</code>.</p>
+
+<p>Examples:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Use a randomly selected integer between 1 and 10,000
+</span><span class="p">{</span><span class="n">key_generator</span><span class="p">,</span> <span class="p">{</span><span class="n">uniform_int</span><span class="p">,</span> <span class="mi">10000</span><span class="p">}}.</span>
+
+<span class="c">% Use a randomly selected integer between 1 and 10,000, as binary.
+</span><span class="p">{</span><span class="n">key_generator</span><span class="p">,</span> <span class="p">{</span><span class="n">int_to_bin</span><span class="p">,</span> <span class="p">{</span><span class="n">uniform_int</span><span class="p">,</span> <span class="mi">10000</span><span class="p">}}}.</span>
+
+<span class="c">% Use a pareto distributed integer between 1 and 10,000; values &lt; 2000
+% will be returned 80% of the time.
+</span><span class="p">{</span><span class="n">key_generator</span><span class="p">,</span> <span class="p">{</span><span class="n">pareto_int</span><span class="p">,</span> <span class="mi">10000</span><span class="p">}}.</span>
+</code></pre></div></div>
+
+<h4 id="value_generator">value_generator</h4>
+
+<p>The generator function to use for creating values. Generators are
+defined in <code class="language-plaintext highlighter-rouge">basho_bench_valgen.erl</code>. Available generators include:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">{fixed_bin, Size}</code> — generates a random binary of <code class="language-plaintext highlighter-rouge">Size</code>
+  bytes. Every binary is the same size, but varies in content.</li>
+  <li><code class="language-plaintext highlighter-rouge">{exponential_bin, MinSize, Mean}</code> — generates a random binary
+  which has an exponentially distributed size. Most values will be
+  approximately <code class="language-plaintext highlighter-rouge">MinSize</code> + <code class="language-plaintext highlighter-rouge">Mean</code> bytes in size, with a long tail
+  of larger values.</li>
+  <li><code class="language-plaintext highlighter-rouge">{uniform_bin, MinSize, MaxSize}</code> — generates a random binary
+  which has an evenly distributed size between <code class="language-plaintext highlighter-rouge">MinSize</code> and
+  <code class="language-plaintext highlighter-rouge">MaxSize</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">{function, Module, Function, Args}</code> — specifies an external
+  function that should return a value generator function. The worker
+  <code class="language-plaintext highlighter-rouge">Id</code> will be prepended to <code class="language-plaintext highlighter-rouge">Args</code> when the function is called.</li>
+</ul>
+
+<p>The default value generator is <code class="language-plaintext highlighter-rouge">{value_generator, {fixed_bin, 100}}</code>.</p>
+
+<p>Examples:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Generate a fixed size random binary of 512 bytes
+</span><span class="p">{</span><span class="n">value_generator</span><span class="p">,</span> <span class="p">{</span><span class="n">fixed_bin</span><span class="p">,</span> <span class="mi">512</span><span class="p">}}.</span>
+
+<span class="c">% Generate a random binary whose size is exponentially distributed
+% starting at 1000 bytes and a mean of 2000 bytes
+</span><span class="p">{</span><span class="n">value_generator</span><span class="p">,</span> <span class="p">{</span><span class="n">exponential_bin</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">2000</span><span class="p">}}.</span>
+</code></pre></div></div>
+
+<h4 id="rng_seed">rng_seed</h4>
+
+<p>The initial random seed to use. This is explicitly seeded, rather than
+seeded from the current time, so that a test can be run in a
+predictable, repeatable fashion.</p>
+
+<p>Default is <code class="language-plaintext highlighter-rouge">{rng_seed, {42, 23, 12}}</code>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Seed to {12, 34, 56}
+</span><span class="p">{</span><span class="n">rng_seed</span><span class="p">,</span> <span class="p">{</span><span class="mi">12</span><span class="p">,</span> <span class="mi">34</span><span class="p">,</span> <span class="mi">56</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<h4 id="log_level">log_level</h4>
+
+<p>The <code class="language-plaintext highlighter-rouge">log_level</code> setting determines which messages Basho Bench will log
+to the console and to disk.</p>
+
+<p>The default level is <code class="language-plaintext highlighter-rouge">debug</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Valid levels</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">debug</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">info</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">warning</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">error</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="report_interval">report_interval</h4>
+
+<p>How often, in seconds, the stats process should write histogram data
+to disk. The default is 10 seconds.</p>
+
+<h4 id="test_dir">test_dir</h4>
+
+<p>The directory in which result data is written. The default is <code class="language-plaintext highlighter-rouge">/tests</code>.</p>
+
+<h3 id="basho_bench_driver_riakclient-settings">basho_bench_driver_riakclient Settings</h3>
+
+<p>These configuration settings apply to the
+<code class="language-plaintext highlighter-rouge">basho_bench_driver_riakclient</code> driver.</p>
+
+<h4 id="riakclient_nodes">riakclient_nodes</h4>
+
+<p>List of Riak nodes to use for testing.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">riakclient_nodes</span><span class="p">,</span> <span class="p">[</span><span class="n">'riak1@127.0.0.1'</span><span class="p">,</span> <span class="n">'riak2@127.0.0.1'</span><span class="p">]}.</span>
+</code></pre></div></div>
+
+<h4 id="riakclient_cookie">riakclient_cookie</h4>
+
+<p>The Erlang cookie to use to connect to Riak clients. The default is <code class="language-plaintext highlighter-rouge">riak</code>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">riakclient_cookie</span><span class="p">,</span> <span class="n">riak</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<h4 id="riakclient_mynode">riakclient_mynode</h4>
+
+<p>The name of the local node. This is passed into
+<a href="http://erlang.org/doc/man/net_kernel.html">net_kernel:start/1</a>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">riakclient_mynode</span><span class="p">,</span> <span class="p">[</span><span class="n">'basho_bench@127.0.0.1'</span><span class="p">,</span> <span class="n">longnames</span><span class="p">]}.</span>
+</code></pre></div></div>
+
+<h4 id="riakclient_replies">riakclient_replies</h4>
+
+<p>This value is used for R-values during a get operation, and W-values
+during a put operation.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Expect 1 reply.
+</span><span class="p">{</span><span class="n">riakclient_replies</span><span class="p">,</span> <span class="mi">1</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<h4 id="riakclient_bucket">riakclient_bucket</h4>
+
+<p>The Riak bucket to use for reading and writing values. The Default is
+<code class="language-plaintext highlighter-rouge">&lt;&lt;"test"&gt;&gt;</code>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Use the "bench" bucket.
+</span><span class="p">{</span><span class="n">riakclient_bucket</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"bench"</span><span class="o">&gt;&gt;</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<h3 id="basho_bench_driver_riakc_pb-settings">basho_bench_driver_riakc_pb Settings</h3>
+
+<h4 id="riakc_pb_ips">riakc_pb_ips</h4>
+
+<p>A list of IP addresses to connect the workers to. A random IP will be
+chosen for each worker.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{riakc_pb_ips, [{127,0,0,1}]}</code></p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Connect to a cluster of 3 machines
+</span><span class="p">{</span><span class="n">riakc_pb_ips</span><span class="p">,</span> <span class="p">[{</span><span class="mi">10</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">},{</span><span class="mi">10</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">},{</span><span class="mi">10</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">3</span><span class="p">}]}</span>
+</code></pre></div></div>
+
+<h4 id="riakc_pb_port">riakc_pb_port</h4>
+
+<p>The port on which to connect to the PBC interface.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{riakc_pb_port, 8087}</code></p>
+
+<h4 id="riakc_pb_bucket">riakc_pb_bucket</h4>
+
+<p>The bucket to use for testing.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{riakc_pb_bucket, &lt;&lt;"test"&gt;&gt;}</code></p>
+
+<h3 id="basho_bench_driver_http_raw-settings">basho_bench_driver_http_raw Settings</h3>
+
+<h4 id="http_raw_ips">http_raw_ips</h4>
+
+<p>A list of IP addresses to connect the workers to. Each worker makes
+requests to each IP in a round-robin fashion.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{http_raw_ips, ["127.0.0.1"]}</code></p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Connect to a cluster of machines in the 10.x network
+</span><span class="p">{</span><span class="n">http_raw_ips</span><span class="p">,</span> <span class="p">[</span><span class="s">"10.0.0.1"</span><span class="p">,</span> <span class="s">"10.0.0.2"</span><span class="p">,</span> <span class="s">"10.0.0.3"</span><span class="p">]}.</span>
+</code></pre></div></div>
+
+<h4 id="http_raw_port">http_raw_port</h4>
+
+<p>Select the default port to connect to for the HTTP server.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{http_raw_port, 8098}</code>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Connect on port 8090
+</span><span class="p">{</span><span class="n">http_raw_port</span><span class="p">,</span> <span class="mi">8090</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<h4 id="http_raw_path">http_raw_path</h4>
+
+<p>The base path to use for accessing Riak, usually <code class="language-plaintext highlighter-rouge">"/riak/&lt;bucket&gt;"</code>.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{http_raw_path, "/riak/test"}</code>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Place test data in another_bucket
+</span><span class="p">{</span><span class="n">http_raw_path</span><span class="p">,</span> <span class="s">"/riak/another_bucket"</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<h4 id="http_raw_params">http_raw_params</h4>
+
+<p>Additional parameters to add to the end of the URL. This can be used
+to set the <code class="language-plaintext highlighter-rouge">r</code>/<code class="language-plaintext highlighter-rouge">w</code>/<code class="language-plaintext highlighter-rouge">dw</code>/<code class="language-plaintext highlighter-rouge">rw</code> parameters as desired.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{http_raw_params, ""}</code>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Set R=1, W=1 for testing a system with n_val set to 1
+</span><span class="p">{</span><span class="n">http_raw_params</span><span class="p">,</span> <span class="s">"?r=1&amp;w=1"</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<h4 id="http_raw_disconnect_frequency">http_raw_disconnect_frequency</h4>
+
+<p>How often, in seconds or number of operations, the HTTP clients
+(workers) should forcibly disconnect from the server.</p>
+
+<p>The default is <code class="language-plaintext highlighter-rouge">{http_raw_disconnect_frequency, infinity}</code> (which
+means that Basho Bench should never forcibly disconnect).</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Disconnect after 60 seconds
+</span><span class="p">{</span><span class="n">http_raw_disconnect_frequency</span><span class="p">,</span> <span class="mi">60</span><span class="p">}.</span>
+
+<span class="c">% Disconnect after 200 operations
+</span><span class="p">{</span><span class="n">http_raw_disconnect_frequency</span><span class="p">,</span> <span class="p">{</span><span class="n">ops</span><span class="p">,</span> <span class="mi">200</span><span class="p">}}.</span>
+</code></pre></div></div>
+
+<h2 id="custom-driver">Custom Driver</h2>
+
+<p>A custom driver must expose the following callbacks.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">% Create the worker
+% ID is an integer
+</span><span class="nf">new</span><span class="p">(</span><span class="nv">ID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">State</span><span class="p">}</span> <span class="ow">or</span> <span class="p">{</span><span class="n">error</span><span class="p">,</span> <span class="nv">Reason</span><span class="p">}.</span>
+
+<span class="c">% Run an operation
+</span><span class="nf">run</span><span class="p">(</span><span class="nv">Op</span><span class="p">,</span> <span class="nv">KeyGen</span><span class="p">,</span> <span class="nv">ValueGen</span><span class="p">,</span> <span class="nv">State</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">NewState</span><span class="p">}</span> <span class="ow">or</span> <span class="p">{</span><span class="n">error</span><span class="p">,</span> <span class="nv">Reason</span><span class="p">,</span> <span class="nv">NewState</span><span class="p">}.</span>
+</code></pre></div></div>
+
+<p>See the <a href="https://github.com/basho/basho_bench/tree/master/src">existing
+drivers</a> for
+more details.</p>

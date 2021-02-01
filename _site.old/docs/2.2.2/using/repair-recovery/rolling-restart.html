@@ -1,0 +1,38 @@
+<p>Because Riak functions as a multi-node system, cluster-level <a href="/riak/kv/2.2.2/setup/upgrading/cluster">Riak version upgrades</a> and restarts can be performed on a node-by-node, “rolling” basis.</p>
+
+<p>The following steps should be undertaken on each Riak node that you wish to restart:</p>
+
+<p>1. Stop Riak</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<p>2. Perform any necessary maintenance, upgrade, or other work in your cluster.</p>
+
+<p>3. Start Riak again</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>4. Verify that the <code class="language-plaintext highlighter-rouge">riak_kv</code> service is once again available on the target node</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin wait-for-service riak_kv &lt;nodename&gt;
+</code></pre></div></div>
+
+<p>If this responds with <code class="language-plaintext highlighter-rouge">riak_kv is up</code>, then the service is available and you can move on to the next step. Otherwise, the console will periodically return <code class="language-plaintext highlighter-rouge">riak_kv is not up</code> until the service is available.</p>
+
+<p>5. Verify that all in-progress handoffs have been completed</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>
+
+<p>If this responds with <code class="language-plaintext highlighter-rouge">No transfers active</code>, then all handoffs are complete. You can either run this command periodically until no more transfers are active or run the following script, which will run the <code class="language-plaintext highlighter-rouge">riak-admin transfers</code> command every 5 seconds until the transfers are complete:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">while</span> <span class="o">!</span> riak-admin transfers | <span class="nb">grep</span> <span class="nt">-iqF</span> <span class="s1">'No transfers active'</span>
+<span class="k">do
+    </span><span class="nb">echo</span> <span class="s1">'Transfers in progress'</span>
+    <span class="nb">sleep </span>5
+<span class="k">done</span>
+</code></pre></div></div>
+
+<p>6. Repeat the above process for any other nodes that need to be restarted.</p>

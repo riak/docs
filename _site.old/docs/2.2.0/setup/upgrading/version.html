@@ -1,0 +1,238 @@
+
+<h2 id="overview">Overview</h2>
+
+<p>You can upgrade one node or your whole cluster to Riak KV 2.2.0 by following the instructions below.</p>
+
+<h3 id="general-process">General Process</h3>
+
+<p>For every node in the cluster:</p>
+
+<ol>
+  <li>Stop Riak KV.</li>
+  <li>Back up the Riak /etc, /data, and /basho-patches directories.</li>
+  <li>Remove your /basho-patches directory.</li>
+  <li>Upgrade Riak KV.
+    <ul>
+      <li>If you are upgrading from OSS to EE, uninstall your OSS KV package before upgrading.</li>
+    </ul>
+  </li>
+  <li>(Optional) If you would like to potentially downgrade at some point, update your advanced.config file to opt-out of the AAE updates.</li>
+  <li>If you’re upgrading from OSS to EE, apply your customized settings to vm.args and app.config</li>
+  <li>If you’re using MDC replication to clusters with versions less than 2.2.0, update your advanced.config file to over-ride the default bucket properties for compatibility.</li>
+  <li>Start Riak KV.</li>
+  <li>Verify Riak KV is running the upgraded version.</li>
+  <li>Wait for the <code class="language-plaintext highlighter-rouge">riak_kv</code> service to start.</li>
+  <li>Wait for any hinted handoffs to complete.</li>
+</ol>
+
+<p>Before starting the rolling upgrade process on your cluster, check out the <a href="/riak/kv/2.2.0/setup/upgrading/checklist">Upgrading Riak KV: Production Checklist</a>, which covers details and questions to consider before upgrading.</p>
+
+<h2 id="data-file-format-changes">Data File Format Changes</h2>
+
+<p><a href="/riak/kv/2.2.0/release-notes">Riak KV 2.2</a> introduces on-disk data file format changes that can impact the upgrade/downgrade process:</p>
+
+<ul>
+  <li>Changes to active anti-entropy related to inconsistent hashing.</li>
+  <li>Upgrading to Solr 4.10.4 for Riak search.</li>
+</ul>
+
+<p>You must have <a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html">Java version 7 or higher</a> in order to upgrade to Riak KV 2.2.0.</p>
+
+<h3 id="components-that-complicate-downgrades">Components That Complicate Downgrades</h3>
+
+<p>We do our best to make all features that change data formats on disk opt-in; however, some features may be introduced that we either believe are so important that we automatically opt-in users on upgrade or there is no way to provide direct backward compatibility. Downgrading environments with these features can require more effort or might not be possible.</p>
+
+<ul>
+  <li><strong>Automatic</strong> features alter the data format on disk, but are considered important enough for users to be automatically opted-in.</li>
+  <li><strong>Required</strong> features must be accepted as a part of the upgrade.  Internal Solr version upgrades that change the data format on disk are an example of a required feature upgrade.</li>
+  <li><strong>One Way</strong> features, when enabled, will make a clean downgrade of a cluster impossible.</li>
+</ul>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Feature</th>
+      <th style="text-align: center">Automatic</th>
+      <th style="text-align: center">Required</th>
+      <th style="text-align: center">One Way</th>
+      <th style="text-align: left">Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Migration to Solr 4.10.4</td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: left">Applies to all clusters using Riak search.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Active anti-entropy file format changes</td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: left">Can opt-out using a capability.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">LZ4 compression in LevelDB</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: left"> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Global expiration in LevelDB</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: left"> </td>
+    </tr>
+    <tr>
+      <td style="text-align: left">HyperLogLog data type</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: left">On downgrade data written in HLL format is unreadable.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="when-downgrading-is-no-longer-an-option">When Downgrading is No Longer an Option</h3>
+
+<p>If you decide to upgrade to version 2.2, you can still downgrade your cluster to an earlier version of Riak KV if you wish, unless you perform one of the following actions in your cluster:</p>
+
+<ul>
+  <li>Enable LZ4 Compression in LevelDB</li>
+  <li>Enable Global Expiration in LevelDB</li>
+</ul>
+
+<p>If you use other new features, such as the HyperLogLog data type, you can still downgrade your cluster, but you will no longer be able to use those features or access data in new formats after the downgrade.</p>
+
+<h2 id="upgrading-process">Upgrading process</h2>
+
+<p>1. Stop Riak KV on the node you are going to upgrade:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<p>2. Back up your /etc (app.config and vm.args), /data, and /basho-patches directories.</p>
+
+<pre><code class="language-RHEL/CentOS">sudo tar -czf riak_backup.tar.gz /var/lib/riak /etc/riak /usr/lib64/riak/lib/basho-patches
+</code></pre>
+
+<pre><code class="language-Ubuntu">sudo tar -czf riak_backup.tar.gz /var/lib/riak /etc/riak /usr/lib/riak/lib/basho-patches
+</code></pre>
+
+<p>3. Remove your /basho-patches directory:</p>
+
+<pre><code class="language-RHEL/CentOS">sudo rm -rf /usr/lib64/riak/lib/basho-patches/*
+</code></pre>
+
+<pre><code class="language-Ubuntu">sudo rm -rf /usr/lib/riak/lib/basho-patches*
+</code></pre>
+
+<p>4. Upgrade Riak KV:</p>
+
+<p>If you are upgrading from Riak KV OSS to Riak KV EE, you must uninstall your Riak KV package right now, before you can install the EE version.</p>
+
+<pre><code class="language-RHEL/CentOS">sudo rpm -Uvh »riak_package_name«.rpm
+</code></pre>
+
+<pre><code class="language-Ubuntu">sudo dpkg -i »riak_package_name«.deb
+</code></pre>
+
+<p>5.a. (<strong>Optional</strong>) If you would like to keep your AAE trees in a format that will facilitate downgrading, the capability override should be in the <code class="language-plaintext highlighter-rouge">riak_kv</code> proplist of the advanced.config file:</p>
+
+<pre><code class="language-advanced.config">   {riak_kv, [
+     {override_capability, [
+       {object_hash_version, [{use, legacy}] }
+     ]}
+   ]}
+</code></pre>
+
+<p>5.b. (<strong>EE Only</strong>)If you are upgrading from Riak KV OSS to Riak KV EE, you must perform the following steps before moving on:</p>
+
+<ul>
+  <li>A standard package uninstall should not have removed your data directories, but if it did, move your backup to where the data directory should be.</li>
+  <li>Then copy any customizations from your backed-up vm.args to the <code class="language-plaintext highlighter-rouge">riak_ee</code> installed vm.args file (these files may be identical).</li>
+  <li>The app.config file from <code class="language-plaintext highlighter-rouge">riak_ee</code> will be significantly different from your backed-up file. It will have many new sections along with the original ones. Copy the customizations from your original app.config file into the appropriate sections in the new one. Ensure that the following sections are present in app.config:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">riak_core</code> — the <code class="language-plaintext highlighter-rouge">cluster_mgr</code> setting must be present. See <a href="/riak/kv/2.2.0/configuring/v3-multi-datacenter">MDC v3 Configuration</a> for more information.</li>
+      <li><code class="language-plaintext highlighter-rouge">riak_repl</code> — See <a href="/riak/kv/2.2.0/configuring/v3-multi-datacenter">MDC v3 Configuration</a> for more information.</li>
+      <li><code class="language-plaintext highlighter-rouge">riak_jmx</code> — See <a href="/riak/kv/2.2.0/using/reference/jmx">JMX Monitoring</a> for more information.</li>
+      <li><code class="language-plaintext highlighter-rouge">snmp</code> — See <a href="/riak/kv/2.2.0/using/reference/snmp">SNMP</a> for more information.</li>
+    </ul>
+  </li>
+</ul>
+
+<p>5.c. (<strong>EE Only with MDC</strong>)If you need to replicate to clusters with versions less than 2.2.0, the capability override for bucket properties should be in the <code class="language-plaintext highlighter-rouge">riak_repl</code> proplist of the advanced.config file:</p>
+
+<pre><code class="language-advanced.config">   {riak_repl, [
+     {override_capability, [
+       {default_bucket_props_hash, [{use, [consistent, datatype, n_val, allow_mult, last_write_wins]}] }
+     ]}
+   ]}
+</code></pre>
+
+<p>Once all of the clusters have been upgraded to version 2.2.0 or greater, this capability override can be removed.</p>
+
+<p>6. Restart Riak KV:</p>
+
+<p>You must have <a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html">Java version 7 or higher</a> in order to upgrade to Riak KV 2.2.0. If you do not have it installed, please install it now.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>7. Verify that Riak KV is running the new version:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak version
+</code></pre></div></div>
+
+<p>8. Wait for the <code class="language-plaintext highlighter-rouge">riak_kv</code> service to start:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin wait-for-service riak_kv »target_node«
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">»target_node«</code> is the node which you have just upgraded (e.g.
+riak@192.168.1.11)</li>
+</ul>
+
+<p>9. Wait for any hinted handoff transfers to complete:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>
+
+<ul>
+  <li>While the node was offline, other nodes may have accepted writes on its behalf. This data is transferred to the node when it becomes available.</li>
+</ul>
+
+<p>10. Repeat the process for the remaining nodes in the cluster.</p>
+
+<h3 id="basho-patches">Basho Patches</h3>
+
+<p>After upgrading, you should ensure that any custom patches contained in the <code class="language-plaintext highlighter-rouge">basho-patches</code> directory are examined to determine their application to the upgraded version. You can find this information in the <a href="/riak/kv/2.2.0/release-notes">Release Notes</a>.</p>
+
+<p>If you find that patches no longer apply to the upgraded version, you should remove them from the <code class="language-plaintext highlighter-rouge">basho-patches</code> directory prior to operating the node in production.</p>
+
+<p>The following lists locations of the <code class="language-plaintext highlighter-rouge">basho-patches</code> directory for
+each supported operating system:</p>
+
+<ul>
+  <li>CentOS &amp; RHEL Linux: <code class="language-plaintext highlighter-rouge">/usr/lib64/riak/lib/basho-patches</code></li>
+  <li>Debian &amp; Ubuntu Linux: <code class="language-plaintext highlighter-rouge">/usr/lib/riak/lib/basho-patches</code></li>
+  <li>FreeBSD: <code class="language-plaintext highlighter-rouge">/usr/local/lib/riak/lib/basho-patches</code></li>
+  <li>SmartOS: <code class="language-plaintext highlighter-rouge">/opt/local/lib/riak/lib/basho-patches</code></li>
+  <li>Solaris 10: <code class="language-plaintext highlighter-rouge">/opt/riak/lib/basho-patches</code></li>
+</ul>
+
+<h3 id="riaknostic">Riaknostic</h3>
+
+<p>It is a good idea to also verify some basic configuration and general health of the Riak KV node after upgrading by using Riak KV’s built-in diagnostic utility Riaknostic.</p>
+
+<p>Ensure that Riak KV is running on the node, and issue the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin diag
+</code></pre></div></div>
+
+<p>Make the recommended changes from the command output to ensure optimal node operation.</p>

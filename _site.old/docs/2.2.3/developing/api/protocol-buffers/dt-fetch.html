@@ -1,0 +1,157 @@
+<p>The equivalent of <a href="/riak/kv/2.2.3/developing/api/protocol-buffers/fetch-object"><code class="language-plaintext highlighter-rouge">RpbGetReq</code></a> for <a href="/riak/kv/2.2.3/developing/data-types">Riak Data Types</a>. This request results in a <code class="language-plaintext highlighter-rouge">DtFetchResp</code>
+message (explained in the <strong>Response</strong> section below).</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">DtFetchReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">bucket</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">key</span>    <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">type</span>  <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">r</span>             <span class="o">=</span>  <span class="mi">4</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">pr</span>            <span class="o">=</span>  <span class="mi">5</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>   <span class="na">basic_quorum</span>  <span class="o">=</span>  <span class="mi">6</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>   <span class="na">notfound_ok</span>   <span class="o">=</span>  <span class="mi">7</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">timeout</span>       <span class="o">=</span>  <span class="mi">8</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>   <span class="na">sloppy_quorum</span> <span class="o">=</span>  <span class="mi">9</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">n_val</span>         <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">include_context</span> <span class="o">=</span> <span class="mi">11</span> <span class="p">[</span><span class="k">default</span><span class="o">=</span><span class="kc">true</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="required-parameters">Required Parameters</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">bucket</code></td>
+      <td style="text-align: left">The name of the bucket in which the Data Type is stored</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">key</code></td>
+      <td style="text-align: left">The key where the Data Type is stored</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">type</code></td>
+      <td style="text-align: left">The <a href="/riak/kv/2.2.3/using/cluster-operations/bucket-types">Using Bucket Types</a> of the bucket in which the Data Type is stored, <em>not</em> the type of Data Type (i.e. counter, set, or map)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="optional-parameters">Optional Parameters</h4>
+
+<blockquote>
+  <p><strong>Note on defaults and special values</strong></p>
+
+  <p>All of the optional parameters below have default values determined on a
+per-bucket basis. Please refer to the documentation on <a href="/riak/kv/2.2.3/developing/api/protocol-buffers/set-bucket-props">setting bucket properties</a> for more information.</p>
+</blockquote>
+
+<p>Furthermore, you can assign an integer value to the <code class="language-plaintext highlighter-rouge">r</code> and
+<code class="language-plaintext highlighter-rouge">pr</code>, provided that that integer value is less than or equal
+to N, <em>or</em> a special value denoting <code class="language-plaintext highlighter-rouge">one</code>
+(<code class="language-plaintext highlighter-rouge">4294967295-1</code>), <code class="language-plaintext highlighter-rouge">quorum</code>
+(<code class="language-plaintext highlighter-rouge">4294967295-2</code>), <code class="language-plaintext highlighter-rouge">all</code>
+(<code class="language-plaintext highlighter-rouge">4294967295-3</code>), or <code class="language-plaintext highlighter-rouge">default</code>
+(<code class="language-plaintext highlighter-rouge">4294967295-4</code>).</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">r</code></td>
+      <td style="text-align: left">Read quorum, i.e. how many replicas need to agree when retrieving the object</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pr</code></td>
+      <td style="text-align: left">Primary read quorum, i.e. how many primary replicas need to be available when retrieving the object</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">basic_quorum</code></td>
+      <td style="text-align: left">Whether to return early in some failure cases, e.g. when <code class="language-plaintext highlighter-rouge">r=1</code> and you get 2 errors and a success basic_quorum=true would return an error</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">notfound_ok</code></td>
+      <td style="text-align: left">Whether to treat <code class="language-plaintext highlighter-rouge">not found</code> responses as successful reads for the purposes of R</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">timeout</code></td>
+      <td style="text-align: left">The timeout duration, in milliseconds, after which Riak will return an error message</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">sloppy_quorum</code></td>
+      <td style="text-align: left">If this parameter is set to <code class="language-plaintext highlighter-rouge">true</code>, the next available node in the ring will accept requests if any primary node is unavailable</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">n_val</code></td>
+      <td style="text-align: left">The number of nodes to which the delete request will be sent</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">include_context</code></td>
+      <td style="text-align: left">If this parameter is set to <code class="language-plaintext highlighter-rouge">true</code>, the Data Type’s opaque “context” will be returned to the client</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="response">Response</h2>
+
+<p>The response to a fetch request (<a href="/riak/kv/2.2.3/developing/api/protocol-buffers/dt-fetch"><code class="language-plaintext highlighter-rouge">DtFetchReq</code></a>) is a <code class="language-plaintext highlighter-rouge">DtFetchResp</code> message.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">DtFetchResp</span> <span class="p">{</span>
+    <span class="kd">enum</span> <span class="n">DataType</span> <span class="p">{</span>
+        <span class="na">COUNTER</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+        <span class="na">SET</span>     <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+        <span class="na">MAP</span>     <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">optional</span> <span class="kt">bytes</span>    <span class="na">context</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="n">DataType</span> <span class="na">type</span>    <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">DtValue</span>  <span class="na">value</span>   <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>If the <code class="language-plaintext highlighter-rouge">include_context</code> option is specified, an opaque “context” value
+will be returned along with the user-readable data. When sending an
+update request, the client should send this context as well, just as one
+would send a <a href="/riak/kv/2.2.3/learn/glossary/#vector-clock">vclock</a> for standard KV updates.</p>
+
+<p>The type of the Data Type is specified in the <code class="language-plaintext highlighter-rouge">type</code> field, and must be
+one of the three possible values of the <code class="language-plaintext highlighter-rouge">DataType</code> enum (<code class="language-plaintext highlighter-rouge">COUNTER</code>,
+<code class="language-plaintext highlighter-rouge">SET</code>, or <code class="language-plaintext highlighter-rouge">MAP</code>).</p>
+
+<p>The current value of the Data Type is contained in the <code class="language-plaintext highlighter-rouge">value</code> field,
+which itself contains a <code class="language-plaintext highlighter-rouge">DtValue</code> message. This message will have the
+following structure:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">DtValue</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="kt">sint64</span>   <span class="na">counter_value</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span>    <span class="na">set_value</span>     <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">MapEntry</span> <span class="na">map_value</span>     <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>If the Data Type queried is a counter, it will return an integer value
+for the counter; it a set, it will return the sets current value, in
+bytes, if a map it will return a <code class="language-plaintext highlighter-rouge">MapEntry</code> message. <code class="language-plaintext highlighter-rouge">MapEntry</code> messages
+are structured as follows:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">MapEntry</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="n">MapField</span> <span class="na">field</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">sint64</span>   <span class="na">counter_value</span>  <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span>    <span class="na">set_value</span>      <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span>    <span class="na">register_value</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span>     <span class="na">flag_value</span>     <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">MapEntry</span> <span class="na">map_value</span>      <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+

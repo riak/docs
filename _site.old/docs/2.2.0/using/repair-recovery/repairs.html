@@ -1,0 +1,336 @@
+
+<h2 id="repairing-search-indexes">Repairing Search Indexes</h2>
+
+<p>Riak search indexes are repaired whenever objects are corrected by <a href="/riak/kv/2.2.0/learn/glossary/#read-repair">read repair</a>.</p>
+
+<p><a href="/riak/kv/2.2.0/learn/glossary/#active-anti-entropy-aae">Active anti-entropy (AAE)</a> is provided for Riak search.</p>
+
+<p>Riak KV’s <a href="/riak/kv/2.2.0/using/cluster-operations/active-anti-entropy/">configuration for AAE</a> will be used for Riak search’s AAE hashtrees by default.</p>
+
+<p>Riak search can be provided its own AAE settings in the <a href="/riak/kv/2.2.0/configuring/search/#search-config-settings">search config settings</a>.</p>
+
+<h2 id="repairing-secondary-indexes">Repairing Secondary Indexes</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak-admin repair-2i</code> command can be used to repair any stale or missing secondary indexes.  This command scans and repairs any mismatches between the secondary index data used for querying and the secondary index data stored in the Riak objects. It can be run on all partitions of a node or on a subset of them.  We recommend scheduling these repairs outside of peak load time.</p>
+
+<h3 id="running-a-repair">Running a Repair</h3>
+
+<p>The secondary indexes of a single partition can be repaired by executing:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i »Partition ID«
+</code></pre></div></div>
+
+<p>The secondary indexes of every partition can be repaired by executing the same command, without a partition ID:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i
+</code></pre></div></div>
+
+<h3 id="monitoring-a-repair">Monitoring a Repair</h3>
+
+<p>Repairs can be monitored using the below command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i status
+</code></pre></div></div>
+
+<h3 id="killing-a-repair">Killing a Repair</h3>
+
+<p>In the event the secondary index repair operation needs to be halted, all repairs can be killed with:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i <span class="nb">kill</span>
+</code></pre></div></div>
+
+<h2 id="repairing-leveldb">Repairing LevelDB</h2>
+
+<p>In the event of major hardware or filesystem problems, LevelDB can become corrupted. These failures are uncommon, but they could happen, as heavy loads can push I/O limits.</p>
+
+<h3 id="checking-for-compaction-errors">Checking for Compaction Errors</h3>
+
+<p>Any time there is a compaction error, it will be noted in the LevelDB logs. Those logs are located in a <code class="language-plaintext highlighter-rouge">LOG</code> file in each instance of LevelDB in a Riak node, specifically in <code class="language-plaintext highlighter-rouge">#(platform_data_dir)/leveldb/&lt;vnode&gt;/LOG</code>. The <code class="language-plaintext highlighter-rouge">platform_data_dir</code> can be specified in the <a href="/riak/kv/2.2.0/configuring/reference/"><code class="language-plaintext highlighter-rouge">riak.conf</code></a> configuration file. The default is <code class="language-plaintext highlighter-rouge">./data</code>.</p>
+
+<p>Compaction error messages take the following form:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;timestamp&gt; Compaction Error: Corruption: corrupted compressed block contents
+</code></pre></div></div>
+
+<p>To check whether your node has experienced such errors, you will need to run a script that searches for <code class="language-plaintext highlighter-rouge">Compaction Error</code> in each <code class="language-plaintext highlighter-rouge">LOG</code> file. Here is an example script:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>find <span class="nb">.</span> <span class="nt">-name</span> <span class="s2">"LOG"</span> <span class="nt">-exec</span> <span class="nb">grep</span> <span class="nt">-l</span> <span class="s1">'Compaction error'</span> <span class="o">{}</span> <span class="se">\;</span>
+</code></pre></div></div>
+
+<p>If there are compaction errors in any of your vnodes, those will be listed in the console. If any vnode has experienced such errors, you would see output like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./442446784738847563128068650529343492278651453440/LOG 
+</code></pre></div></div>
+
+<p>While corruption on one vnode is not uncommon, corruption in several vnodes very likely means that there is a deeper problem that needs to be address, perhaps on the OS or hardware level.</p>
+
+<h2 id="healing-corrupted-leveldbs">Healing Corrupted LevelDBs</h2>
+
+<p>When you have discovered corruption in your LevelDB backend, the steps you take to resolve it will depend on whether you are using <a href="/riak/kv/2.2.0/setup/planning/backend/leveldb/#tiered-storage">tiered storage</a> or not.</p>
+
+<p>Choose your setup below:</p>
+
+<ol>
+  <li><a href="#leveldb">Just LevelDB</a></li>
+  <li><a href="#leveldb-with-tiered-storage">LevelDB with tiered storage</a></li>
+</ol>
+
+<h3 id="leveldb">LevelDB</h3>
+
+<p>Follow the steps below to heal your corrupted LevelDB.</p>
+
+<p>1. Stop the node:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<p>2. To repair the corrupted LevelDB through the <a href="http://learnyousomeerlang.com/starting-out">Erlang shell</a>,  you will run the the <code class="language-plaintext highlighter-rouge">riak ertspath</code> command to output the path to Riak’s internal Erlang runtime, and the <code class="language-plaintext highlighter-rouge">erl</code> command to start the Erlang shell. You can run them in a single command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="sb">`</span>riak ertspath<span class="sb">`</span>/erl
+</code></pre></div></div>
+
+<p>Note, you must start up the Erlang shell using the same version of Erlang packaged with Riak. The above command will make sure you do so. If you choose not to use the above command please pay close attention to the version and location you use with the <code class="language-plaintext highlighter-rouge">erl</code> command.</p>
+
+<p>3. Once in the shell, run the following command:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">application</span><span class="p">:</span><span class="nf">set_env</span><span class="p">(</span><span class="n">eleveldb</span><span class="p">,</span> <span class="n">data_root</span><span class="p">,</span> <span class="s">""</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>4. Then set <code class="language-plaintext highlighter-rouge">Options</code> equal to an empty list:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Options</span> <span class="o">=</span> <span class="p">[].</span>
+</code></pre></div></div>
+
+<p>5. Set some supportive variables for the repair process.  These will be custom to your environment and specific repair needs.
+VNodeList should be a list of each corrupted LevelDB that you found using the <a href="#checking-for-compaction-errors"><code class="language-plaintext highlighter-rouge">find</code> command above</a>.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">DataRoot</span> <span class="o">=</span> <span class="s">"»path to your data root«"</span><span class="p">.</span>
+<span class="nv">VNodeList</span> <span class="o">=</span> <span class="p">[</span><span class="s">"»vnode id you want to repair«"</span><span class="p">,</span> <span class="p">...].</span>
+</code></pre></div></div>
+
+<p>6. Run the following commands, which will parse the information you provided and run eleveldb:repair over all of the VNode IDs that you listed in VNodeList.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">RepairPath</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">DataRoot</span><span class="p">,</span> <span class="nv">VNodeNumber</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nv">Path</span> <span class="o">=</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">flatten</span><span class="p">(</span><span class="nv">DataRoot</span> <span class="o">++</span> <span class="s">"/"</span> <span class="o">++</span> <span class="nv">VNodeNumber</span><span class="p">),</span> <span class="nn">io</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"Repairing </span><span class="si">~s</span><span class="s">.</span><span class="si">~n</span><span class="s">"</span><span class="p">,[</span><span class="nv">Path</span><span class="p">]),</span> <span class="nv">Path</span> <span class="k">end</span><span class="p">.</span>
+<span class="p">[</span><span class="nn">eleveldb</span><span class="p">:</span><span class="nf">repair</span><span class="p">(</span><span class="nv">RepairPath</span><span class="p">(</span><span class="nv">DataRoot</span><span class="p">,</span> <span class="nv">VNodeList</span><span class="p">),</span> <span class="nv">Options</span><span class="p">)</span> <span class="p">||</span> <span class="nv">VNodeNumber</span> <span class="o">&lt;-</span> <span class="nv">VNodeList</span><span class="p">].</span>
+</code></pre></div></div>
+
+<p>7. This process may take several minutes. When it has completed successfully, you can restart the node and continue as usual.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<h3 id="leveldb-with-tiered-storage">LevelDB with Tiered Storage</h3>
+
+<p>Follow the steps below to heal your corrupted LevelDB.</p>
+
+<p>1. Stop the node:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<p>2. Check your riak.conf file and make note of the following values:</p>
+
+<ul>
+  <li>leveldb.tiered (integer)</li>
+  <li>leveldb.tiered.path.fast</li>
+  <li>leveldb.tiered.path.slow</li>
+</ul>
+
+<p>3. To repair the corrupted LevelDB through the <a href="http://learnyousomeerlang.com/starting-out">Erlang shell</a>,  you will run the the <code class="language-plaintext highlighter-rouge">riak ertspath</code> command to output the path to Riak’s internal Erlang runtime, and the <code class="language-plaintext highlighter-rouge">erl</code> command to start the Erlang shell. You can run them in a single command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="sb">`</span>riak ertspath<span class="sb">`</span>/erl
+</code></pre></div></div>
+
+<p>Note, you must start up the Erlang shell using the same version of Erlang packaged with Riak. The above command will make sure you do so. If you choose not to use the above command please pay close attention to the version and location you use with the <code class="language-plaintext highlighter-rouge">erl</code> command.</p>
+
+<p>4. Once in the shell, run the following command:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">application</span><span class="p">:</span><span class="nf">set_env</span><span class="p">(</span><span class="n">eleveldb</span><span class="p">,</span> <span class="n">data_root</span><span class="p">,</span> <span class="s">""</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>5. Then supply the information you noted in Step 2:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Options</span> <span class="o">=</span> <span class="p">[</span>
+  <span class="p">{</span><span class="n">tiered_slow_level</span><span class="p">,</span> <span class="err">»</span><span class="n">leveldb</span><span class="p">.</span><span class="n">tiered</span> <span class="n">value</span><span class="err">«</span><span class="p">},</span>    
+  <span class="p">{</span><span class="n">tiered_fast_prefix</span><span class="p">,</span> <span class="s">"»leveldb.tiered.path.fast value«"</span><span class="p">},</span>
+  <span class="p">{</span><span class="n">tiered_slow_prefix</span><span class="p">,</span> <span class="s">"»leveldb.tiered.path.slow value«"</span><span class="p">}</span>
+<span class="p">].</span>
+</code></pre></div></div>
+
+<p>6. Set some supportive variables for the repair process.  These will be custom to your environment and specific repair needs.
+VNodeList should be a list of each corrupted LevelDB partitions that you found using the <a href="#checking-for-compaction-errors"><code class="language-plaintext highlighter-rouge">find</code> command above</a> provided in double quotes.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">DataRoot</span> <span class="o">=</span> <span class="s">"»path to your data root«"</span><span class="p">.</span>
+<span class="nv">VNodeList</span> <span class="o">=</span> <span class="p">[</span><span class="s">"»vnode id you want to repair«"</span><span class="p">,</span> <span class="p">...].</span>
+</code></pre></div></div>
+
+<p>7. Run the following commands, which will parse the information you provided and run eleveldb:repair over all of the VNode IDs that you listed in VNodeList.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">RepairPath</span> <span class="o">=</span> <span class="k">fun</span><span class="p">(</span><span class="nv">DataRoot</span><span class="p">,</span> <span class="nv">VNodeNumber</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nv">Path</span> <span class="o">=</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">flatten</span><span class="p">(</span><span class="nv">DataRoot</span> <span class="o">++</span> <span class="s">"/"</span> <span class="o">++</span> <span class="nv">VNodeNumber</span><span class="p">),</span> <span class="nn">io</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"Repairing </span><span class="si">~s</span><span class="s">.</span><span class="si">~n</span><span class="s">"</span><span class="p">,[</span><span class="nv">Path</span><span class="p">]),</span> <span class="nv">Path</span> <span class="k">end</span><span class="p">.</span>
+<span class="p">[</span><span class="nn">eleveldb</span><span class="p">:</span><span class="nf">repair</span><span class="p">(</span><span class="nv">RepairPath</span><span class="p">(</span><span class="nv">DataRoot</span><span class="p">,</span> <span class="nv">VNodeList</span><span class="p">),</span> <span class="nv">Options</span><span class="p">)</span> <span class="p">||</span> <span class="nv">VNodeNumber</span> <span class="o">&lt;-</span> <span class="nv">VNodeList</span><span class="p">].</span>
+</code></pre></div></div>
+<p>8. This process may take several minutes. When it has completed successfully, you can restart the node and continue as usual.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<h2 id="repairing-partitions">Repairing Partitions</h2>
+
+<p>If you have experienced a loss of object replicas in your cluster, you
+may need to perform a repair operation on one or more of your data
+<a href="/riak/kv/2.2.0/learn/concepts/clusters/#the-ring">partitions</a>. Repairs of Riak KV data are typically
+run in situations where partitions or whole nodes are lost due to
+corruption or hardware failure. In these cases, nodes or partitions are
+brought back online without any data, which means that the need to
+repair data will depend mainly on your use case and on whether <a href="/riak/kv/2.2.0/learn/concepts/active-anti-entropy/">active anti-entropy</a> is enabled.</p>
+
+<p>You will need to run a repair if the following are both true:</p>
+
+<ul>
+  <li>Active anti-entropy is <a href="/riak/kv/2.2.0/learn/concepts/active-anti-entropy/#disabling-active-anti-entropy">disabled</a></li>
+  <li>You have both non-expiring data and keys that are not accessed
+frequently (which means that they are not likely to be subject to
+<a href="/riak/kv/2.2.0/learn/concepts/active-anti-entropy/#read-repair-vs-active-anti-entropy">read repair</a>)</li>
+</ul>
+
+<p>You will most likely not need to run a repair operation if <em>any</em> of the
+following is true:</p>
+
+<ul>
+  <li>Active anti-entropy is <a href="/riak/kv/2.2.0/learn/concepts/active-anti-entropy/#enabling-active-anti-entropy">enabled</a></li>
+  <li>Your entire key set is accessed frequently, allowing passive read
+repair to repair the partitions</li>
+  <li>Your data expires frequently</li>
+</ul>
+
+<p>In most cases, we recommend either using active anti-entropy or, if
+necessary and only when necessary, running a repair operation using the
+instructions below.</p>
+
+<h3 id="running-a-repair-1">Running a Repair</h3>
+
+<p>The Riak KV repair operation will repair objects from a node’s adjacent
+partitions on the ring, consequently fixing the index. This is done as
+efficiently as possible by generating a hash range for all the buckets
+and thus avoiding a preflist calculation for each key. Only a hash of
+each key is done, its range determined from a bucket-&gt;range map, and
+then the hash is checked against the range.</p>
+
+<p>Repairs are not allowed to occur during ownership changes. Since
+ownership entails the moving of partition data it is safest to make them
+mutually exclusive events. If you join or remove a node all repairs
+across the entire cluster will be killed.</p>
+
+<h3 id="repairing-a-single-partition">Repairing a Single Partition</h3>
+
+<p>In the case of data loss in a single partition, only that partition can
+be repaired.</p>
+
+<ol>
+  <li>
+    <p>From any node in the cluster, attach to Riak’s Erlang shell:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak attach
+</code></pre></div>    </div>
+
+    <p>You may have to hit <strong>Enter</strong> again to get a console prompt.</p>
+  </li>
+  <li>
+    <p>Execute the repair for a single partition using the below command:</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nn">riak_kv_vnode</span><span class="p">:</span><span class="nf">repair</span><span class="p">(</span><span class="err">»</span><span class="nv">Partition</span> <span class="nv">ID</span><span class="err">«</span><span class="p">).</span>
+</code></pre></div>    </div>
+
+    <p>where <code class="language-plaintext highlighter-rouge">»Partition_ID«</code> is replaced by the ID of the partition to
+ repair. For example:</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nn">riak_kv_vnode</span><span class="p">:</span><span class="nf">repair</span><span class="p">(</span><span class="mi">251195593916248939066258330623111144003363405824</span><span class="p">).</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Once the command has been executed, detach from Riak using
+<code class="language-plaintext highlighter-rouge">Control-C</code>.</p>
+  </li>
+</ol>
+
+<h3 id="repairing-all-partitions-on-a-node">Repairing All Partitions on a Node</h3>
+
+<p>If a node is lost, all partitions currently owned by that node can be
+repaired.</p>
+
+<ol>
+  <li>
+    <p>From any node in the cluster, attach to Riak’s Erlang shell:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> riak attach
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Get a copy of the current Ring:</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Ring</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riak_core_ring_manager</span><span class="p">:</span><span class="nf">get_my_ring</span><span class="p">().</span>
+</code></pre></div>    </div>
+
+    <p>You will get a lot of output with ring record information.
+ You can safely ignore it.</p>
+  </li>
+  <li>
+    <p>Get a list of partitions owned by the node that needs to be repaired.
+Replace <code class="language-plaintext highlighter-rouge">dev1@127.0.0.1</code> with the name of the node to be repaired.  The
+name can be found in each node’s <code class="language-plaintext highlighter-rouge">vm.args</code> file, specified as the
+<code class="language-plaintext highlighter-rouge">-name</code> parameter, if you are using the older configuration system; if
+you are using the newer, <code class="language-plaintext highlighter-rouge">riak-conf</code>-based system, the name is given by
+the <code class="language-plaintext highlighter-rouge">nodename</code> parameter.</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nv">Partitions</span> <span class="o">=</span> <span class="p">[</span><span class="nv">P</span> <span class="p">||</span> <span class="p">{</span><span class="nv">P</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">}</span> <span class="o">&lt;-</span> <span class="nn">riak_core_ring</span><span class="p">:</span><span class="nf">all_owners</span><span class="p">(</span><span class="nv">Ring</span><span class="p">)].</span>
+</code></pre></div>    </div>
+
+    <p><strong>Note</strong>: The above is an <a href="http://www.erlang.org/doc/programming_examples/list_comprehensions.html">Erlang list
+ comprehension</a>
+ that loops over each <code class="language-plaintext highlighter-rouge">{Partition, Node}</code> tuple in the ring and
+ extracts only the partitions that match the given node name, as a
+ list.</p>
+  </li>
+  <li>
+    <p>Execute the repair on all the partitions. Executing the repairs all
+at once will cause a lot of <code class="language-plaintext highlighter-rouge">{shutdown, max_concurrency}</code> messages in
+the logs. These can be safely ingored, as it is just the transfers
+mechanism enforcing an upper limit on the number of concurrent
+transfers.</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="p">[</span><span class="nn">riak_kv_vnode</span><span class="p">:</span><span class="nf">repair</span><span class="p">(</span><span class="nv">P</span><span class="p">)</span> <span class="p">||</span> <span class="nv">P</span> <span class="o">&lt;-</span> <span class="nv">Partitions</span><span class="p">].</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Once the command has been executed, detach from Riak using
+<code class="language-plaintext highlighter-rouge">Control-C</code>.</p>
+  </li>
+</ol>
+
+<h3 id="monitoring-repairs">Monitoring Repairs</h3>
+
+<p>The above repair commands can be monitored via the <code class="language-plaintext highlighter-rouge">riak-admin
+transfers</code> command.</p>
+
+<h3 id="killing-a-repair-1">Killing a Repair</h3>
+
+<p>Currently there is no easy way to kill an individual repair. The only
+option is to kill all repairs targeting a given node. This is done by
+running <code class="language-plaintext highlighter-rouge">riak_core_vnode_manager:kill_repairs(Reason)</code> on the node
+undergoing repair.  This command can be executed from a <code class="language-plaintext highlighter-rouge">riak attach</code>
+session like below:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riak_core_vnode_manager</span><span class="p">:</span><span class="nf">kill_repairs</span><span class="p">(</span><span class="n">killed_by_user</span><span class="p">).</span>
+</code></pre></div></div>
+
+<p>Log entries will reflect that repairs were killed manually, and will
+look similar to:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>2012-08-10 10:14:50.529 [warning] &lt;0.154.0&gt;@riak_core_vnode_manager:handle_cast:395 Killing all repairs: killed_by_user
+</code></pre></div></div>
+
+<p>Repairs on a node can also be killed remotely from another node in the
+cluster. From a <code class="language-plaintext highlighter-rouge">riak attach</code> session the below command can be used:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">rpc</span><span class="p">:</span><span class="nf">call</span><span class="p">(</span><span class="n">'dev1@127.0.0.1'</span><span class="p">,</span> <span class="n">riak_core_vnode_manager</span><span class="p">,</span> <span class="n">kill_repairs</span><span class="p">,</span> <span class="p">[</span><span class="n">killed_by_user</span><span class="p">]).</span>
+</code></pre></div></div>

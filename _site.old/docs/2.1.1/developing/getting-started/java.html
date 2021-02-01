@@ -1,0 +1,64 @@
+<p>If you haven’t set up a Riak Node and started it, please visit <a href="/riak/kv/2.1.1/using/running-a-cluster">Running A Cluster</a> first.</p>
+
+<p>To try this flavor of Riak, a working installation of Java is required.</p>
+
+<h2 id="client-setup">Client Setup</h2>
+
+<p>To include the Riak Java client in your project, add it to your
+project’s dependencies. Here is a Maven example:</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;dependencies&gt;</span>
+  <span class="nt">&lt;dependency&gt;</span>
+    <span class="nt">&lt;groupId&gt;</span>com.basho.riak<span class="nt">&lt;/groupId&gt;</span>
+    <span class="nt">&lt;artifactId&gt;</span>riak-client<span class="nt">&lt;/artifactId&gt;</span>
+    <span class="nt">&lt;version&gt;</span>2.1.1<span class="nt">&lt;/version&gt;</span>
+  <span class="err">&lt;</span>/dependency
+<span class="nt">&lt;/dependencies&gt;</span>
+</code></pre></div></div>
+
+<p>Next, download
+<a href="https://github.com/basho/basho_docs/raw/master/extras/code-examples/TasteOfRiak.java"><code class="language-plaintext highlighter-rouge">TasteOfRiak.java</code></a>
+source code for this tutorial, and save it to your working directory.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">TasteOfRiak.java</code> file that you downloaded is set up to communicate with
+a 1-node Riak cluster listening on <code class="language-plaintext highlighter-rouge">localhost</code> port 10017. We recommend
+modifying the connection info directly within the <code class="language-plaintext highlighter-rouge">setUpCluster()</code> method.</p>
+
+<p>If you execute the <code class="language-plaintext highlighter-rouge">TasteOfRiak.java</code> file within your IDE, you should
+see the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Basic object created
+Location object created for quote object
+StoreValue operation created
+Client object successfully created
+Object storage operation successfully completed
+Success! The object we created and the object we fetched have the same value
+Quote object successfully deleted
+Book object created
+Moby Dick information now stored in Riak
+Book object successfully fetched
+Success! All of our tests check out
+</code></pre></div></div>
+
+<p>Since Java doesn’t have a REPL environment, let’s walk through the code
+to see what it actually did at each step.</p>
+
+<h2 id="setting-up-the-cluster">Setting Up the Cluster</h2>
+
+<p>The first step in using the Riak Java client is to create a cluster
+object to facilitate all interactions with Riak. You’ll see this on line
+72:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">RiakCluster</span> <span class="n">cluster</span> <span class="o">=</span> <span class="n">setUpCluster</span><span class="o">();</span>
+</code></pre></div></div>
+
+<p>This calls the private <code class="language-plaintext highlighter-rouge">setUpCluster</code> method which begins on line 25.
+Using that <code class="language-plaintext highlighter-rouge">cluster</code> object, we can instantiate a client object which
+will execute all Riak interactions:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">RiakClient</span> <span class="n">client</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakClient</span><span class="o">(</span><span class="n">cluster</span><span class="o">);</span>
+</code></pre></div></div>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p><a href="/riak/kv/2.1.1/developing/getting-started/java/crud-operations">CRUD Operations</a></p>

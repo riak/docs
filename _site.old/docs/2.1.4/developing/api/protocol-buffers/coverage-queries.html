@@ -1,0 +1,108 @@
+<p>Prepare for parallelizable
+[secondary index queries][../secondary-indexes/] by requesting a
+coverage plan. The response will be multiple slices of the cluster, as
+identified by a TCP endpoint and an opaque binary to be included with
+each 2i query.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbCoverageReq</span> <span class="p">{</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">bucket</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">min_partitions</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">replace_cover</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="kt">bytes</span> <span class="na">unavailable_cover</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="required-parameters">Required Parameters</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">bucket</code></td>
+      <td style="text-align: left">The name of the bucket in which the data is stored</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="optional-parameters">Optional Parameters</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">type</code></td>
+      <td style="text-align: left">The name of the bucket type, if this bucket is not in the default (pre-2.0) bucket type.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">min_partitions</code></td>
+      <td style="text-align: left">The minimum number of cluster slices. <code class="language-plaintext highlighter-rouge">undefined</code> results in a direct map of the internal coverage plan, which targets the minimum number of nodes necessary to retrieve all data. An integer will be rounded up to the nearest power of 2 greater than or equal to the ring size.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">replace_cover</code></td>
+      <td style="text-align: left">If a client cannot reach the server designated by a previous coverage response, the opaque binary can be sent with a new coverage request via this parameter and a new plan component will be calculated and returned.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">unavailable_cover</code></td>
+      <td style="text-align: left">List of opaque binaries representing other unreachable endpoints to help Riak determine what servers the client cannot currently use.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="response">Response</h2>
+
+<p>The results of a coverage query are returned as a list of endpoints
+with opaque binaries to be included with secondary index queries.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbCoverageResp</span> <span class="p">{</span>
+   <span class="k">repeated</span> <span class="n">RpbCoverageEntry</span> <span class="na">entries</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">message</span> <span class="nc">RpbCoverageEntry</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">ip</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">uint32</span> <span class="na">port</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">keyspace_desc</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">cover_context</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="values">Values</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">ip</code></td>
+      <td style="text-align: left">The IP address of the server containing a subset of the data. Depending on the environment, this address may require local translation to deal with routing or firewall constraints.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">port</code></td>
+      <td style="text-align: left">The port to contact on the server.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">keyspace_desc</code></td>
+      <td style="text-align: left">A human-readable description of the keyspace. Not intended to be used programmatically except potentially for logging.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cover_context</code></td>
+      <td style="text-align: left">The opaque binary to be used in secondary index queries (and possibly future coverage queries to indicate that this server appears offline or otherwise non-functional to the client).</td>
+    </tr>
+  </tbody>
+</table>

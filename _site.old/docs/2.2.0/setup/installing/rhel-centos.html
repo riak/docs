@@ -1,0 +1,145 @@
+
+<p>Riak KV can be installed on CentOS- or Red-Hat-based systems using a binary
+package or by <a href="/riak/kv/2.2.0/setup/installing/source">compiling Riak from source code</a>. The following steps have been tested to work with Riak on
+CentOS/RHEL 5.10, 6.5, and 7.0.1406.</p>
+
+<blockquote>
+  <p><strong>Note on SELinux</strong></p>
+
+  <p>CentOS enables SELinux by default, so you may need to disable SELinux if
+you encounter errors.</p>
+</blockquote>
+
+<h2 id="installing-with-rpm">Installing with rpm</h2>
+
+<p>For versions of Riak prior to 2.0, Basho used a self-hosted
+<a href="http://www.rpm.org/">rpm</a> repository for CentOS and RHEL packages. For
+versions 2.0 and later, Basho has moved those packages to the
+<a href="https://packagecloud.io/">packagecloud.io</a> hosting service.
+Instructions for installing via shell scripts, manual installation,
+Chef, and Puppet can be found in packagecloud’s <a href="https://packagecloud.io/basho/riak/install">installation
+docs</a>.</p>
+
+<p>Platform-specific pages are linked below:</p>
+
+<ul>
+  <li><a href="https://packagecloud.io/basho/riak/packages/el/5/riak-2.2.0-1.x86_64.rpm">el5</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/el/6/riak-2.2.0-1.el6.x86_64.rpm">el6</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/el/7/riak-2.2.0-1.el7.centos.x86_64.rpm">el7</a></li>
+  <li><a href="https://packagecloud.io/basho/riak/packages/fedora/19/riak-2.2.0-1.fc19.x86_64.rpm">Fedora 19</a></li>
+</ul>
+
+<p>Our documentation also includes instructions regarding signing keys and
+sources lists, which can be found in the section immediately below.</p>
+
+<h2 id="advanced-rpm-installation">Advanced rpm Installation</h2>
+
+<p>For the simplest installation process on LTS (Long-Term Support)
+releases, use yum. First, you must install the <code class="language-plaintext highlighter-rouge">pygpgme</code> package, which
+enables yum to handle <a href="https://www.gnupg.org/">GPG</a> signatures:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>pygpgme
+</code></pre></div></div>
+
+<p>If you wish to install using a <code class="language-plaintext highlighter-rouge">.repo</code> file, packagecloud can generate
+one for you on the basis of a name that you specify, e.g. a hostname,
+and the desired operating system and distribution. The following example
+script would store your hostname in the variable <code class="language-plaintext highlighter-rouge">HOSTNAME</code>, send that
+information to packagecloud to generate a <code class="language-plaintext highlighter-rouge">.repo</code> file, and then store
+the return value in a file called <code class="language-plaintext highlighter-rouge">basho.repo</code>, which is stored in the
+<code class="language-plaintext highlighter-rouge">/etc/yum.repos.d</code> directory:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+
+<span class="nv">HOSTNAME</span><span class="o">=</span><span class="sb">`</span><span class="nb">hostname</span> <span class="nt">-f</span><span class="sb">`</span>
+<span class="nv">FILENAME</span><span class="o">=</span>/etc/yum.repos.d/basho.repo
+<span class="nv">OS</span><span class="o">=</span>el
+<span class="nv">DIST</span><span class="o">=</span>5
+<span class="nv">PACKAGE_CLOUD_RIAK_DIR</span><span class="o">=</span>https://packagecloud.io/install/repositories/basho/riak
+curl <span class="s2">"</span><span class="k">${</span><span class="nv">PACKAGE_CLOUD_RIAK_DIR</span><span class="k">}</span><span class="s2">/config_file.repo?os=</span><span class="k">${</span><span class="nv">OS</span><span class="k">}</span><span class="s2">&amp;dist=</span><span class="k">${</span><span class="nv">DIST</span><span class="k">}</span><span class="s2">&amp;name=</span><span class="k">${</span><span class="nv">HOSTNAME</span><span class="k">}</span><span class="s2">"</span> <span class="o">&gt;</span> <span class="nv">$FILENAME</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">name</code> that you submit to packagecloud can be anything you like. The
+<code class="language-plaintext highlighter-rouge">HOSTNAME</code> used above was for example purposes. The resulting file
+should contents like the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[basho_riak]
+name=basho_riak
+baseurl=https://packagecloud.io/basho/riak/el/5/$basesearch
+repo_gpgcheck=1
+gpgcheck=0
+enabled=1
+gpgkey=https://packagecloud.io/gpg.key
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+</code></pre></div></div>
+
+<p>With your <code class="language-plaintext highlighter-rouge">basho.repo</code> file population, you can update your rpm sources
+list.</p>
+
+<h2 id="installing-from-package">Installing From Package</h2>
+
+<p>If you wish to install the RHEL/CentOS packages by hand, follow these
+instructions.</p>
+
+<h3 id="for-centos-5--rhel-5">For Centos 5 / RHEL 5</h3>
+
+<p>You can install CentOS 5/RHEL 5 using yum, which we recommend:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>http://yum.basho.com/gpg/basho-release-5-1.noarch.rpm
+<span class="nb">sudo </span>yum <span class="nb">install </span>riak
+</code></pre></div></div>
+
+<p>Or you can install the <code class="language-plaintext highlighter-rouge">.rpm</code> package manually:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.0/rhel/5/riak-2.2.0-1.el5.x86_64.rpm
+<span class="nb">sudo </span>rpm <span class="nt">-Uvh</span> riak-2.2.0-1.el5.x86_64.rpm
+</code></pre></div></div>
+
+<h3 id="for-centos-6--rhel-6">For Centos 6 / RHEL 6</h3>
+
+<p>You can install using yum, which we recommend:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>http://yum.basho.com/gpg/basho-release-6-1.noarch.rpm
+<span class="nb">sudo </span>yum <span class="nb">install </span>riak
+</code></pre></div></div>
+
+<p>Or you can install the <code class="language-plaintext highlighter-rouge">.rpm</code> package manually:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.0/rhel/6/riak-2.2.0-1.el6.x86_64.rpm
+<span class="nb">sudo </span>rpm <span class="nt">-Uvh</span> riak-2.2.0-1.el6.x86_64.rpm
+</code></pre></div></div>
+
+<h2 id="installing-from-source">Installing From Source</h2>
+
+<p>Riak requires an <a href="http://www.erlang.org/">Erlang</a> installation.
+Instructions can be found in <a href="/riak/kv/2.2.0/setup/installing/source/erlang">Installing Erlang</a>.</p>
+
+<p>Building from source will require the following packages:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">gcc</code></li>
+  <li><code class="language-plaintext highlighter-rouge">gcc-c++</code></li>
+  <li><code class="language-plaintext highlighter-rouge">glibc-devel</code></li>
+  <li><code class="language-plaintext highlighter-rouge">make</code></li>
+  <li><code class="language-plaintext highlighter-rouge">pam-devel</code></li>
+</ul>
+
+<p>You can install these with yum:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nb">install </span>gcc gcc-c++ glibc-devel make git pam-devel
+</code></pre></div></div>
+
+<p>Now we can download and install Riak:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.0/riak-2.2.0.tar.gz
+<span class="nb">tar </span>zxvf riak-2.2.0.tar.gz
+<span class="nb">cd </span>riak-2.2.0
+make rel
+</code></pre></div></div>
+
+<p>You will now have a fresh build of Riak in the <code class="language-plaintext highlighter-rouge">rel/riak</code> directory.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Now that Riak is installed, check out <a href="/riak/kv/2.2.0/setup/installing/verify">Verifying a Riak Installation</a>.</p>

@@ -1,0 +1,19 @@
+<p>Deletes a Riak Search index.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>DELETE /search/index/&lt;index_name&gt;
+</code></pre></div></div>
+
+<h2 id="normal-response-codes">Normal Response Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">204 No Content</code> — The index was successfully deleted (also returned
+  if the index did not exist to begin with)</li>
+</ul>
+
+<h2 id="typical-error-codes">Typical Error Codes</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">503 Service Unavailable</code> — The request timed out internally</li>
+</ul>

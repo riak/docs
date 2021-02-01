@@ -1,0 +1,183 @@
+<h2 id="c-sharp-version-setup">C Sharp Version Setup</h2>
+
+<p>For the C# version, please download the source from GitHub by either
+<a href="https://github.com/basho/taste-of-riak">cloning</a> the source code repository or downloading the
+<a href="https://github.com/basho/taste-of-riak/archive/master.zip">current zip of the master branch</a>. The code for this
+chapter is in <code class="language-plaintext highlighter-rouge">/csharp</code>. Open up <code class="language-plaintext highlighter-rouge">TasteOfRiak.sln</code> in Visual Studio or
+your IDE of choice.</p>
+
+<h2 id="a-quick-note-on-querying-and-schemas">A Quick Note on Querying and Schemas</h2>
+
+<p><em>Schemas</em>? Yes, we said that correctly: S-C-H-E-M-A-S. It’s not a dirty
+word. Even in a key/value store, you will still have a logical database
+schema of how all the data relates to other data. This can be as simple
+as using the same key across multiple buckets for different types of
+data to having fields in your data that are related by name. These
+querying methods will introduce you to some ways of laying out your data
+in Riak, along with how to query it back.</p>
+
+<h2 id="denormalization">Denormalization</h2>
+
+<p>If you’re coming from a relational database, the easiest way to get your
+application’s feet wet with NoSQL is to denormalize your data into
+related chunks. For example, with a customer database, you might have
+separate tables for customers, addresses, preferences, etc. In Riak,
+you can denormalize all that associated data into a single object and
+store it into a <code class="language-plaintext highlighter-rouge">Customer</code> bucket. You can keep pulling in associated
+data until you hit one of the big denormalization walls:</p>
+
+<ul>
+  <li>Size Limits (objects greater than 1MB)</li>
+  <li>Shared/Referential Data (data that the object doesn’t “own”)</li>
+  <li>Differences in Access Patterns (objects that get read/written once vs.
+often)</li>
+</ul>
+
+<p>At one of these points we will have to split the model.</p>
+
+<h2 id="same-keys-different-buckets">Same Keys, Different Buckets</h2>
+
+<p>The simplest way to split up data would be to use the same identity key
+across different buckets. A good example of this would be a <code class="language-plaintext highlighter-rouge">Customer</code>
+object, an <code class="language-plaintext highlighter-rouge">Order</code> object, and an <code class="language-plaintext highlighter-rouge">OrderSummaries</code> object that keeps
+rolled up info about orders such as total, etc. You can find the source
+for these POCOs in <code class="language-plaintext highlighter-rouge">Customer.cs</code>, <code class="language-plaintext highlighter-rouge">Order.cs</code> and
+<code class="language-plaintext highlighter-rouge">OrderSummaries.cs</code>.  Let’s put some data into Riak so we can play
+with it.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Creating Data"</span><span class="p">);</span>
+<span class="n">Customer</span> <span class="n">customer</span> <span class="p">=</span> <span class="nf">CreateCustomer</span><span class="p">();</span>
+<span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">Order</span><span class="p">&gt;</span> <span class="n">orders</span> <span class="p">=</span> <span class="nf">CreateOrders</span><span class="p">(</span><span class="n">customer</span><span class="p">);</span>
+<span class="n">OrderSummary</span> <span class="n">orderSummary</span> <span class="p">=</span> <span class="nf">CreateOrderSummary</span><span class="p">(</span><span class="n">customer</span><span class="p">,</span> <span class="n">orders</span><span class="p">);</span>
+
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Starting Client"</span><span class="p">);</span>
+<span class="k">using</span> <span class="p">(</span><span class="n">IRiakEndPoint</span> <span class="n">endpoint</span> <span class="p">=</span> <span class="n">RiakCluster</span><span class="p">.</span><span class="nf">FromConfig</span><span class="p">(</span><span class="s">"riakConfig"</span><span class="p">))</span>
+<span class="p">{</span>
+    <span class="n">IRiakClient</span> <span class="n">client</span> <span class="p">=</span> <span class="n">endpoint</span><span class="p">.</span><span class="nf">CreateClient</span><span class="p">();</span>
+
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Storing Data"</span><span class="p">);</span>
+
+    <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="nf">ToRiakObject</span><span class="p">(</span><span class="n">customer</span><span class="p">));</span>
+
+    <span class="k">foreach</span> <span class="p">(</span><span class="n">Order</span> <span class="n">order</span> <span class="k">in</span> <span class="n">orders</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="c1">// NB: this adds secondary index data as well</span>
+        <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="nf">ToRiakObject</span><span class="p">(</span><span class="n">order</span><span class="p">));</span>
+    <span class="p">}</span>
+
+    <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="nf">ToRiakObject</span><span class="p">(</span><span class="n">orderSummary</span><span class="p">));</span>
+
+    <span class="p">...</span>
+    <span class="p">...</span>
+    <span class="p">...</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>While individual <code class="language-plaintext highlighter-rouge">Customer</code> and <code class="language-plaintext highlighter-rouge">Order</code> objects don’t change much (or
+shouldn’t change), the <code class="language-plaintext highlighter-rouge">OrderSummaries</code> object will likely change often.
+It will do double duty by acting as an index for all a customer’s
+orders, and also holding some relevant data such as the order total,
+etc. If we showed this information in our application often, it’s only
+one extra request to get all the info.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Fetching related data by shared key"</span><span class="p">);</span>
+<span class="kt">string</span> <span class="n">key</span> <span class="p">=</span> <span class="s">"1"</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">customersBucketName</span><span class="p">,</span> <span class="n">key</span><span class="p">);</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Customer     1: {0}\n"</span><span class="p">,</span> <span class="nf">GetValueAsString</span><span class="p">(</span><span class="n">result</span><span class="p">));</span>
+
+<span class="n">result</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">orderSummariesBucketName</span><span class="p">,</span> <span class="n">key</span><span class="p">);</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">result</span><span class="p">);</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"OrderSummary 1: {0}\n"</span><span class="p">,</span> <span class="nf">GetValueAsString</span><span class="p">(</span><span class="n">result</span><span class="p">));</span>
+</code></pre></div></div>
+
+<p>Which returns our amalgamated objects:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Fetching related data by shared key
+Customer     1: <span class="o">{</span><span class="s2">"CustomerId"</span>:1,<span class="s2">"Name"</span>:<span class="s2">"John Smith"</span>,<span class="s2">"Address"</span>:<span class="s2">"123 Main Street"</span>,<span class="s2">"City"</span>:<span class="s2">"Columbus"</span>,<span class="s2">"State"</span>:<span class="s2">"Ohio"</span>,<span class="s2">"Zip"</span>:<span class="s2">"43210"</span>,<span class="s2">"Phone"</span>:<span class="s2">"+1-614-555-5555"</span>,<span class="s2">"CreatedDate"</span>:<span class="s2">"2013-10-01 14:30:26"</span><span class="o">}</span>
+OrderSummary 1: <span class="o">{</span><span class="s2">"CustomerId"</span>:1,<span class="s2">"Summaries"</span>:[<span class="o">{</span><span class="s2">"OrderId"</span>:1,<span class="s2">"Total"</span>:415.98,<span class="s2">"OrderDate"</span>:<span class="s2">"2013-10-01 14:42:26"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"OrderId"</span>:2,<span class="s2">"Total"</span>:359.99,<span class="s2">"OrderDate"</span>:<span class="s2">"2013-10-15 16:43:16"</span><span class="o">}</span>,<span class="o">{</span><span class="s2">"OrderId"</span>:3,<span class="s2">"Total"</span>:74.98,<span class="s2">"OrderDate"</span>:<span class="s2">"2013-11-03 17:45:28"</span><span class="o">}]}</span>
+</code></pre></div></div>
+
+<p>While this pattern is very easy and extremely fast with respect to
+queries and complexity, it’s up to the application to know about these
+intrinsic relationships.</p>
+
+<h2 id="secondary-indexes">Secondary Indexes</h2>
+
+<p>Secondary indexes in Riak KV require a sorted backend: <a href="/riak/kv/2.2.0/setup/planning/backend/memory">Memory</a> or <a href="/riak/kv/2.2.0/setup/planning/backend/leveldb">LevelDB</a>. <a href="/riak/kv/2.2.0/setup/planning/backend/bitcask">Bitcask</a> does not support secondary indexes.</p>
+
+<p>See <a href="/riak/kv/2.2.0/developing/usage/secondary-indexes">Using Secondary Indexes (2i)</a> for more information on developing with secondary indexes.</p>
+
+<p>If you’re coming from an SQL world, Secondary Indexes (2i) are a lot
+like SQL indexes. They are a way to quickly look up objects based on a
+secondary key, without scanning through the whole dataset. This makes it
+very easy to find groups of related data by values, or even ranges of
+values. To properly show this off, we will make a note of where
+secondary index data is added to our model objects.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">private</span> <span class="k">static</span> <span class="n">RiakObject</span> <span class="nf">ToRiakObject</span><span class="p">(</span><span class="n">Order</span> <span class="n">order</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">orderRiakObjectId</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="n">ordersBucketName</span><span class="p">,</span> <span class="n">order</span><span class="p">.</span><span class="n">Id</span><span class="p">.</span><span class="nf">ToString</span><span class="p">());</span>
+    <span class="kt">var</span> <span class="n">riakObject</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">orderRiakObjectId</span><span class="p">,</span> <span class="n">order</span><span class="p">);</span>
+
+    <span class="n">IntIndex</span> <span class="n">salesPersonIdIndex</span> <span class="p">=</span> <span class="n">riakObject</span><span class="p">.</span><span class="nf">IntIndex</span><span class="p">(</span><span class="n">ordersSalesPersonIdIndexName</span><span class="p">);</span>
+    <span class="n">salesPersonIdIndex</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="n">order</span><span class="p">.</span><span class="n">SalesPersonId</span><span class="p">.</span><span class="nf">ToString</span><span class="p">());</span>
+
+    <span class="n">BinIndex</span> <span class="n">orderDateIndex</span> <span class="p">=</span> <span class="n">riakObject</span><span class="p">.</span><span class="nf">BinIndex</span><span class="p">(</span><span class="n">ordersOrderDateIndexName</span><span class="p">);</span>
+    <span class="n">orderDateIndex</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="n">order</span><span class="p">.</span><span class="n">OrderDate</span><span class="p">.</span><span class="nf">ToString</span><span class="p">(</span><span class="s">"yyyy-MM-dd"</span><span class="p">));</span>
+
+    <span class="k">return</span> <span class="n">riakObject</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>As you may have noticed, ordinary key/value data is opaque to 2i, so we
+have to add entries to the indexes at the application level. Now let’s
+find all of Jane Appleseed’s processed orders, we’ll look up the orders
+by searching the <code class="language-plaintext highlighter-rouge">SalespersonId</code> integer index for Jane’s id of <code class="language-plaintext highlighter-rouge">9000</code>.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Query for order keys where the SalesPersonId index is set to 9000</span>
+<span class="kt">var</span> <span class="n">riakIndexId</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakIndexId</span><span class="p">(</span><span class="n">ordersBucketName</span><span class="p">,</span> <span class="n">ordersSalesPersonIdIndexName</span><span class="p">);</span>
+<span class="n">RiakResult</span><span class="p">&lt;</span><span class="n">RiakIndexResult</span><span class="p">&gt;</span> <span class="n">indexRiakResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">GetSecondaryIndex</span><span class="p">(</span><span class="n">riakIndexId</span><span class="p">,</span> <span class="m">9000</span><span class="p">);</span> <span class="c1">// NB: *must* use 9000 as integer here.</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">indexRiakResult</span><span class="p">);</span>
+<span class="n">RiakIndexResult</span> <span class="n">indexResult</span> <span class="p">=</span> <span class="n">indexRiakResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Jane's orders (key values): {0}"</span><span class="p">,</span> <span class="kt">string</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="s">", "</span><span class="p">,</span> <span class="n">indexResult</span><span class="p">.</span><span class="n">IndexKeyTerms</span><span class="p">.</span><span class="nf">Select</span><span class="p">(</span><span class="n">ikt</span> <span class="p">=&gt;</span> <span class="n">ikt</span><span class="p">.</span><span class="n">Key</span><span class="p">)));</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Jane's orders (key values): 1, 3
+</code></pre></div></div>
+
+<p>Jane processed orders 1 and 3. We used an “integer” index to reference
+Jane’s ID, next let’s use a “binary” index. Now, let’s say that the VP
+of Sales wants to know how many orders came in during October 2013. In
+this case, we can exploit 2i’s range queries. Let’s search the
+<code class="language-plaintext highlighter-rouge">OrderDate</code> binary index for entries between <code class="language-plaintext highlighter-rouge">2013-10-01</code> and
+<code class="language-plaintext highlighter-rouge">2013-10-31</code>.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Query for orders where the OrderDate index is between 2013-10-01 and 2013-10-31</span>
+<span class="n">riakIndexId</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakIndexId</span><span class="p">(</span><span class="n">ordersBucketName</span><span class="p">,</span> <span class="n">ordersOrderDateIndexName</span><span class="p">);</span>
+<span class="n">indexRiakResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">GetSecondaryIndex</span><span class="p">(</span><span class="n">riakIndexId</span><span class="p">,</span> <span class="s">"2013-10-01"</span><span class="p">,</span> <span class="s">"2013-10-31"</span><span class="p">);</span> <span class="c1">// NB: *must* use strings here.</span>
+<span class="nf">CheckResult</span><span class="p">(</span><span class="n">indexRiakResult</span><span class="p">);</span>
+<span class="n">indexResult</span> <span class="p">=</span> <span class="n">indexRiakResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"October orders (key values): {0}"</span><span class="p">,</span> <span class="kt">string</span><span class="p">.</span><span class="nf">Join</span><span class="p">(</span><span class="s">", "</span><span class="p">,</span> <span class="n">indexResult</span><span class="p">.</span><span class="n">IndexKeyTerms</span><span class="p">.</span><span class="nf">Select</span><span class="p">(</span><span class="n">ikt</span> <span class="p">=&gt;</span> <span class="n">ikt</span><span class="p">.</span><span class="n">Key</span><span class="p">)));</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>October orders (key values): 1, 2
+</code></pre></div></div>
+
+<p>We used 2i’s range feature to search for a range of values, and demonstrated binary indexes.</p>
+
+<p>So to recap:</p>
+
+<ul>
+  <li>You can use Secondary Indexes to quickly look up an object based on a
+secondary id other than the object’s key.</li>
+  <li>Indexes can have either Integer or Binary(String) keys</li>
+  <li>You can search for specific values, or a range of values</li>
+  <li>Riak will return a list of keys that match the index query</li>
+</ul>
+

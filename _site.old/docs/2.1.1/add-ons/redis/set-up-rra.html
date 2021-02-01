@@ -1,0 +1,252 @@
+
+<p>This page will walk you through the process of installing Riak Redis Add-on (RRA) and configuring it to run in your environment. Check the <a href="#prerequisites">prerequisites</a> before you get started to make sure you have everything you need in order to successfully install and use RRA.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>Before you begin installing Riak Redis Add-on (RRA), you will need to ensure that you have root or sudo access on the nodes where you plan to install RRA. You will also need to have Riak KV already <a href="/riak/kv/2.1.1/setup/installing">installed</a>.</p>
+
+<p>While this page assumes that Redis is not already installed, existing installations of Redis are supported. If you have an existing Redis installation, look for the <em>skip ahead</em> instructions as you go.</p>
+
+<p>This page assumes that Redis is (or will be) installed on separate hosts from Riak KV. You will need the list of Riak KV and Redis host:port combinations. RRA communicates with Riak KV via the protobuf port, and the host:port values are used
+to configure the cache proxy.</p>
+
+<h2 id="in-the-lab">In the Lab</h2>
+
+<p>An ansible setup for the Riak Redis Add-on (RRA) was developed to provide a
+runnable example of an installation, see <a href="https://github.com/paegun/ansible-cache-proxy">ansible cache proxy</a>.
+The remainder of this setup guide lists the commands required to install and
+configure RRA manually.</p>
+
+<h2 id="installing">Installing</h2>
+
+<ol>
+  <li>On all Redis and Riak Redis Add-on hosts, change the <a href="/riak/kv/2.1.1/using/performance/open-files-limit/#changing-the-limit">open-files limit</a>.</li>
+  <li>On all Redis hosts, install Redis. <em>*Skip ahead</em> if you already have Redis installed.</li>
+  <li>Install Riak Redis Add-on.</li>
+</ol>
+
+<h3 id="change-the-open-files-limit">Change the open-files limit</h3>
+
+<p>As with Riak KV, both the total open-files limit and the per-user open-files limit
+must be high enough to allow Redis and Riak Redis Add-on (RRA) to function.</p>
+
+<p>For a complete guide on changing limit in Riak KV, see
+<a href="/riak/kv/2.1.1/using/performance/open-files-limit/#changing-the-limit">Changing the limit</a>.</p>
+
+<h4 id="linux">Linux</h4>
+
+<p>On most Linux distributions, the total limit for open files is controlled by <code class="language-plaintext highlighter-rouge">sysctl</code>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>sysctl fs.file-max fs.file-max<span class="o">=</span>65536
+<span class="nb">sudo </span>sysctl <span class="nt">-p</span>
+</code></pre></div></div>
+
+<p>To change the per-user file limit, you need to edit /etc/security/limits.conf.</p>
+
+<h4 id="centos">CentOS</h4>
+
+<p>On CentOS systems, set a proper limit for the user you’re usually logging in with
+to do any kind of work on the machine, including managing Riak KV, Redis, or RRA services. On CentOS, <code class="language-plaintext highlighter-rouge">sudo</code> properly inherits the values from the
+executing user.</p>
+
+<h4 id="ubuntu">Ubuntu</h4>
+
+<p>On Ubuntu systems, the following settings are recommended:</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code>»<span class="n">USERNAME</span>« <span class="n">hard</span> <span class="n">nofile</span> <span class="m">65536</span>
+»<span class="n">USERNAME</span>« <span class="n">soft</span> <span class="n">nofile</span> <span class="m">65536</span>
+<span class="n">root</span> <span class="n">hard</span> <span class="n">nofile</span> <span class="m">65536</span>
+<span class="n">root</span> <span class="n">soft</span> <span class="n">nofile</span> <span class="m">65536</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note:</strong> You may need to log out of your shell and then log back in for these changes to take effect.</p>
+</blockquote>
+
+<h3 id="install-redis">Install Redis</h3>
+
+<blockquote>
+  <p><strong>Note:</strong> If you already have Redis installed, <em>skip ahead</em> to “Install Riak Redis Add-on”.</p>
+</blockquote>
+
+<h4 id="install-on-ubuntu">Install on Ubuntu</h4>
+
+<p>If you are on Ubuntu, run the following to install Redis:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># add the dotdeb repositories to your APT sources.</span>
+<span class="nb">sudo </span>bash <span class="nt">-c</span> <span class="s2">"cat &gt;&gt; /etc/apt/sources.list.d/dotdeb.org.list"</span> <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh">
+deb http://packages.dotdeb.org squeeze all
+deb-src http://packages.dotdeb.org squeeze all
+</span><span class="no">EOF
+
+</span><span class="c"># authenticate the dotdeb repositories using their public key.</span>
+wget <span class="nt">-q</span> <span class="nt">-O</span> - http://www.dotdeb.org/dotdeb.gpg | <span class="nb">sudo </span>apt-key add -
+
+<span class="c"># update APT cache</span>
+<span class="nb">sudo </span>apt-get update
+
+<span class="c"># install Redis</span>
+<span class="nb">sudo </span>apt-get <span class="nb">install </span>redis-server
+</code></pre></div></div>
+
+<p>Then, you’ll need to configure Redis, which is shown below.</p>
+
+<h4 id="install-on-centos">Install on CentOS</h4>
+
+<p>If you are on CentOS, run the following to install Redis:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># install the EPEL repository</span>
+<span class="nv">VERSION_ID</span><span class="o">=</span><span class="si">$(</span><span class="k">case</span> <span class="si">$(</span><span class="nb">cat</span> /etc/centos-release<span class="si">)</span> <span class="k">in</span> <span class="k">*</span>6<span class="k">*</span><span class="p">)</span> <span class="nb">echo</span> <span class="s2">"6"</span><span class="p">;;</span> <span class="k">*</span>7<span class="k">*</span><span class="p">)</span> <span class="nb">echo</span> <span class="s2">"7"</span><span class="p">;;</span> <span class="k">esac</span><span class="si">)</span>
+wget <span class="nt">-r</span> <span class="nt">--no-parent</span> <span class="nt">-A</span> <span class="s1">'epel-release-*.rpm'</span> http://dl.fedoraproject.org/pub/epel/<span class="nv">$VERSION_ID</span>/x86_64/e/
+rpm <span class="nt">-Uvh</span> dl.fedoraproject.org/pub/epel/<span class="nv">$VERSION_ID</span>/x86_64/e/epel-release-<span class="k">*</span>.rpm
+
+<span class="c"># install Redis</span>
+yum <span class="nb">install </span>redis
+</code></pre></div></div>
+
+<p>Then, you’ll need to configure Redis, which is shown below.</p>
+
+<h4 id="configure-redis">Configure Redis</h4>
+
+<p>To configure Redis, edit the configuration file <code class="language-plaintext highlighter-rouge">/etc/redis.conf</code> .</p>
+
+<p>Since Redis is being used as a cache where every key will have an expiry set,
+the following configuration values should be set (assuming a max memory limit of
+2 megabytes as an example):</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">maxmemory</span> <span class="m">2</span><span class="n">mb</span>
+<span class="n">maxmemory</span>-<span class="n">policy</span> <span class="n">allkeys</span>-<span class="n">lru</span>
+</code></pre></div></div>
+
+<p>To set the Redis listen port, the following configuration values should be
+set (assuming the default Redis port 6379 as an example):</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">port</span> <span class="m">6379</span>
+</code></pre></div></div>
+
+<p>If you are on Ubuntu, run the following to restart Redis:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>service redis-server stop
+<span class="nb">sudo </span>service redis-server start
+</code></pre></div></div>
+
+<p>If you are on CentOS, run the following to restart Redis and ensure redis-server
+is enabled to start on boot:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>systemctl stop redis.service
+systemctl start redis.service
+systemctl <span class="nb">enable </span>redis.service
+</code></pre></div></div>
+
+<p>To verify Redis is running and listening on the expected port, run the following
+(using the loopback interface and the default Redis port 6379 as an example):</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>redis-cli <span class="nt">-h</span> 127.0.0.1 <span class="nt">-p</span> 6379 ping
+</code></pre></div></div>
+
+<p>Redis should respond with <code class="language-plaintext highlighter-rouge">PONG</code>.</p>
+
+<p>If Redis did not respond with the expected output, run the following to verify
+that Redis is running on the expected port:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ss <span class="nt">-nlp</span> |grep <span class="o">[</span>r]edis
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Notes:</strong> ss is used here to support a minimal installed system, but netstat may be used as well.</p>
+</blockquote>
+
+<h3 id="install-riak-redis-add-on-rra">Install Riak Redis Add-on (RRA)</h3>
+
+<blockquote>
+  <p><strong>Note:</strong>
+Riak Redis Add-on (RRA) is available to Enterprise customers for download in the usual Zendesk forums.</p>
+</blockquote>
+
+<p>If you are on CentOS, run the following to install RRA:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>yum <span class="nt">-y</span> localinstall cache_proxy_ee_1.1.0_x86_64.rpm
+</code></pre></div></div>
+
+<p>If you are on Ubuntu, run the following to install RRA:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>dpkg <span class="nt">-i</span> cache_proxy_ee_1.1.0_amd64.deb
+</code></pre></div></div>
+
+<h2 id="configuring-riak-redis-add-on">Configuring Riak Redis Add-on</h2>
+
+<p>To configure Riak Redis Add-on (RRA), edit the configuration file: /etc/cache_proxy/cache_proxy_22122.yml.</p>
+
+<p>The RRA configuration file is in YAML format. An example configuration
+file is provided in the install, and it contains all relevant configuration elements:</p>
+
+<div class="language-config highlighter-rouge"><div class="highlight"><pre class="highlight"><code>» <span class="n">XML</span> <span class="n">node</span> <span class="n">name</span>« :
+  <span class="n">listen</span>: <span class="m">0</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">0</span>:<span class="m">22122</span>
+  <span class="n">hash</span>: <span class="n">fnv1a_64</span>
+  <span class="n">distribution</span>: <span class="n">ketama</span>
+  <span class="n">auto_eject_hosts</span>: <span class="n">true</span>
+  <span class="n">redis</span>: <span class="n">true</span>
+  <span class="n">server_retry_timeout</span>: <span class="m">2000</span>
+  <span class="n">server_failure_limit</span>: <span class="m">1</span>
+  <span class="n">server_ttl</span>: <span class="m">15</span><span class="n">s</span>
+  <span class="n">servers</span>:
+    - <span class="m">127</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">1</span>:<span class="m">6379</span>:<span class="m">1</span>
+  <span class="n">backend_type</span>: <span class="n">riak</span>
+  <span class="n">backend_max_resend</span>: <span class="m">2</span>
+  <span class="n">backends</span>:
+    - <span class="m">127</span>.<span class="m">0</span>.<span class="m">0</span>.<span class="m">1</span>:<span class="m">8087</span>
+</code></pre></div></div>
+
+<p>Set the <code class="language-plaintext highlighter-rouge">listen</code> configuration value to set the RRA listen port.</p>
+
+<p>To set the time-to-live (TTL) for values stored in cache, set the <code class="language-plaintext highlighter-rouge">server_ttl</code>
+configuration value. Human-readable time values can be specified,
+with the most likely units being <code class="language-plaintext highlighter-rouge">s</code> for seconds or <code class="language-plaintext highlighter-rouge">ms</code> for milliseconds.</p>
+
+<p>Set the list of Redis servers by listing the servers, separated by <code class="language-plaintext highlighter-rouge">-</code>, under the <code class="language-plaintext highlighter-rouge">servers</code> configuration value in the format <code class="language-plaintext highlighter-rouge">»host«:»port«:»weight«</code> (weight is optional).</p>
+
+<p>Set the list of Riak KV servers by listing the servers, separated by <code class="language-plaintext highlighter-rouge">-</code>, under the <code class="language-plaintext highlighter-rouge">backends</code> configuration value in the format <code class="language-plaintext highlighter-rouge">»host«:»port«:»weight«</code>
+(weight is optional). You will want to make sure to list the Riak KV protobuf (pb) port here.</p>
+
+<h3 id="verify-your-configuration">Verify your configuration</h3>
+
+<p>If you are on Ubuntu, run the following to start RRA:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>service cache_proxy start
+</code></pre></div></div>
+
+<p>If you are on CentOS, run the following to restart Redis and ensure redis-server
+is enabled to start on boot:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>systemctl start cache_proxy
+</code></pre></div></div>
+
+<p>To verify RRA is running and listening on the expected port, run the
+following (using the loopback interface and the default RRA port 22122
+as an example):</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>redis-cli <span class="nt">-h</span> 127.0.0.1 <span class="nt">-p</span> 22122 <span class="nb">set test</span>:redis-add-on SUCCESS
+redis-cli <span class="nt">-h</span> 127.0.0.1 <span class="nt">-p</span> 22122 get <span class="nb">test</span>:redis-add-on SUCCESS
+</code></pre></div></div>
+
+<p>Redis should respond with <code class="language-plaintext highlighter-rouge">SUCCESS</code>.</p>
+
+<p>If RRA is responding with the expected output, run the following to
+clean up and remove the test value:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>redis-cli <span class="nt">-h</span> 127.0.0.1 <span class="nt">-p</span> 22122 del <span class="nb">test</span>:redis-add-on
+</code></pre></div></div>
+
+<p>If you did not get the expected output, run the following
+to verify that RRA is running on the expected port:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ss <span class="nt">-nlp</span> |grep <span class="o">[</span>n]utcracker
+</code></pre></div></div>
+
+<blockquote>
+  <p><strong>Note:</strong> ss is used here to support a minimal installed system, but netstat may be used as well.</p>
+</blockquote>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Get started with some <a href="../using-rra">basic usage</a> or checkout out more info on <a href="../developing-rra/">setting up for development (with examples)</a>.</p>

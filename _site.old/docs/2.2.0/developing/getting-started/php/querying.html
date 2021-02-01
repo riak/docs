@@ -1,0 +1,379 @@
+<h2 id="a-quick-note-on-querying-and-schemas">A Quick Note on Querying and Schemas</h2>
+<p><em>Schemas</em>? Yes we said that correctly, S-C-H-E-M-A-S. It’s not a dirty word.<br />
+Even with a Key/Value store, you will still have a logical database schema of how all the data relates to one another. This can be as simple as using the same key across multiple buckets for different types of data, to having fields in your data that are related by name.  These querying methods will introduce you to some ways of laying out your data in Riak, along with how to query it back.</p>
+
+<h2 id="denormalization">Denormalization</h2>
+
+<p>If you’re coming from a relational database, the easiest way to get your application’s feet wet with NoSQL is to denormalize your data into related chunks.  For example with a customer database, you might have separate tables for Customers, Addresses, Preferences, etc.  In Riak, you can denormalize all that associated data into a single object and store it into a <code class="language-plaintext highlighter-rouge">Customer</code> bucket.  You can keep pulling in associated data until you hit one of the big denormalization walls:</p>
+
+<ul>
+  <li>Size Limits (objects greater than 1MB)</li>
+  <li>Shared/Referential Data (data that the object doesn’t “own”)</li>
+  <li>Differences in Access Patterns (objects that get read/written once vs. often)</li>
+</ul>
+
+<p>At one of these points we will have to split the model.</p>
+
+<h2 id="same-keys---different-buckets">Same Keys - Different Buckets</h2>
+
+<p>The simplest way to split up data would be to use the same identity key across different buckets. A good example of this would be a <code class="language-plaintext highlighter-rouge">Customer</code> object, an <code class="language-plaintext highlighter-rouge">Order</code> object, and an <code class="language-plaintext highlighter-rouge">OrderSummaries</code> object that keeps rolled up info about orders such as Total, etc. Let’s put some data into Riak so we can play with it.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span>
+
+<span class="k">include_once</span> <span class="s1">'vendor/autoload.php'</span><span class="p">;</span>
+
+<span class="kn">use</span> <span class="nc">Basho\Riak</span><span class="p">;</span>
+<span class="kn">use</span> <span class="nc">Basho\Riak\Location</span><span class="p">;</span>
+<span class="kn">use</span> <span class="nc">Basho\Riak\Node</span><span class="p">;</span>
+<span class="kn">use</span> <span class="nc">Basho\Riak\Command</span><span class="p">;</span>
+
+<span class="nv">$node</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Node\Builder</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atHost</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">onPort</span><span class="p">(</span><span class="mi">8098</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$riak</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak</span><span class="p">([</span><span class="nv">$node</span><span class="p">]);</span>
+
+<span class="c1">// Class definitions for our models</span>
+
+<span class="kd">class</span> <span class="nc">Customer</span>
+<span class="p">{</span>
+    <span class="k">var</span> <span class="nv">$customerId</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$name</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$address</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$city</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$state</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$zip</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$phone</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$createdDate</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">class</span> <span class="nc">Order</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">function</span> <span class="n">__construct</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">items</span> <span class="o">=</span> <span class="k">array</span><span class="p">();</span>
+    <span class="p">}</span>
+    <span class="k">var</span> <span class="nv">$orderId</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$customerId</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$salespersonId</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$items</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$total</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$orderDate</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">class</span> <span class="nc">Item</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">function</span> <span class="n">__construct</span><span class="p">(</span><span class="nv">$itemId</span><span class="p">,</span> <span class="nv">$title</span><span class="p">,</span> <span class="nv">$price</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">itemId</span> <span class="o">=</span> <span class="nv">$itemId</span><span class="p">;</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">title</span> <span class="o">=</span> <span class="nv">$title</span><span class="p">;</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">price</span> <span class="o">=</span> <span class="nv">$price</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">var</span> <span class="nv">$itemId</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$title</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$price</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">class</span> <span class="nc">OrderSummary</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">function</span> <span class="n">__construct</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">summaries</span> <span class="o">=</span> <span class="k">array</span><span class="p">();</span>
+    <span class="p">}</span>
+    <span class="k">var</span> <span class="nv">$customerId</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$summaries</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">class</span> <span class="nc">OrderSummaryItem</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">function</span> <span class="n">__construct</span><span class="p">(</span><span class="kt">Order</span> <span class="nv">$order</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">orderId</span> <span class="o">=</span> <span class="nv">$order</span><span class="o">-&gt;</span><span class="n">orderId</span><span class="p">;</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">total</span> <span class="o">=</span> <span class="nv">$order</span><span class="o">-&gt;</span><span class="n">total</span><span class="p">;</span>
+        <span class="nv">$this</span><span class="o">-&gt;</span><span class="n">orderDate</span> <span class="o">=</span> <span class="nv">$order</span><span class="o">-&gt;</span><span class="n">orderDate</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">var</span> <span class="nv">$orderId</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$total</span><span class="p">;</span>
+    <span class="k">var</span> <span class="nv">$orderDate</span><span class="p">;</span>
+<span class="p">}</span>
+
+
+<span class="c1">// Creating Data</span>
+<span class="nv">$customer</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Customer</span><span class="p">();</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">customerId</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">name</span> <span class="o">=</span> <span class="s1">'John Smith'</span><span class="p">;</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">address</span> <span class="o">=</span> <span class="s1">'123 Main Street'</span><span class="p">;</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">city</span> <span class="o">=</span> <span class="s1">'Columbus'</span><span class="p">;</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="s1">'Ohio'</span><span class="p">;</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">zip</span> <span class="o">=</span> <span class="s1">'43210'</span><span class="p">;</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">phone</span> <span class="o">=</span> <span class="s1">'+1-614-555-5555'</span><span class="p">;</span>
+<span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">createdDate</span> <span class="o">=</span> <span class="s1">'2013-10-01 14:30:26'</span><span class="p">;</span>
+
+
+<span class="nv">$orders</span> <span class="o">=</span> <span class="p">[];</span>
+
+<span class="nv">$order1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Order</span><span class="p">();</span>
+<span class="nv">$order1</span><span class="o">-&gt;</span><span class="n">orderId</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="nv">$order1</span><span class="o">-&gt;</span><span class="n">customerId</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="nv">$order1</span><span class="o">-&gt;</span><span class="n">salespersonId</span> <span class="o">=</span> <span class="mi">9000</span><span class="p">;</span>
+<span class="nv">$order1</span><span class="o">-&gt;</span><span class="n">items</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="k">new</span> <span class="nc">Item</span><span class="p">(</span>
+        <span class="s1">'TCV37GIT4NJ'</span><span class="p">,</span>
+        <span class="s1">'USB 3.0 Coffee Warmer'</span><span class="p">,</span>
+        <span class="mf">15.99</span>
+    <span class="p">),</span>
+    <span class="k">new</span> <span class="nc">Item</span><span class="p">(</span>
+        <span class="s1">'PEG10BBF2PP'</span><span class="p">,</span>
+        <span class="s1">'eTablet Pro; 24GB; Grey'</span><span class="p">,</span>
+        <span class="mf">399.99</span>
+    <span class="p">)</span>
+<span class="p">];</span>
+<span class="nv">$order1</span><span class="o">-&gt;</span><span class="n">total</span> <span class="o">=</span> <span class="mf">415.98</span><span class="p">;</span>
+<span class="nv">$order1</span><span class="o">-&gt;</span><span class="n">orderDate</span> <span class="o">=</span> <span class="s1">'2013-10-01 14:42:26'</span><span class="p">;</span>
+<span class="nv">$orders</span><span class="p">[]</span> <span class="o">=</span> <span class="nv">$order1</span><span class="p">;</span>
+
+<span class="nv">$order2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Order</span><span class="p">();</span>
+<span class="nv">$order2</span><span class="o">-&gt;</span><span class="n">orderId</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="nv">$order2</span><span class="o">-&gt;</span><span class="n">customerId</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="nv">$order2</span><span class="o">-&gt;</span><span class="n">salespersonId</span> <span class="o">=</span> <span class="mi">9001</span><span class="p">;</span>
+<span class="nv">$order2</span><span class="o">-&gt;</span><span class="n">items</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="k">new</span> <span class="nc">Item</span><span class="p">(</span>
+        <span class="s1">'OAX19XWN0QP'</span><span class="p">,</span>
+        <span class="s1">'GoSlo Digital Camera'</span><span class="p">,</span>
+        <span class="mf">359.99</span>
+    <span class="p">)</span>
+<span class="p">];</span>
+<span class="nv">$order2</span><span class="o">-&gt;</span><span class="n">total</span> <span class="o">=</span> <span class="mf">359.99</span><span class="p">;</span>
+<span class="nv">$order2</span><span class="o">-&gt;</span><span class="n">orderDate</span> <span class="o">=</span> <span class="s1">'2013-10-15 16:43:16'</span><span class="p">;</span>
+<span class="nv">$orders</span><span class="p">[]</span> <span class="o">=</span> <span class="nv">$order2</span><span class="p">;</span>
+
+<span class="nv">$order3</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Order</span><span class="p">();</span>
+<span class="nv">$order3</span><span class="o">-&gt;</span><span class="n">orderId</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="nv">$order3</span><span class="o">-&gt;</span><span class="n">customerId</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="nv">$order3</span><span class="o">-&gt;</span><span class="n">salespersonId</span> <span class="o">=</span> <span class="mi">9000</span><span class="p">;</span>
+<span class="nv">$order3</span><span class="o">-&gt;</span><span class="n">items</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="k">new</span> <span class="nc">Item</span><span class="p">(</span>
+        <span class="s1">'WYK12EPU5EZ'</span><span class="p">,</span>
+        <span class="s1">'Call of Battle = Goats - Gamesphere 4'</span><span class="p">,</span>
+        <span class="mf">69.99</span>
+    <span class="p">),</span>
+    <span class="k">new</span> <span class="nc">Item</span><span class="p">(</span>
+        <span class="s1">'TJB84HAA8OA'</span><span class="p">,</span>
+        <span class="s1">'Bricko Building Blocks'</span><span class="p">,</span>
+        <span class="mf">4.99</span>
+    <span class="p">)</span>
+<span class="p">];</span>
+<span class="nv">$order3</span><span class="o">-&gt;</span><span class="n">total</span> <span class="o">=</span> <span class="mf">74.98</span><span class="p">;</span>
+<span class="nv">$order3</span><span class="o">-&gt;</span><span class="n">orderDate</span> <span class="o">=</span> <span class="s1">'2013-11-03 17:45:28'</span><span class="p">;</span>
+<span class="nv">$orders</span><span class="p">[]</span> <span class="o">=</span> <span class="nv">$order3</span><span class="p">;</span>
+
+
+<span class="nv">$orderSummary</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">OrderSummary</span><span class="p">();</span>
+<span class="nv">$orderSummary</span><span class="o">-&gt;</span><span class="n">customerId</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+<span class="k">foreach</span> <span class="p">(</span><span class="nv">$orders</span> <span class="k">as</span> <span class="nv">$order</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nv">$orderSummary</span><span class="o">-&gt;</span><span class="n">summaries</span><span class="p">[]</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">OrderSummaryItem</span><span class="p">(</span><span class="nv">$order</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="nb">unset</span><span class="p">(</span><span class="nv">$order</span><span class="p">);</span>
+
+
+
+<span class="c1">// Starting Client</span>
+<span class="nv">$node</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Node\Builder</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atHost</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">onPort</span><span class="p">(</span><span class="mi">8098</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$riak</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak</span><span class="p">([</span><span class="nv">$node</span><span class="p">]);</span>
+
+<span class="c1">// Creating Buckets</span>
+<span class="nv">$customersBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak\Bucket</span><span class="p">(</span><span class="s1">'Customers'</span><span class="p">);</span>
+<span class="nv">$ordersBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak\Bucket</span><span class="p">(</span><span class="s1">'Orders'</span><span class="p">);</span>
+<span class="nv">$orderSummariesBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak\Bucket</span><span class="p">(</span><span class="s1">'OrderSummaries'</span><span class="p">);</span>
+
+<span class="c1">// Storing Data</span>
+<span class="nv">$storeCustomer</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildJsonObject</span><span class="p">(</span><span class="nv">$customer</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="nv">$customer</span><span class="o">-&gt;</span><span class="n">customerId</span><span class="p">,</span> <span class="nv">$customersBucket</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+<span class="nv">$storeCustomer</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="k">foreach</span> <span class="p">(</span><span class="nv">$orders</span> <span class="k">as</span> <span class="nv">$order</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nv">$storeOrder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+        <span class="o">-&gt;</span><span class="nf">buildJsonObject</span><span class="p">(</span><span class="nv">$order</span><span class="p">)</span>
+        <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="nv">$order</span><span class="o">-&gt;</span><span class="n">orderId</span><span class="p">,</span> <span class="nv">$ordersBucket</span><span class="p">))</span>
+        <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+    <span class="nv">$storeOrder</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+<span class="p">}</span>
+<span class="nb">unset</span><span class="p">(</span><span class="nv">$order</span><span class="p">);</span>
+
+<span class="nv">$storeSummary</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">buildJsonObject</span><span class="p">(</span><span class="nv">$orderSummary</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="nv">$orderSummary</span><span class="o">-&gt;</span><span class="n">customerId</span><span class="p">,</span> <span class="nv">$orderSummariesBucket</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+<span class="nv">$storeSummary</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<p>While individual <code class="language-plaintext highlighter-rouge">Customer</code> and <code class="language-plaintext highlighter-rouge">Order</code> objects don’t change much (or shouldn’t change), the <code class="language-plaintext highlighter-rouge">Order Summaries</code> object will likely change often.  It will do double duty by acting as an index for all a customer’s orders, and also holding some relevant data such as the order total, etc.  If we showed this information in our application often, it’s only one extra request to get all the info.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Fetching related data by shared key</span>
+<span class="nv">$fetched_customer</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+                    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="s1">'1'</span><span class="p">,</span> <span class="nv">$customersBucket</span><span class="p">))</span>
+                    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getObject</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span>
+
+<span class="nv">$fetched_customer</span><span class="o">-&gt;</span><span class="n">orderSummary</span> <span class="o">=</span>
+    <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="s1">'1'</span><span class="p">,</span> <span class="nv">$orderSummariesBucket</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getObject</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">"Customer with OrderSummary data: </span><span class="se">\n</span><span class="s2">"</span><span class="p">);</span>
+<span class="nb">print_r</span><span class="p">(</span><span class="nv">$fetched_customer</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>Which returns our amalgamated objects:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Customer with OrderSummary data:
+stdClass Object
+(
+    [customerId] =&gt; 1
+    [name] =&gt; John Smith
+    [address] =&gt; 123 Main Street
+    [city] =&gt; Columbus
+    [state] =&gt; Ohio
+    [zip] =&gt; 43210
+    [phone] =&gt; +1-614-555-5555
+    [createdDate] =&gt; 2013-10-01 14:30:26
+    [orderSummary] =&gt; stdClass Object
+        (
+            [customerId] =&gt; 1
+            [summaries] =&gt; Array
+                (
+                    [0] =&gt; stdClass Object
+                        (
+                            [orderId] =&gt; 1
+                            [total] =&gt; 415.98
+                            [orderDate] =&gt; 2013-10-01 14:42:26
+                        )
+
+                    [1] =&gt; stdClass Object
+                        (
+                            [orderId] =&gt; 2
+                            [total] =&gt; 359.99
+                            [orderDate] =&gt; 2013-10-15 16:43:16
+                        )
+
+                    [2] =&gt; stdClass Object
+                        (
+                            [orderId] =&gt; 3
+                            [total] =&gt; 74.98
+                            [orderDate] =&gt; 2013-11-03 17:45:28
+                        )
+                )
+        )
+)
+</code></pre></div></div>
+
+<p>While this pattern is very easy and extremely fast with respect to queries and complexity, it’s up to the application to know about these intrinsic relationships.</p>
+
+<h2 id="secondary-indexes">Secondary Indexes</h2>
+
+<p>Secondary indexes in Riak KV require a sorted backend: <a href="/riak/kv/2.2.0/setup/planning/backend/memory">Memory</a> or <a href="/riak/kv/2.2.0/setup/planning/backend/leveldb">LevelDB</a>. <a href="/riak/kv/2.2.0/setup/planning/backend/bitcask">Bitcask</a> does not support secondary indexes.</p>
+
+<p>See <a href="/riak/kv/2.2.0/developing/usage/secondary-indexes">Using Secondary Indexes (2i)</a> for more information on developing with secondary indexes.</p>
+
+<p>If you’re coming from a SQL world, Secondary Indexes (2i) are a lot like SQL indexes.  They are a way to quickly lookup objects based on a secondary key, without scanning through the whole dataset.  This makes it very easy to find groups of related data by values, or even ranges of values.  To properly show this off, we will now add some more data to our application, and add some secondary index entries at the same time.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Adding Index Data</span>
+<span class="nv">$keys</span> <span class="o">=</span> <span class="k">array</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">);</span>
+<span class="k">foreach</span> <span class="p">(</span><span class="nv">$keys</span> <span class="k">as</span> <span class="nv">$key</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nv">$orderLocation</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="p">(</span><span class="nv">$key</span><span class="p">,</span> <span class="nv">$ordersBucket</span><span class="p">);</span>
+    <span class="nv">$orderObject</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+                    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$orderLocation</span><span class="p">)</span>
+                    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getObject</span><span class="p">();</span>
+
+    <span class="nv">$order</span> <span class="o">=</span> <span class="nv">$orderObject</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span>
+
+    <span class="nv">$orderObject</span><span class="o">-&gt;</span><span class="nf">addValueToIndex</span><span class="p">(</span><span class="s1">'SalespersonId_int'</span><span class="p">,</span> <span class="nv">$order</span><span class="o">-&gt;</span><span class="n">salespersonId</span><span class="p">);</span>
+    <span class="nv">$orderObject</span><span class="o">-&gt;</span><span class="nf">addValueToIndex</span><span class="p">(</span><span class="s1">'OrderDate_bin'</span><span class="p">,</span> <span class="nv">$order</span><span class="o">-&gt;</span><span class="n">orderDate</span><span class="p">);</span>
+
+    <span class="nv">$storeOrder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+                    <span class="o">-&gt;</span><span class="nf">withObject</span><span class="p">(</span><span class="nv">$orderObject</span><span class="p">)</span>
+                    <span class="o">-&gt;</span><span class="nf">atLocation</span><span class="p">(</span><span class="nv">$orderLocation</span><span class="p">)</span>
+                    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+    <span class="nv">$storeOrder</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+<span class="p">}</span>
+<span class="nb">unset</span><span class="p">(</span><span class="nv">$key</span><span class="p">);</span>
+
+</code></pre></div></div>
+
+<p>As you may have noticed, ordinary Key/Value data is opaque to 2i, so we have to add entries to the indexes at the application level.
+Now let’s find all of Jane Appleseed’s processed orders, we’ll lookup the orders by searching the <code class="language-plaintext highlighter-rouge">saleperson_id_int</code> index for Jane’s id of <code class="language-plaintext highlighter-rouge">9000</code>.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Query for orders where the SalespersonId int index is set to 9000</span>
+<span class="nv">$fetchIndex</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\QueryIndex</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+                <span class="o">-&gt;</span><span class="nf">inBucket</span><span class="p">(</span><span class="nv">$ordersBucket</span><span class="p">)</span>
+                <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'SalespersonId_int'</span><span class="p">)</span>
+                <span class="o">-&gt;</span><span class="nf">withScalarValue</span><span class="p">(</span><span class="mi">9000</span><span class="p">)</span><span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+<span class="nv">$janes_orders</span> <span class="o">=</span> <span class="nv">$fetchIndex</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getResults</span><span class="p">();</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n\n</span><span class="s2">Jane's Orders: </span><span class="se">\n</span><span class="s2">"</span><span class="p">);</span>
+<span class="nb">print_r</span><span class="p">(</span><span class="nv">$janes_orders</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Jane's Orders:
+Array
+(
+    [0] =&gt; 3
+    [1] =&gt; 1
+)
+
+</code></pre></div></div>
+
+<p>Jane processed orders 1 and 3.  We used an “integer” index to reference Jane’s id, next let’s use a “binary” index.
+Now, let’s say that the VP of Sales wants to know how many orders came in during October 2013.  In this case, we can exploit 2i’s range queries.  Let’s search the <code class="language-plaintext highlighter-rouge">order_date_bin</code> index for entries between <code class="language-plaintext highlighter-rouge">20131001</code> and <code class="language-plaintext highlighter-rouge">20131031</code>.</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Query for orders where the OrderDate bin index is</span>
+<span class="c1">// between 2013-10-01 and 2013-10-31</span>
+<span class="nv">$fetchOctoberOrders</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\QueryIndex</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+                        <span class="o">-&gt;</span><span class="nf">inBucket</span><span class="p">(</span><span class="nv">$ordersBucket</span><span class="p">)</span>
+                        <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'OrderDate_bin'</span><span class="p">)</span>
+                        <span class="o">-&gt;</span><span class="nf">withRangeValue</span><span class="p">(</span><span class="s1">'2013-10-01'</span><span class="p">,</span><span class="s1">'2013-10-31'</span><span class="p">)</span>
+                        <span class="o">-&gt;</span><span class="nf">withReturnTerms</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+                        <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$octobers_orders</span> <span class="o">=</span> <span class="nv">$fetchOctoberOrders</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getResults</span><span class="p">();</span>
+
+<span class="k">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n\n</span><span class="s2">October's Orders: </span><span class="se">\n</span><span class="s2">"</span><span class="p">);</span>
+<span class="nb">print_r</span><span class="p">(</span><span class="nv">$octobers_orders</span><span class="p">);</span>
+<span class="cp">?&gt;</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>October's Orders:
+Array
+(
+    [0] =&gt; Array
+        (
+            [2013-10-01 14:42:26] =&gt; 1
+        )
+
+    [1] =&gt; Array
+        (
+            [2013-10-15 16:43:16] =&gt; 2
+        )
+)
+</code></pre></div></div>
+
+<p>Boom, easy-peasy.  We used 2i’s range feature to search for a range of values, and demonstrated binary indexes.  With the October’s Orders query we also used the <code class="language-plaintext highlighter-rouge">-&gt;withReturnTerms(true)</code> option, which as you can see will return the values of the matching 2i terms.</p>
+
+<p>So to recap:</p>
+
+<ul>
+  <li>You can use Secondary Indexes to quickly lookup an object based on a secondary id other than the object’s key.</li>
+  <li>Indexes can have either Integer or Binary(String) keys</li>
+  <li>You can search for specific values, or a range of values</li>
+  <li>Riak will return a list of keys (and terms if needed) that match the index query</li>
+</ul>

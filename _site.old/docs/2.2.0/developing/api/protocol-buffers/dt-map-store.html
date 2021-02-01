@@ -1,0 +1,53 @@
+<p>An operation to be applied to a value stored in a map (the contents of an update operation). The operation field that is present depends on the type of the field to which it is applied. All operations apply to individual fields nested in the map, i.e. counter-specific operations apply to specified counters in the map, set-specific operations to sets, etc.</p>
+
+<h2 id="request">Request</h2>
+
+<p>Operations on maps are requested using a <code class="language-plaintext highlighter-rouge">MapOp</code> message, which has the following structure:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">MapOp</span> <span class="p">{</span>
+    <span class="k">repeated</span> <span class="n">MapField</span>  <span class="na">adds</span>    <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">MapField</span>  <span class="na">removes</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">repeated</span> <span class="n">MapUpdate</span> <span class="na">updates</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>In a <code class="language-plaintext highlighter-rouge">MapOp</code> message, you can either add or remove fields (sets, counters, or maps) to or from the map or update a field or multiple fields. You can include as many field additions or removals and/or field updates as you wish.</p>
+
+<p>Adding or removing a field involves including a <code class="language-plaintext highlighter-rouge">MapField</code> message in your <code class="language-plaintext highlighter-rouge">MapOp</code> operation:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">MapField</span> <span class="p">{</span>
+    <span class="kd">enum</span> <span class="n">MapFieldType</span> <span class="p">{</span>
+        <span class="na">COUNTER</span>  <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+        <span class="na">SET</span>      <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+        <span class="na">REGISTER</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+        <span class="na">FLAG</span>     <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+        <span class="na">MAP</span>      <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">required</span> <span class="kt">bytes</span>        <span class="na">name</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="n">MapFieldType</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">MapFieldType</code> specifies which type of field is being updated, and must be one of the possible values of the <code class="language-plaintext highlighter-rouge">MapFieldType</code> enum (either <code class="language-plaintext highlighter-rouge">COUNTER</code>, <code class="language-plaintext highlighter-rouge">SET</code>, <code class="language-plaintext highlighter-rouge">REGISTER</code>, <code class="language-plaintext highlighter-rouge">FLAG</code>, or <code class="language-plaintext highlighter-rouge">MAP</code>). The <code class="language-plaintext highlighter-rouge">name</code> parameter specifies the name of the field that will be updated.</p>
+
+<p>If you wish to update a map field, you can do so using a <code class="language-plaintext highlighter-rouge">MapUpdate</code> message, which has the following structure:</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">MapUpdate</span> <span class="p">{</span>
+    <span class="kd">enum</span> <span class="n">FlagOp</span> <span class="p">{</span>
+        <span class="na">ENABLE</span>  <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+        <span class="na">DISABLE</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">required</span> <span class="n">MapField</span>  <span class="na">field</span>       <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">CounterOp</span> <span class="na">counter_op</span>  <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">SetOp</span>     <span class="na">set_op</span>      <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span>     <span class="na">register_op</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">FlagOp</span>    <span class="na">flag_op</span>     <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="n">MapOp</span>     <span class="na">map_op</span>      <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">MapField</code> parameter is explained above. The operations used to update fields depend on the Data Type in that field, i.e. <code class="language-plaintext highlighter-rouge">CounterOp</code> messages to update counters, <code class="language-plaintext highlighter-rouge">SetOp</code> messages to update sets, etc. Updating counters is covered in <a href="/riak/kv/2.2.0/developing/api/protocol-buffers/dt-counter-store">PBC Data Type Counter Store</a> while updating sets is covered in <a href="/riak/kv/2.2.0/developing/api/protocol-buffers/dt-set-store">PBC Data Type Set Store</a>.</p>
+
+<p>If you are updating a flag, you do so by including a <code class="language-plaintext highlighter-rouge">FlagOp</code> message. As shown in the <code class="language-plaintext highlighter-rouge">MapUpdate</code> message above, this operation takes one of two values: <code class="language-plaintext highlighter-rouge">ENABLE</code> and <code class="language-plaintext highlighter-rouge">DISABLE</code> (<code class="language-plaintext highlighter-rouge">1</code> and <code class="language-plaintext highlighter-rouge">2</code>, respectively).</p>
+
+<p>Updating a register does not involve sending a special message type. Instead, you must set the register to a desired value by specifying a binary for the <code class="language-plaintext highlighter-rouge">register_op</code> parameter.</p>

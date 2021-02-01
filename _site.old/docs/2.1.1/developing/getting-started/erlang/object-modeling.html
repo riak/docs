@@ -1,0 +1,334 @@
+<p>To get started, let’s create the records that we’ll be using.</p>
+
+<p>You can also download the code for this chapter at
+<a href="https://github.com/basho/taste-of-riak/tree/am-dem-erlang-modules/erlang/Ch03-Msgy-Schema">Github</a>.</p>
+
+<p>The Github version includes Erlang type specifications which have been omitted
+here for brevity.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% msgy.hrl
+</span>
+<span class="p">-</span><span class="ni">define</span><span class="p">(</span><span class="no">USER_BUCKET</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"Users"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">define</span><span class="p">(</span><span class="no">MSG_BUCKET</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"Msgs"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">define</span><span class="p">(</span><span class="no">TIMELINE_BUCKET</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"Timelines"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">define</span><span class="p">(</span><span class="no">INBOX</span><span class="p">,</span> <span class="s">"Inbox"</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">define</span><span class="p">(</span><span class="no">SENT</span><span class="p">,</span> <span class="s">"Sent"</span><span class="p">).</span>
+
+<span class="p">-</span><span class="ni">record</span><span class="p">(</span><span class="nl">user</span><span class="p">,</span> <span class="p">{</span><span class="n">user_name</span><span class="p">,</span> <span class="n">full_name</span><span class="p">,</span> <span class="n">email</span><span class="p">}).</span>
+
+<span class="p">-</span><span class="ni">record</span><span class="p">(</span><span class="nl">msg</span><span class="p">,</span> <span class="p">{</span><span class="n">sender</span><span class="p">,</span> <span class="n">recipient</span><span class="p">,</span> <span class="n">created</span><span class="p">,</span> <span class="n">text</span><span class="p">}).</span>
+
+<span class="p">-</span><span class="ni">record</span><span class="p">(</span><span class="nl">timeline</span><span class="p">,</span> <span class="p">{</span><span class="n">owner</span><span class="p">,</span> <span class="n">msg_type</span><span class="p">,</span> <span class="n">msgs</span><span class="p">}).</span>
+</code></pre></div></div>
+
+<p>We’ll be using the bucket <code class="language-plaintext highlighter-rouge">Users</code> to store our data. We won’t be <a href="/riak/kv/2.1.1/developing/usage/bucket-types">using bucket types</a> here, so we don’t need to specify one.</p>
+
+<p>To use these records to store data, we will first have to create a user
+record. Then, when a user creates a message, we will append that message
+to one or more timelines. If it’s a private message, we’ll append it to
+the Recipient’s <code class="language-plaintext highlighter-rouge">Inbox</code> timeline and to the User’s own <code class="language-plaintext highlighter-rouge">Sent</code> timeline.
+If it’s a group message, we’ll append it to the Group’s timeline, as
+well as to the User’s <code class="language-plaintext highlighter-rouge">Sent</code> timeline.</p>
+
+<h4 id="buckets-and-keys-revisited">Buckets and keys revisited</h4>
+
+<p>Now that we’ve worked out how we will differentiate data in the system,
+let’s figure out our bucket and key names.</p>
+
+<p>The bucket names are straightforward. We can use <code class="language-plaintext highlighter-rouge">Users</code>, <code class="language-plaintext highlighter-rouge">Msgs</code>, and
+<code class="language-plaintext highlighter-rouge">Timelines</code>. The key names, however, are a little more tricky. In past
+examples we’ve used sequential integers, but this presents a problem: we
+would need a secondary service to hand out these IDs. This service could
+easily be a future bottleneck in the system, so let’s use a natural key.
+Natural keys are a great fit for key/value systems because both humans
+and computers can easily construct them when needed, and most of the
+time they can be made unique enough for a KV store.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Bucket</th>
+      <th style="text-align: left">Key Pattern</th>
+      <th style="text-align: left">Example Key</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Users</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;user_name&gt;</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">joeuser</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Msgs</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;datetime&gt;</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">joeuser_2014-03-06T02:05:13.223556Z</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">Timelines</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;type&gt;_&lt;date&gt;</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">joeuser_Sent_2014-03-06Z</code><br /> <code class="language-plaintext highlighter-rouge">marketing_group_Inbox_2014-03-06Z</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For the <code class="language-plaintext highlighter-rouge">Users</code> bucket, we can be certain that we will want each
+username to be unique, so let’s use the <code class="language-plaintext highlighter-rouge">username</code> as the key.  For the
+<code class="language-plaintext highlighter-rouge">Msgs</code> bucket, let’s use a combination of the username and the posting
+datetime in an <a href="http://en.wikipedia.org/wiki/ISO_8601">ISO 8601 Long</a>
+format. This combination gives us the pattern <code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;datetime&gt;</code>,
+which produces keys like <code class="language-plaintext highlighter-rouge">joeuser_2014-03-05T23:20:28Z</code>.</p>
+
+<p>Now for <code class="language-plaintext highlighter-rouge">Timelines</code>, we need to differentiate between <code class="language-plaintext highlighter-rouge">Inbox</code> and <code class="language-plaintext highlighter-rouge">Sent</code>
+timelines, so we can simply add that type into the key name. We will
+also want to partition each collection object into some time period,
+that way the object doesn’t grow too large (see note below).</p>
+
+<p>For <code class="language-plaintext highlighter-rouge">Timelines</code>, let’s use the pattern <code class="language-plaintext highlighter-rouge">&lt;username&gt;_&lt;type&gt;_&lt;date&gt;</code> for
+users, and <code class="language-plaintext highlighter-rouge">&lt;groupname&gt;_Inbox_&lt;date&gt;</code> for groups, which will look like
+<code class="language-plaintext highlighter-rouge">joeuser_Sent_2014-03-06Z</code> or <code class="language-plaintext highlighter-rouge">marketing_group_Inbox_2014-03-05Z</code>,
+respectively.</p>
+
+<p>Riak performs best with objects under 1-2 MB. Objects larger than that can
+hurt performance, especially if many siblings are being created. We will cover
+siblings, sibling resolution, and sibling explosions in the next chapter.</p>
+
+<h4 id="keeping-our-story-straight-with-repositories">Keeping our story straight with repositories</h4>
+
+<p>Now that we’ve figured out our object model, let’s write some modules to
+act as repositories that will help us create and work with these records
+in Riak:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% user_repository.erl
+</span>
+<span class="p">-</span><span class="ni">module</span><span class="p">(</span><span class="n">user_repository</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">export</span><span class="p">([</span><span class="n">save_user</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>
+         <span class="n">get_user</span><span class="o">/</span><span class="mi">2</span><span class="p">]).</span>
+<span class="p">-</span><span class="ni">include</span><span class="p">(</span><span class="s">"msgy.hrl"</span><span class="p">).</span>
+
+<span class="nf">save_user</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">User</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">RUser</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="o">?</span><span class="nv">USER_BUCKET</span><span class="p">,</span>
+                          <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">User</span><span class="nl">#user.user_name</span><span class="p">),</span>
+                          <span class="nv">User</span><span class="p">),</span>
+    <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">RUser</span><span class="p">).</span>
+
+<span class="nf">get_user</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">UserName</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">RUser</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span>
+                                      <span class="o">?</span><span class="nv">USER_BUCKET</span><span class="p">,</span>
+                                      <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">UserName</span><span class="p">)),</span>
+    <span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">RUser</span><span class="p">)).</span>
+</code></pre></div></div>
+
+<p><br /></p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% msg_repository.erl
+</span>
+<span class="p">-</span><span class="ni">module</span><span class="p">(</span><span class="n">msg_repository</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">export</span><span class="p">([</span><span class="n">create_msg</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span>
+         <span class="n">get_msg</span><span class="o">/</span><span class="mi">2</span><span class="p">]).</span>
+<span class="p">-</span><span class="ni">include</span><span class="p">(</span><span class="s">"msgy.hrl"</span><span class="p">).</span>
+
+<span class="p">-</span><span class="ni">spec</span> <span class="nf">create_msg</span><span class="p">(</span><span class="nf">user_name</span><span class="p">(),</span> <span class="nf">user_name</span><span class="p">(),</span> <span class="nf">text</span><span class="p">())</span> <span class="o">-&gt;</span> <span class="nf">msg</span><span class="p">().</span>
+<span class="nf">create_msg</span><span class="p">(</span><span class="nv">Sender</span><span class="p">,</span> <span class="nv">Recipient</span><span class="p">,</span> <span class="nv">Text</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nl">#msg</span><span class="p">{</span><span class="n">sender</span><span class="o">=</span><span class="nv">Sender</span><span class="p">,</span>
+         <span class="n">recipient</span><span class="o">=</span><span class="nv">Recipient</span><span class="p">,</span>
+         <span class="n">created</span><span class="o">=</span><span class="nf">get_current_iso_timestamp</span><span class="p">(),</span>
+         <span class="n">text</span> <span class="o">=</span> <span class="nv">Text</span><span class="p">}.</span>
+
+<span class="p">-</span><span class="ni">spec</span> <span class="nf">get_msg</span><span class="p">(</span><span class="nf">pid</span><span class="p">(),</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">key</span><span class="p">())</span> <span class="o">-&gt;</span> <span class="nf">msg</span><span class="p">().</span>
+<span class="nf">get_msg</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">RMsg</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span>
+                                     <span class="o">?</span><span class="nv">MSG_BUCKET</span><span class="p">,</span>
+                                     <span class="nv">MsgKey</span><span class="p">),</span>
+    <span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">RMsg</span><span class="p">)).</span>
+
+<span class="c">%% @private
+</span><span class="p">-</span><span class="ni">spec</span> <span class="nf">get_current_iso_timestamp</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nf">datetimestamp</span><span class="p">().</span>
+<span class="nf">get_current_iso_timestamp</span><span class="p">()</span> <span class="o">-&gt;</span>
+    <span class="p">{_,_,</span><span class="nv">MicroSec</span><span class="p">}</span> <span class="o">=</span> <span class="nv">DateTime</span> <span class="o">=</span> <span class="nn">erlang</span><span class="p">:</span><span class="nf">now</span><span class="p">(),</span>
+    <span class="err">\</span><span class="p">{</span><span class="err">\</span><span class="p">{</span><span class="nv">Year</span><span class="p">,</span><span class="nv">Month</span><span class="p">,</span><span class="nv">Day</span><span class="p">},{</span><span class="nv">Hour</span><span class="p">,</span><span class="nv">Min</span><span class="p">,</span><span class="nv">Sec</span><span class="p">}}</span> <span class="o">=</span> <span class="nn">calendar</span><span class="p">:</span><span class="nf">now_to_universal_time</span><span class="p">(</span><span class="nv">DateTime</span><span class="p">),</span>
+    <span class="nn">lists</span><span class="p">:</span><span class="nf">flatten</span><span class="p">(</span>
+        <span class="nn">io_lib</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"</span><span class="si">~4..0B</span><span class="s">-</span><span class="si">~2..0B</span><span class="s">-</span><span class="si">~2..0B</span><span class="s">T</span><span class="si">~2..0B</span><span class="s">:</span><span class="si">~2..0B</span><span class="s">:</span><span class="si">~2..0B</span><span class="s">.</span><span class="si">~6..0B</span><span class="s">"</span><span class="p">,</span>
+            <span class="p">[</span><span class="nv">Year</span><span class="p">,</span> <span class="nv">Month</span><span class="p">,</span> <span class="nv">Day</span><span class="p">,</span> <span class="nv">Hour</span><span class="p">,</span> <span class="nv">Min</span><span class="p">,</span> <span class="nv">Sec</span><span class="p">,</span> <span class="nv">MicroSec</span><span class="p">])).</span>
+
+</code></pre></div></div>
+
+<p><br /></p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% timeline_repository.erl
+</span>
+<span class="p">-</span><span class="ni">module</span><span class="p">(</span><span class="n">timeline_repository</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">export</span><span class="p">([</span><span class="n">post_msg</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>
+         <span class="n">get_timeline</span><span class="o">/</span><span class="mi">4</span><span class="p">]).</span>
+<span class="p">-</span><span class="ni">include</span><span class="p">(</span><span class="s">"msgy.hrl"</span><span class="p">).</span>
+
+<span class="nf">post_msg</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">Msg</span><span class="p">)</span> <span class="o">-&gt;</span>
+     <span class="c">%% Save the canonical copy
+</span>    <span class="nv">SavedMsg</span> <span class="o">=</span> <span class="nf">save_msg</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">Msg</span><span class="p">),</span>
+    <span class="nv">MsgKey</span> <span class="o">=</span> <span class="nb">binary_to_list</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">key</span><span class="p">(</span><span class="nv">SavedMsg</span><span class="p">)),</span>
+
+    <span class="c">%% Post to sender's Sent timeline
+</span>    <span class="nf">add_to_timeline</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">Msg</span><span class="p">,</span> <span class="n">sent</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">),</span>
+
+    <span class="c">%% Post to recipient's Inbox timeline
+</span>    <span class="nf">add_to_timeline</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">Msg</span><span class="p">,</span> <span class="n">inbox</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">),</span>
+    <span class="n">ok</span><span class="p">.</span>
+
+<span class="nf">get_timeline</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">Owner</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">Date</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">TimelineKey</span> <span class="o">=</span> <span class="nf">generate_key</span><span class="p">(</span><span class="nv">Owner</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">Date</span><span class="p">),</span>
+    <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">RTimeline</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span>
+                                          <span class="o">?</span><span class="nv">TIMELINE_BUCKET</span><span class="p">,</span>
+                                          <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">TimelineKey</span><span class="p">)),</span>
+    <span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">RTimeline</span><span class="p">)).</span>
+
+<span class="c">%% --------------------------------------------------------------------
+</span>
+<span class="c">%% @private
+</span><span class="nf">save_msg</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">Msg</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">MsgKey</span> <span class="o">=</span> <span class="nv">Msg</span><span class="nl">#msg.sender</span> <span class="o">++</span> <span class="s">"_"</span> <span class="o">++</span> <span class="nv">Msg</span><span class="nl">#msg.created</span><span class="p">,</span>
+    <span class="nv">ExistingMsg</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span>
+                                      <span class="o">?</span><span class="nv">MSG_BUCKET</span><span class="p">,</span>
+                                      <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">MsgKey</span><span class="p">)),</span>
+    <span class="nv">SavedMsg</span> <span class="o">=</span> <span class="k">case</span> <span class="nv">ExistingMsg</span> <span class="k">of</span>
+        <span class="p">{</span><span class="n">error</span><span class="p">,</span> <span class="n">notfound</span><span class="p">}</span> <span class="o">-&gt;</span>
+            <span class="nv">NewMsg</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="o">?</span><span class="nv">MSG_BUCKET</span><span class="p">,</span> <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">MsgKey</span><span class="p">),</span> <span class="nv">Msg</span><span class="p">),</span>
+            <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">NewSaved</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span>
+                                                 <span class="nv">NewMsg</span><span class="p">,</span>
+                                                 <span class="p">[</span><span class="n">if_none_match</span><span class="p">,</span> <span class="n">return_body</span><span class="p">]),</span>
+            <span class="nv">NewSaved</span><span class="p">;</span>
+        <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Existing</span><span class="p">}</span> <span class="o">-&gt;</span> <span class="nv">Existing</span>
+    <span class="k">end</span><span class="p">,</span>
+    <span class="nv">SavedMsg</span><span class="p">.</span>
+
+<span class="c">%% @private
+</span><span class="nf">add_to_timeline</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span> <span class="nv">Msg</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">TimelineKey</span> <span class="o">=</span> <span class="nf">generate_key_from_msg</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">),</span>
+    <span class="nv">ExistingTimeline</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span>
+                                           <span class="o">?</span><span class="nv">TIMELINE_BUCKET</span><span class="p">,</span>
+                                           <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">TimelineKey</span><span class="p">)),</span>
+    <span class="nv">UpdatedTimeline</span> <span class="o">=</span> <span class="k">case</span> <span class="nv">ExistingTimeline</span> <span class="k">of</span>
+        <span class="p">{</span><span class="n">error</span><span class="p">,</span> <span class="n">notfound</span><span class="p">}</span> <span class="o">-&gt;</span>
+            <span class="nf">create_new_timeline</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">,</span> <span class="nv">TimelineKey</span><span class="p">);</span>
+        <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Existing</span><span class="p">}</span> <span class="o">-&gt;</span>
+            <span class="nf">add_to_existing_timeline</span><span class="p">(</span><span class="nv">Existing</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">)</span>
+    <span class="k">end</span><span class="p">,</span>
+
+    <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">SavedTimeline</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">ClientPid</span><span class="p">,</span>
+                                              <span class="nv">UpdatedTimeline</span><span class="p">,</span>
+                                              <span class="p">[</span><span class="n">return_body</span><span class="p">]),</span>
+    <span class="nv">SavedTimeline</span><span class="p">.</span>
+
+<span class="c">%% @private
+</span><span class="nf">create_new_timeline</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">,</span> <span class="nv">TimelineKey</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">Owner</span> <span class="o">=</span> <span class="nf">get_owner</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">),</span>
+    <span class="nv">Timeline</span> <span class="o">=</span> <span class="nl">#timeline</span><span class="p">{</span><span class="n">owner</span><span class="o">=</span><span class="nv">Owner</span><span class="p">,</span>
+                         <span class="n">msg_type</span><span class="o">=</span><span class="nv">MsgType</span><span class="p">,</span>
+                         <span class="n">msgs</span><span class="o">=</span><span class="p">[</span><span class="nv">MsgKey</span><span class="p">]},</span>
+    <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="o">?</span><span class="nv">TIMELINE_BUCKET</span><span class="p">,</span> <span class="nb">list_to_binary</span><span class="p">(</span><span class="nv">TimelineKey</span><span class="p">),</span> <span class="nv">Timeline</span><span class="p">).</span>
+
+<span class="c">%% @private
+</span><span class="nf">add_to_existing_timeline</span><span class="p">(</span><span class="nv">ExistingRiakObj</span><span class="p">,</span> <span class="nv">MsgKey</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">ExistingTimeline</span> <span class="o">=</span> <span class="nb">binary_to_term</span><span class="p">(</span><span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="nv">ExistingRiakObj</span><span class="p">)),</span>
+    <span class="nv">ExistingMsgList</span> <span class="o">=</span> <span class="nv">ExistingTimeline</span><span class="nl">#timeline.msgs</span><span class="p">,</span>
+    <span class="nv">UpdatedTimeline</span> <span class="o">=</span> <span class="nv">ExistingTimeline</span><span class="nl">#timeline</span><span class="p">{</span><span class="n">msgs</span><span class="o">=</span><span class="p">[</span><span class="nv">MsgKey</span><span class="p">|</span><span class="nv">ExistingMsgList</span><span class="p">]},</span>
+    <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">update_value</span><span class="p">(</span><span class="nv">ExistingRiakObj</span><span class="p">,</span> <span class="nv">UpdatedTimeline</span><span class="p">).</span>
+
+<span class="c">%% @private
+</span><span class="nf">get_owner</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="n">inbox</span><span class="p">)</span> <span class="o">-&gt;</span>  <span class="nv">Msg</span><span class="nl">#msg.recipient</span><span class="p">;</span>
+<span class="nf">get_owner</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="n">sent</span><span class="p">)</span> <span class="o">-&gt;</span>  <span class="nv">Msg</span><span class="nl">#msg.sender</span><span class="p">.</span>
+
+<span class="c">%% @private
+</span><span class="nf">generate_key_from_msg</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">Owner</span> <span class="o">=</span> <span class="nf">get_owner</span><span class="p">(</span><span class="nv">Msg</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">),</span>
+    <span class="nf">generate_key</span><span class="p">(</span><span class="nv">Owner</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">Msg</span><span class="nl">#msg.created</span><span class="p">).</span>
+
+<span class="c">%% @private
+</span><span class="nf">generate_key</span><span class="p">(</span><span class="nv">Owner</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">Date</span><span class="p">)</span> <span class="k">when</span> <span class="nb">is_tuple</span><span class="p">(</span><span class="nv">Date</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">DateString</span> <span class="o">=</span> <span class="nf">get_iso_datestamp_from_date</span><span class="p">(</span><span class="nv">Date</span><span class="p">),</span>
+    <span class="nf">generate_key</span><span class="p">(</span><span class="nv">Owner</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">DateString</span><span class="p">);</span>
+
+<span class="nf">generate_key</span><span class="p">(</span><span class="nv">Owner</span><span class="p">,</span> <span class="nv">MsgType</span><span class="p">,</span> <span class="nv">Datetimestamp</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="nv">DateString</span> <span class="o">=</span> <span class="nf">get_iso_datestamp_from_iso_timestamp</span><span class="p">(</span><span class="nv">Datetimestamp</span><span class="p">),</span>
+    <span class="nv">MsgTypeString</span> <span class="o">=</span> <span class="k">case</span> <span class="nv">MsgType</span> <span class="k">of</span>
+        <span class="n">inbox</span> <span class="o">-&gt;</span> <span class="o">?</span><span class="nv">INBOX</span><span class="p">;</span>
+        <span class="n">sent</span> <span class="o">-&gt;</span> <span class="o">?</span><span class="nv">SENT</span>
+    <span class="k">end</span><span class="p">,</span>
+    <span class="nv">Owner</span> <span class="o">++</span> <span class="s">"_"</span> <span class="o">++</span> <span class="nv">MsgTypeString</span> <span class="o">++</span> <span class="s">"_"</span> <span class="o">++</span> <span class="nv">DateString</span><span class="p">.</span>
+
+<span class="c">%% @private
+</span><span class="nf">get_iso_datestamp_from_date</span><span class="p">(</span><span class="nv">Date</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="p">{</span><span class="nv">Year</span><span class="p">,</span><span class="nv">Month</span><span class="p">,</span><span class="nv">Day</span><span class="p">}</span> <span class="o">=</span> <span class="nv">Date</span><span class="p">,</span>
+    <span class="nn">lists</span><span class="p">:</span><span class="nf">flatten</span><span class="p">(</span><span class="nn">io_lib</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"</span><span class="si">~4..0B</span><span class="s">-</span><span class="si">~2..0B</span><span class="s">-</span><span class="si">~2..0B</span><span class="s">"</span><span class="p">,</span> <span class="p">[</span><span class="nv">Year</span><span class="p">,</span> <span class="nv">Month</span><span class="p">,</span> <span class="nv">Day</span><span class="p">])).</span>
+
+<span class="c">%% @private
+</span><span class="nf">get_iso_datestamp_from_iso_timestamp</span><span class="p">(</span><span class="nv">CreatedString</span><span class="p">)</span> <span class="o">-&gt;</span>
+    <span class="p">{</span><span class="nv">Date</span><span class="p">,</span> <span class="p">_}</span> <span class="o">=</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">split</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="nv">CreatedString</span><span class="p">),</span>
+    <span class="nv">Date</span><span class="p">.</span>
+
+</code></pre></div></div>
+
+<p>Finally, let’s test them:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">%% msgy.erl
+</span>
+<span class="p">-</span><span class="ni">module</span><span class="p">(</span><span class="n">msgy</span><span class="p">).</span>
+<span class="p">-</span><span class="ni">export</span><span class="p">([</span><span class="n">main</span><span class="o">/</span><span class="mi">0</span><span class="p">]).</span>
+<span class="p">-</span><span class="ni">include</span><span class="p">(</span><span class="s">"msgy.hrl"</span><span class="p">).</span>
+
+<span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span>
+  <span class="c">%% Setup our repositories
+</span>  <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Pid</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">start_link</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span> <span class="mi">10017</span><span class="p">),</span>
+
+  <span class="c">%% Create and save users
+</span>  <span class="nv">Joe</span> <span class="o">=</span> <span class="nl">#user</span><span class="p">{</span><span class="n">user_name</span><span class="o">=</span><span class="s">"joeuser"</span><span class="p">,</span>
+              <span class="n">full_name</span><span class="o">=</span><span class="s">"Joe User"</span><span class="p">,</span>
+              <span class="n">email</span><span class="o">=</span><span class="s">"joe.user@basho.com"</span><span class="p">},</span>
+
+  <span class="nv">Marleen</span> <span class="o">=</span> <span class="nl">#user</span><span class="p">{</span><span class="n">user_name</span><span class="o">=</span><span class="s">"marleenmgr"</span><span class="p">,</span>
+                  <span class="n">full_name</span><span class="o">=</span><span class="s">"Marleen Manager"</span><span class="p">,</span>
+                  <span class="n">email</span><span class="o">=</span><span class="s">"marleen.manager@basho.com"</span><span class="p">},</span>
+
+  <span class="nn">user_repository</span><span class="p">:</span><span class="nf">save_user</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Joe</span><span class="p">),</span>
+  <span class="nn">user_repository</span><span class="p">:</span><span class="nf">save_user</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Marleen</span><span class="p">),</span>
+
+  <span class="c">%% Create new Msg, post to timelines
+</span>  <span class="nv">Msg</span> <span class="o">=</span> <span class="nn">msg_repository</span><span class="p">:</span><span class="nf">create_msg</span><span class="p">(</span><span class="nv">Marleen</span><span class="nl">#user.user_name</span><span class="p">,</span> <span class="nv">Joe</span><span class="nl">#user.user_name</span><span class="p">,</span> <span class="s">"Welcome to the company!"</span><span class="p">),</span>
+  <span class="nn">timeline_repository</span><span class="p">:</span><span class="nf">post_msg</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Msg</span><span class="p">),</span>
+
+
+  <span class="c">%% Get Joe's inbox for today, get first message
+</span>  <span class="p">{</span><span class="nv">TodaysDate</span><span class="p">,_}</span> <span class="o">=</span> <span class="nn">calendar</span><span class="p">:</span><span class="nf">now_to_universal_time</span><span class="p">(</span><span class="nn">erlang</span><span class="p">:</span><span class="nf">now</span><span class="p">()),</span>
+  <span class="nv">JoesInboxToday</span> <span class="o">=</span> <span class="nn">timeline_repository</span><span class="p">:</span><span class="nf">get_timeline</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Joe</span><span class="nl">#user.user_name</span><span class="p">,</span> <span class="n">inbox</span><span class="p">,</span> <span class="nv">TodaysDate</span><span class="p">),</span>
+
+  <span class="nv">JoesFirstMessage</span> <span class="o">=</span> <span class="nn">msg_repository</span><span class="p">:</span><span class="nf">get_msg</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nb">hd</span><span class="p">(</span><span class="nv">JoesInboxToday</span><span class="nl">#timeline.msgs</span><span class="p">)),</span>
+
+  <span class="nn">io</span><span class="p">:</span><span class="nf">format</span><span class="p">(</span><span class="s">"From: </span><span class="si">~s~n</span><span class="s">Msg : </span><span class="si">~s~n~n</span><span class="s">"</span><span class="p">,</span> <span class="p">[</span><span class="nv">JoesFirstMessage</span><span class="nl">#msg.sender</span><span class="p">,</span> <span class="nv">JoesFirstMessage</span><span class="nl">#msg.text</span><span class="p">]),</span>
+  <span class="n">ok</span><span class="p">.</span>
+</code></pre></div></div>
+
+<p>As you can see, the repository pattern helps us with a few things:</p>
+
+<ul>
+  <li>It helps us to see if an object exists before creating a new one</li>
+  <li>It keeps our buckets and key names consistent</li>
+  <li>It provides us with a consistent interface to work with.</li>
+</ul>
+
+<p>While this set of repositories solves many of our problems, it is very
+minimal and doesn’t cover all the edge cases. For instance, what happens
+if two different people try to create a user with the same username?</p>
+
+<p>We can also easily “compute” key names now, but how do we quickly look
+up the last 10 messages a user sent? Many of these answers will be
+application dependent. If your application shows the last 10 messages in
+reverse order, for example, you may want to store that set of data in
+another collection object to make lookup faster. There are drawbacks to
+every solution, but we recommend seeking out the key/value-based
+solution first, as it will likely be the quickest.</p>
+
+<p>So to recap, in this chapter we learned:</p>
+
+<ul>
+  <li>How to choose bucket names</li>
+  <li>How to choose natural keys based on how we want to partition our data.</li>
+</ul>
+

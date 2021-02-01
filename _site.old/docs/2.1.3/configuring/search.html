@@ -1,0 +1,130 @@
+
+<blockquote>
+  <p><strong>Note on Search 2.0 vs. Legacy Search</strong></p>
+
+  <p>This document refers to the new Riak Search 2.0 with
+<a href="http://lucene.apache.org/solr/">Solr</a> integration (codenamed
+Yokozuna). For information about the deprecated Riak Search, visit <a href="http://docs.basho.com/riak/1.4.8/ops/advanced/configs/search/">the old Riak Search Settings</a>.</p>
+</blockquote>
+
+<p>This document covers Riak’s Search subsystem from an
+operational perspective. If you are looking for more developer-focused
+docs, we recommend the following:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.1.3/developing/usage/search">Using Search</a></li>
+  <li><a href="/riak/kv/2.1.3/developing/usage/search-schemas">Search Schema</a></li>
+  <li><a href="/riak/kv/2.1.3/developing/usage/custom-extractors">Custom Search Extractors</a></li>
+  <li><a href="/riak/kv/2.1.3/developing/usage/searching-data-types">Riak KV Data Types and Search</a></li>
+</ul>
+
+<h2 id="enabling-riak-search">Enabling Riak Search</h2>
+
+<p>Although Riak Search is integrated into Riak and requires no special
+installation, it is not enabled by default.  You must enable it in every
+node’s <a href="/riak/kv/2.1.3/configuring/reference">configuration files</a> as follows:</p>
+
+<pre><code class="language-riakconf">search = on
+</code></pre>
+
+<h2 id="jvm-installation">JVM Installation</h2>
+
+<p>Because Solr is a Java application, you will need to install <strong>Java 1.6
+or later</strong> on every node. We recommend installing Oracle’s <a href="http://www.oracle.com/technetwork/java/javase/7u25-relnotes-1955741.html">JDK
+7u25</a>.
+Installation packages can be found on the <a href="http://www.oracle.com/technetwork/java/javase/downloads/java-archive-downloads-javase7-521261.html#jre-7u25-oth-JPR">Java SE 7 Downloads
+page</a>
+and instructions on the <a href="http://www.oracle.com/technetwork/java/javase/documentation/index.html">documentation
+page</a>.</p>
+
+<h3 id="riak-config-settings">Riak Config Settings</h3>
+
+<p>Setting <code class="language-plaintext highlighter-rouge">search</code> to <code class="language-plaintext highlighter-rouge">on</code> is required, but other search settings are
+optional. A list of these parameters can also be found in our
+<a href="/riak/kv/2.1.3/configuring/reference/#search">configuration files</a> documentation.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Field</th>
+      <th style="text-align: left">Default</th>
+      <th style="text-align: left">Valid values</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">off</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">on</code> or <code class="language-plaintext highlighter-rouge">off</code></td>
+      <td style="text-align: left">Enable or disable Search</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search.anti_entropy.data_dir</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/yz_anti_entropy</code></td>
+      <td style="text-align: left">Directory</td>
+      <td style="text-align: left">The directory in which Riak Search stores files related to <a href="/riak/kv/2.1.3/learn/glossary/#active-anti-entropy-aae">active anti-entropy</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search.root_dir</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">./data/yz</code></td>
+      <td style="text-align: left">Directory</td>
+      <td style="text-align: left">The root directory in which index data and configuration is stored</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search.solr.start_timeout</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">30s</code></td>
+      <td style="text-align: left">Integer with time units (eg. 2m)</td>
+      <td style="text-align: left">How long Riak will wait for Solr to start (attempts twice before shutdown). Values lower than 1s will be rounded up to 1s.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search.solr.port</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">8093</code></td>
+      <td style="text-align: left">Integer</td>
+      <td style="text-align: left">The port number to which Solr binds (note: binds on every interface)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search.solr.jmx_port</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">8985</code></td>
+      <td style="text-align: left">Integer</td>
+      <td style="text-align: left">The port number to which Solr JMX (note: binds on every interface)</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">search.solr.jvm_options</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">-d64 -Xms1g -Xmx1g -XX:+UseStringCache -XX:+UseCompressedOops</code></td>
+      <td style="text-align: left">Java command-line arguments</td>
+      <td style="text-align: left">The options to pass to the Solr JVM. Non-standard options, e.g. <code class="language-plaintext highlighter-rouge">-XX</code>, may not be portable across JVM implementations.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>While most of the default values are sufficient, you may have to
+increase <code class="language-plaintext highlighter-rouge">search.solr.start_timeout</code> as more data is indexed, which may
+cause Solr to require more time to start.</p>
+
+<h2 id="solr-jvm-and-ports">Solr JVM and Ports</h2>
+
+<p>Riak Search runs one Solr process per node to manage its indexing and
+search functionality. While the underlying project, Yokozuna, manages
+index distribution, node coverage for queries, active anti-entropy
+(AAE), and JVM process management, you should provide plenty of RAM and diskspace for running both Riak and the JVM running Solr. We recommend a minimum of 6GB of RAM per node.</p>
+
+<p>Concerning ports, be sure to take the necessary <a href="/riak/kv/2.1.3/using/security/">security</a> precautions to prevent exposing the extra Solr and JMX ports
+to the outside world.</p>
+
+<h2 id="solr-for-operators">Solr for Operators</h2>
+
+<p>For further information on Solr monitoring, tuning, and performance, we
+recommend the following documents for getting started:</p>
+
+<ul>
+  <li><a href="https://wiki.apache.org/solr/SolrMonitoring">Solr Monitoring</a></li>
+  <li><a href="https://wiki.apache.org/solr/SolrPerformanceFactors">Solr Performance
+  Factors</a></li>
+  <li><a href="https://wiki.apache.org/solr/SolrPerformanceProblems">Solr Performance
+  Problems</a></li>
+  <li><a href="http://docs.oracle.com/javase/7/docs/technotes/guides/management/jconsole.html">JConsole</a></li>
+</ul>
+
+<p>A wide variety of other documentation is available from the Solr OSS
+community.</p>

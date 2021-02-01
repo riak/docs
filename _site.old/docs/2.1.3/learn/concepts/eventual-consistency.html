@@ -1,0 +1,172 @@
+
+<p>In a distributed and fault-tolerant system like Riak, server and network
+failures are expected. Riak is designed to respond to requests even when
+<a href="/riak/kv/2.1.3/learn/glossary/#node">nodes</a> are offline or the cluster is experiencing
+a network partition.</p>
+
+<p>Riak handles this problem by enabling conflicting copies of data stored
+in the same location, as specified by <a href="/riak/kv/2.1.3/learn/concepts/buckets">bucket type</a>, bucket, and key, to exist at the same time in the cluster. This
+gives rise to the problem of <strong>data inconsistency</strong>.</p>
+
+<h2 id="data-inconsistency">Data Inconsistency</h2>
+
+<p>Conflicts between replicas of an object are inevitable in
+highly-available, <a href="/riak/kv/2.1.3/learn/concepts/clusters">clustered</a> systems like Riak because there
+is nothing in those systems to guarantee so-called <a href="http://en.wikipedia.org/wiki/ACID">ACID
+transactions</a>. Because of this, these
+systems need to rely on some form of conflict-resolution mechanism.</p>
+
+<p>One of the things that makes Riak’s eventual consistency model powerful
+is that Riak does not dictate how data resolution takes place. While
+Riak does ship with a set of defaults regarding how data is
+<a href="#replication-properties-and-request-tuning">replicated</a> and how
+<a href="/riak/kv/2.1.3/developing/usage/conflict-resolution">conflicts are resolved</a>, you can override these
+defaults if you want to employ a different strategy.</p>
+
+<p>Among those strategies, you can enable Riak to resolve object conflicts
+automatically, whether via internal <a href="/riak/kv/2.1.3/learn/concepts/causal-context/#vector-clocks">vector clocks</a>, timestamps, or
+special eventually consistent <a href="/riak/kv/2.1.3/developing/data-types/">Data Types</a>, or you can resolve those
+conflicts on the application side by employing a use case-specific logic
+of your choosing. More information on this can be found in our guide to
+<a href="/riak/kv/2.1.3/developing/usage/conflict-resolution">conflict resolution</a>.</p>
+
+<p>This variety of options enables you to manage Riak’s eventually
+consistent behavior in accordance with your application’s <a href="/riak/kv/2.1.3/developing/data-modeling/">data model
+or models</a>.</p>
+
+<h2 id="replication-properties-and-request-tuning">Replication Properties and Request Tuning</h2>
+
+<p>In addition to providing you different means of resolving conflicts,
+Riak also enables you to fine-tune <strong>replication properties</strong>, which
+determine things like the number of nodes on which data should be stored
+and the number of nodes that are required to respond to read, write, and
+other requests.</p>
+
+<p>An in-depth discussion of these behaviors and how they can be
+implemented on the application side can be found in our guides to
+<a href="/riak/kv/2.1.3/learn/concepts/replication">replication properties</a> and <a href="/riak/kv/2.1.3/developing/usage/conflict-resolution">conflict resolution</a>.</p>
+
+<p>In addition to our official documentation, we also recommend checking
+out the <a href="http://basho.com/understanding-riaks-configurable-behaviors-part-1/">Understanding Riak’s Configurable
+Behaviors</a>
+series from <a href="http://basho.com/blog/">the Basho blog</a>.</p>
+
+<h2 id="a-simple-example-of-eventual-consistency">A Simple Example of Eventual Consistency</h2>
+
+<p>Let’s assume for the moment that a sports news application is storing
+all of its data in Riak. One thing that the application always needs to
+be able to report to users is the identity of the current manager of
+Manchester United, which is stored in the key <code class="language-plaintext highlighter-rouge">manchester-manager</code> in
+the bucket <code class="language-plaintext highlighter-rouge">premier-league-managers</code>. This bucket has <code class="language-plaintext highlighter-rouge">allow_mult</code> set
+to <code class="language-plaintext highlighter-rouge">false</code>, which means that Riak will resolve all conflicts by itself.</p>
+
+<p>Now let’s say that a node in this cluster has recently recovered from
+failure and has an old copy of the key <code class="language-plaintext highlighter-rouge">manchester-manager</code> stored in
+it, with the value <code class="language-plaintext highlighter-rouge">Alex Ferguson</code>. The problem is that Sir Ferguson
+stepped down in 2013 and is no longer the manager. Fortunately, the
+other nodes in the cluster hold the value <code class="language-plaintext highlighter-rouge">David Moyes</code>, which is
+correct.</p>
+
+<p>Shortly after the recovered node comes back online, other cluster
+members recognize that it is available. Then, a read request for
+<code class="language-plaintext highlighter-rouge">manchester-manager</code> arrives from the application. Regardless of which
+order the responses arrive to the node that is coordinating this
+request, <code class="language-plaintext highlighter-rouge">David Moyes</code> will be returned as the value to the client,
+because <code class="language-plaintext highlighter-rouge">Alex Ferguson</code> is recognized as an older value.</p>
+
+<p>Why is this? How does Riak make this decision? Behind the scenes, after
+<code class="language-plaintext highlighter-rouge">David Moyes</code> is sent to the client, a <a href="/riak/kv/2.1.3/learn/glossary/#read-repair">read repair</a> mechanism will occur on the cluster to fix the
+older value on the node that just came back online. Because Riak tags
+all objects with versioning information, it can make these kinds of
+decisions on its own, if you wish.</p>
+
+<h3 id="r1">R=1</h3>
+
+<p>Let’s say that you keep the above scenario the same, except you tweak
+the request and set R to 1, perhaps because you want faster responses to
+the client. In this case, it <em>is</em> possible that the client will receive
+the outdated value <code class="language-plaintext highlighter-rouge">Alex Ferguson</code> because it is only waiting for a
+response from one node.</p>
+
+<p>However, the read repair mechanism will kick in and fix the value, so
+the next time someone asks for the value of <code class="language-plaintext highlighter-rouge">manchester-manager</code>, <code class="language-plaintext highlighter-rouge">David
+Moyes</code> will indeed be the answer.</p>
+
+<h3 id="r1-sloppy-quorum">R=1, sloppy quorum</h3>
+
+<p>Let’s take the scenario back in time to the point at which our unlucky
+node originally failed. At that point, all 3 nodes had <code class="language-plaintext highlighter-rouge">Alex Ferguson</code>
+as the value for <code class="language-plaintext highlighter-rouge">manchester-manager</code>.</p>
+
+<p>When a node fails, Riak’s <em>sloppy quorum</em> feature kicks in and another
+node takes responsibility for serving its requests.</p>
+
+<p>The first time we issue a read request after the failure, if <code class="language-plaintext highlighter-rouge">R</code> is set
+to 1, we run a significant risk of receiving a <code class="language-plaintext highlighter-rouge">not found</code> response from
+Riak. The node that has assumed responsibility for that data won’t have
+a copy of <code class="language-plaintext highlighter-rouge">manchester-manager</code> yet, and it’s much faster to verify a
+missing key than to pull a copy of the value from disk, so that node
+will likely respond fastest.</p>
+
+<p>If <code class="language-plaintext highlighter-rouge">R</code> is left to its default value of 2, there wouldn’t be a problem
+because 1 of the nodes that still had a copy of <code class="language-plaintext highlighter-rouge">Alex Ferguson</code> would
+also respond before the client got its result. In either case, read
+repair will step in after the request has been completed and make
+certain that the value is propagated to all the nodes that need it.</p>
+
+<h3 id="pr-pw-sloppy-quorum">PR, PW, sloppy quorum</h3>
+
+<p>Thus far, we’ve discussed settings that permit sloppy quorums in the
+interest of allowing Riak to maintain as high a level of availability as
+possible in the presence of node or network failure.</p>
+
+<p>It is possible to configure requests to ignore sloppy quorums in order
+to limit the possibility of older data being returned to a client. The
+tradeoff, of course, is that there is an increased risk of request
+failures if failover nodes are not permitted to serve requests.</p>
+
+<p>In the scenario we’ve been discussing, for example, the possibility of a
+node for the <code class="language-plaintext highlighter-rouge">manchester-manager</code> key having failed, but to be more
+precise, we’ve been talking about a <em>primary</em> node, one that when the
+cluster is perfectly healthy would bear responsibility for that key.</p>
+
+<p>When that node failed, using <code class="language-plaintext highlighter-rouge">R=2</code> as we’ve discussed or even <code class="language-plaintext highlighter-rouge">R=3</code> for
+a read request would still work properly: a failover node (sloppy quorum
+again) would be tasked to take responsibility for that key, and when it
+receives a request for it, it would reply that it doesn’t have any such
+key, but the two surviving primary nodes still know who the
+<code class="language-plaintext highlighter-rouge">manchester-manager</code> is.</p>
+
+<p>However, if the PR (primary read) value is specified, only the two
+surviving primary nodes are considered valid sources for that data.</p>
+
+<p>So, setting PR to 2 works fine, because there are still 2 such nodes,
+but a read request with PR=3 would fail because the 3rd primary node is
+offline, and no failover node can take its place <em>as a primary</em>.</p>
+
+<p>The same is true of writes: W=2 or W=3 will work fine with the primary
+node offline, as will PW=2 (primary write), but PW=3 will result in an
+error.</p>
+
+<blockquote>
+  <p><strong>Note: Errors and Failures</strong></p>
+
+  <p>It is important to understand the difference between an error and a
+failure.</p>
+
+  <p>The <code class="language-plaintext highlighter-rouge">PW=3</code> request in this scenario will result in an error,
+but the value will still be written to the two surviving primary
+nodes.</p>
+
+  <p>By specifying <code class="language-plaintext highlighter-rouge">PW=3</code> the client indicated that 3 primary
+nodes must respond for the operation to be considered successful, which
+it wasn’t, but there’s no way to tell without performing another read
+whether the operation truly failed.</p>
+</blockquote>
+
+<h2 id="further-reading">Further Reading</h2>
+
+<ul>
+  <li><a href="http://basho.com/understanding-riaks-configurable-behaviors-part-1/">Understanding Riak’s Configurable Behaviors blog series</a></li>
+  <li>Werner Vogels, et. al.: <a href="http://www.allthingsdistributed.com/2008/12/eventually_consistent.html">Eventually Consistent - Revisited</a></li>
+</ul>

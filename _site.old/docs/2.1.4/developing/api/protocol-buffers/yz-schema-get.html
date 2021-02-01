@@ -1,0 +1,28 @@
+<p>Fetch a <a href="/riak/kv/2.1.4/developing/usage/search-schemas">search schema</a> from Riak Search.</p>
+
+<h2 id="request">Request</h2>
+
+<p>In a request message, you only need to specify the name of the schema as
+a binary (under <code class="language-plaintext highlighter-rouge">name</code>);</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaSchemaGetReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">name</span>  <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>  <span class="c1">// Schema name</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="response">Response</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaSchemaGetResp</span> <span class="p">{</span>
+  <span class="k">required</span> <span class="n">RpbYokozunaSchema</span> <span class="na">schema</span> <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The response message will include a <code class="language-plaintext highlighter-rouge">RpbYokozunaSchema</code> structure.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaSchema</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">name</span>    <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">content</span> <span class="o">=</span>  <span class="mi">2</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>This message includes the schema <code class="language-plaintext highlighter-rouge">name</code> and its xml <code class="language-plaintext highlighter-rouge">content</code>.</p>

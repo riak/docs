@@ -1,0 +1,642 @@
+
+<h2 id="riak-admin">riak-admin</h2>
+
+<p>This script performs operations unrelated to node liveness, including
+node membership, backup, and basic status reporting. The node must be
+running for most of these commands to work. Running the <code class="language-plaintext highlighter-rouge">riak-admin</code>
+command by itself will output a list of available commands:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Usage: riak-admin { cluster | join | leave | backup | restore | test |
+                    reip | js-reload | erl-reload | wait-for-service |
+                    ringready | transfers | force-remove | down |
+                    cluster-info | member-status | ring-status | vnode-status |
+                    aae-status | diag | stat | status | transfer-limit | reformat-indexes |
+                    top [-interval N] [-sort reductions|memory|msg_q] [-lines N] |
+                    downgrade-objects | security | bucket-type | repair-2i |
+                    search | services | ensemble-status | handoff | set |
+                    show | describe }
+</code></pre></div></div>
+
+<h2 id="node-naming">Node Naming</h2>
+
+<p>An important thing to bear in mind is that all Riak nodes have unique
+names within the cluster that are used for a wide variety of operations.
+The name for each node can be set and changed in each node’s
+<a href="/riak/kv/2.1.4/configuring/reference">configuration files</a>. The examples below set the name of a node to
+<code class="language-plaintext highlighter-rouge">riak_node_1@199.99.99.01</code> in the <code class="language-plaintext highlighter-rouge">riak.conf</code> file if you are using the
+newer configuration system and in <code class="language-plaintext highlighter-rouge">vm.args</code> if you are using the older
+system:</p>
+
+<pre><code class="language-riakconf">nodename = riak_node_1@199.99.99.01
+</code></pre>
+
+<pre><code class="language-vmargs">-name riak_node_1@199.99.99.01
+</code></pre>
+
+<p>The name prior to the <code class="language-plaintext highlighter-rouge">@</code> symbol can be whatever you’d like, e.g.
+<code class="language-plaintext highlighter-rouge">riak1</code>, <code class="language-plaintext highlighter-rouge">dev</code>, <code class="language-plaintext highlighter-rouge">cluster1_node1</code>, or <code class="language-plaintext highlighter-rouge">spaghetti</code>. After the <code class="language-plaintext highlighter-rouge">@</code> you must
+use a resolvable IP address or hostname. In general, we recommend using
+hostnames over IP addresses when possible because this enables the node
+to potentially live on different machines over the course of its
+existence.</p>
+
+<h2 id="cluster">cluster</h2>
+
+<p>Documentation for the <code class="language-plaintext highlighter-rouge">riak-admin cluster</code> command interface can be
+found in <a href="/riak/kv/2.1.4/using/admin/commands">Cluster Administration</a>.</p>
+
+<h2 id="join">join</h2>
+
+<blockquote>
+  <p><strong>Deprecation Notice</strong></p>
+
+  <p>As of Riak version 1.2, the <code class="language-plaintext highlighter-rouge">riak-admin join</code> command has
+been deprecated in favor of the <a href="/riak/kv/2.1.4/using/admin/commands/#join"><code class="language-plaintext highlighter-rouge">riak-admin cluster join</code></a> command. However, this command can still be
+used by providing a <code class="language-plaintext highlighter-rouge">-f</code> option (which forces the command).</p>
+</blockquote>
+
+<p>Joins the running node to another running node so that they participate
+in the same cluster. <code class="language-plaintext highlighter-rouge">&lt;node&gt;</code> is the other node to connect to.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin <span class="nb">join</span> <span class="nt">-f</span> &lt;node&gt;
+</code></pre></div></div>
+
+<h2 id="leave">leave</h2>
+
+<blockquote>
+  <p><strong>Deprecation Notice</strong></p>
+
+  <p>As of Riak version 1.2, the <code class="language-plaintext highlighter-rouge">riak-admin leave</code> command has
+been deprecated in favor of the new <a href="/riak/kv/2.1.4/using/admin/commands/#leave"><code class="language-plaintext highlighter-rouge">riak-admin cluster leave</code></a> command. However, this
+command can still be used by providing a <code class="language-plaintext highlighter-rouge">-f</code> option (which
+forces the command).</p>
+</blockquote>
+
+<p>Causes the node to leave the cluster in which it participates. After
+this is run, the node in question will hand-off all its replicas to
+other nodes in the cluster before it completely exits.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin leave <span class="nt">-f</span>
+</code></pre></div></div>
+
+<h2 id="backup">backup</h2>
+
+<blockquote>
+  <p><strong>Deprecation notice</strong>
+The <code class="language-plaintext highlighter-rouge">riak-admin backup</code> command has been deprecated. We recommend using
+backend-specific backup procedures instead. Documentation can be found
+in <a href="/riak/kv/2.1.4/using/cluster-operations/backing-up">Backing up Riak KV</a>.</p>
+</blockquote>
+
+<p>Backs up the data from the node or entire cluster into a file.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin backup &lt;node&gt; &lt;cookie&gt; &lt;filename&gt; <span class="o">[</span>node|all]
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">&lt;node&gt;</code> is the node from which to perform the backup.</li>
+  <li><code class="language-plaintext highlighter-rouge">&lt;cookie&gt;</code> is the Erlang cookie/shared secret used to connect to the
+node. This is <code class="language-plaintext highlighter-rouge">riak</code> in the <a href="/riak/kv/2.1.4/configuring/reference/#node-metadata">default configuration</a>.</li>
+  <li><code class="language-plaintext highlighter-rouge">&lt;filename&gt;</code> is the file where the backup will be stored. <em>This should
+be the full path to the file</em>.</li>
+  <li><code class="language-plaintext highlighter-rouge">[node|all]</code> specifies whether the data on this node or the entire</li>
+</ul>
+
+<h2 id="restore">restore</h2>
+
+<blockquote>
+  <p><strong>Deprecation notice</strong></p>
+
+  <p>The <code class="language-plaintext highlighter-rouge">riak-admin restore</code> command has been deprecated. It was originally
+intended to be used in conjunction with backups performed using the
+<code class="language-plaintext highlighter-rouge">riak-admin backup</code> command, which is also deprecated. We recommend
+using the backup and restore methods described in <a href="/riak/kv/2.1.4/using/cluster-operations/backing-up">Backing up Riak KV</a>.</p>
+</blockquote>
+
+<p>Restores data to the node or cluster from a previous backup.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin restore &lt;node&gt; &lt;cookie&gt; &lt;filename&gt;
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">&lt;node&gt;</code> is the node which will perform the restore.</li>
+  <li><code class="language-plaintext highlighter-rouge">&lt;cookie&gt;</code> is the Erlang cookie/shared secret used to connect to the
+node. This is <code class="language-plaintext highlighter-rouge">riak</code> in the <a href="/riak/kv/2.1.4/configuring/reference/#node-metadata">default configuration</a>.</li>
+  <li><code class="language-plaintext highlighter-rouge">&lt;filename&gt;</code> is the file where the backup is stored. <em>This should be
+the full path to the file</em>.</li>
+</ul>
+
+<h2 id="test">test</h2>
+
+<p>Runs a test of a few standard Riak operations against the running node.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin <span class="nb">test</span>
+</code></pre></div></div>
+
+<p>If the test is successful, you should see output like the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Successfully completed 1 read/write cycle to 'dev1@127.0.0.1'
+</code></pre></div></div>
+
+<h2 id="reip">reip</h2>
+
+<p>Renames a node. This process backs up and edits the Riak ring, and
+<strong>must</strong> be run while the node is stopped. Reip should only be run in
+cases where <code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace</code> cannot be used to
+rename the nodes of a cluster. For more information, visit the
+<a href="/riak/kv/2.1.4/using/cluster-operations/changing-cluster-info">Changing Cluster Information</a> document.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin reip &lt;old nodename&gt; &lt;new nodename&gt;
+</code></pre></div></div>
+
+<p>Several bugs have been fixed related to reip in Riak 2.0. We recommend against
+using reip prior to 2.0, if possible.</p>
+
+<h2 id="js-reload">js-reload</h2>
+
+<p>Forces the embedded Javascript virtual machines to be restarted. This is
+useful when deploying custom built-in <a href="/riak/kv/2.1.4/developing/usage/mapreduce">MapReduce</a>
+functions.</p>
+
+<p><strong>Note</strong>: This needs to be run on <em>all nodes</em> in the cluster.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin js-reload
+</code></pre></div></div>
+
+<h2 id="erl-reload">erl-reload</h2>
+
+<p>Reloads the Erlang <code class="language-plaintext highlighter-rouge">.beam</code> files used for <a href="/riak/kv/2.1.4/developing/usage/mapreduce">MapReduce</a>
+jobs, <a href="/riak/kv/2.1.4/developing/usage/commit-hooks">pre- and post-commit hooks</a>, and other
+purposes.</p>
+
+<blockquote>
+  <p><strong>Note</strong>: This needs to be run on <em>all nodes</em> in the cluster.</p>
+</blockquote>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin erl-reload
+</code></pre></div></div>
+
+<h2 id="wait-for-service">wait-for-service</h2>
+
+<p>Waits on a specific watchable service to be available (typically
+<code class="language-plaintext highlighter-rouge">riak_kv</code>). This is useful when (re-)starting a node while the cluster
+is under load. Use <code class="language-plaintext highlighter-rouge">riak-admin services</code> to see which services are
+available on a running node.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin wait-for-service &lt;service&gt; &lt;nodename&gt;
+</code></pre></div></div>
+
+<h2 id="ringready">ringready</h2>
+
+<p>Checks whether all nodes in the cluster agree on the ring state.
+Prints <code class="language-plaintext highlighter-rouge">FALSE</code> if the nodes do not agree. This is useful after changing
+cluster membership to make sure that the ring state has settled.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin ringready
+</code></pre></div></div>
+
+<h2 id="transfers">transfers</h2>
+
+<p>Identifies nodes that are awaiting transfer of one or more partitions.
+This usually occurs when partition ownership has changed (after adding
+or removing a node) or after node recovery.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>
+
+<h2 id="transfer-limit">transfer-limit</h2>
+
+<p>Change the <code class="language-plaintext highlighter-rouge">handoff_concurrency</code> limit. The value set by running this
+command will only persist while the node is running. If the node is
+restarted, the <code class="language-plaintext highlighter-rouge">transfer-limit</code> will return to the default of <code class="language-plaintext highlighter-rouge">2</code> or the
+value specified in the <a href="/riak/kv/2.1.4/configuring/reference/#ring"><code class="language-plaintext highlighter-rouge">transfer_limit</code></a> setting in the <code class="language-plaintext highlighter-rouge">riak.conf</code> configuration file.</p>
+
+<p>Running this command with no arguments will display the current
+transfer-limit for each node in the cluster.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfer-limit &lt;node&gt; &lt;limit&gt;
+</code></pre></div></div>
+
+<h2 id="down">down</h2>
+
+<p>Marks a node as down so that ring transitions can be performed before
+the node is brought back online.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin down &lt;node&gt;
+</code></pre></div></div>
+
+<h2 id="cluster-info">cluster-info</h2>
+
+<p>Output system information from a Riak cluster. This command will collect
+information from all nodes or a subset of nodes and output the data to a
+single text file.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster-info &lt;output file&gt; <span class="o">[</span>&lt;node list&gt;]
+</code></pre></div></div>
+
+<p>The following information is collected:</p>
+
+<ul>
+  <li>Current time and date</li>
+  <li>VM statistics</li>
+  <li><code class="language-plaintext highlighter-rouge">erlang:memory()</code> summary</li>
+  <li>Top 50 process memory hogs</li>
+  <li>Registered process names</li>
+  <li>Registered process name via <code class="language-plaintext highlighter-rouge">regs()</code></li>
+  <li>Non-zero mailbox sizes</li>
+  <li>Ports</li>
+  <li>Applications</li>
+  <li>Timer status</li>
+  <li>ETS summary</li>
+  <li>Nodes summary</li>
+  <li><code class="language-plaintext highlighter-rouge">net_kernel</code> summary</li>
+  <li><code class="language-plaintext highlighter-rouge">inet_db</code> summary</li>
+  <li>Alarm summary</li>
+  <li>Global summary</li>
+  <li><code class="language-plaintext highlighter-rouge">erlang:system_info()</code> summary</li>
+  <li>Loaded modules</li>
+  <li>Riak Core config files</li>
+  <li>Riak Core vnode modules</li>
+  <li>Riak Core ring</li>
+  <li>Riak Core latest ring file</li>
+  <li>Riak Core active partitions</li>
+  <li>Riak KV status</li>
+  <li>Riak KV ringready</li>
+  <li>Riak KV transfers</li>
+</ul>
+
+<h4 id="examples">Examples</h4>
+
+<p>Output information from all nodes to <code class="language-plaintext highlighter-rouge">/tmp/cluster_info.txt</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster_info /tmp/cluster_info.txt
+</code></pre></div></div>
+
+<p>Output information from the current nodeL</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster_info /tmp/cluster_info.txt <span class="nb">local</span>
+</code></pre></div></div>
+
+<p>Output information from a subset of nodes:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster_info /tmp/cluster_info.txt riak@192.168.1.10
+riak@192.168.1.11
+</code></pre></div></div>
+
+<h2 id="member-status">member-status</h2>
+
+<p>Prints the current status of all cluster members.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin member-status
+</code></pre></div></div>
+
+<h2 id="ring-status">ring-status</h2>
+
+<p>Outputs the current claimant, its status, ringready, pending ownership
+handoffs, and a list of unreachable nodes.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin ring-status
+</code></pre></div></div>
+
+<h2 id="vnode-status">vnode-status</h2>
+
+<p>Outputs the status of all vnodes the are running on the local node.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin vnode-status
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak-admin vnode-status</code> command should not be used more frequently than every 5 minutes. Running it more often will result in handoffs being stalled.</p>
+
+<h2 id="aae-status">aae-status</h2>
+
+<p>This command provides insight into operation of Riak’s Active
+Anti-Entropy (AAE) feature.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin aae-status
+</code></pre></div></div>
+
+<p>The output contains information on AAE key/value partition exchanges,
+entropy tree building, and key repairs which were triggered by AAE.</p>
+
+<ul>
+  <li><strong>Exchanges</strong></li>
+  <li>The <em>Last</em> column lists when the most recent exchange between a
+partition and one of its sibling replicas was performed.</li>
+  <li>
+    <p>The <em>All</em> column shows how long it has been since a partition
+exchanged with all of its sibling replicas.</p>
+  </li>
+  <li><strong>Entropy Trees</strong></li>
+  <li>
+    <p>The <em>Built</em> column shows when the hash trees for a given partition
+were created.</p>
+  </li>
+  <li><strong>Keys Repaired</strong></li>
+  <li>The <em>Last</em> column shows the number of keys repaired during the most
+recent key exchange.</li>
+  <li>The <em>Mean</em> column shows the mean number of keys repaired during all
+key exchanges since the last node restart.</li>
+  <li>The <em>Max</em> column shows the maximum number of keys repaired during all
+key exchanges since the last node restart.</li>
+</ul>
+
+<p>All AAE status information is in-memory and is reset across a node restart.
+Only tree build times are persistent (since trees themselves are persistent)</p>
+
+<p>More details on the <code class="language-plaintext highlighter-rouge">aae-status</code> command are available in the <a href="https://github.com/basho/riak/blob/1.3/RELEASE-NOTES.md#active-anti-entropy">Riak
+version 1.3 release notes</a>.</p>
+
+<h2 id="diag">diag</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">diag</code> command invokes the Riaknostic
+diagnostic system.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin diag
+</code></pre></div></div>
+
+<p>This command allows you to specify which diagnostic checks you would
+like to run, which types of diagnostic messages you wish to see, and so
+on. More comprehensive information can be found in the documentation on
+<a href="/riak/kv/2.1.4/using/cluster-operations/inspecting-node">inspecting a node</a>.</p>
+
+<h2 id="stat">stat</h2>
+
+<p>Provides an interface for interacting with a variety of cluster-level
+metrics and information.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin <span class="nb">stat</span>
+</code></pre></div></div>
+
+<p>Full documentation of this command can be found in <a href="/riak/kv/2.1.4/using/reference/statistics-monitoring">Statistics and Monitoring</a>.</p>
+
+<h2 id="status">status</h2>
+
+<p>Prints status information, including performance statistics, system
+health information, and version numbers. Further information about the
+output is available in the documentation on <a href="/riak/kv/2.1.4/using/cluster-operations/inspecting-node">inspecting a node</a>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin status
+</code></pre></div></div>
+
+<h2 id="reformat-indexes">reformat-indexes</h2>
+
+<p>This command reformats integer indexes in Secondary Index data for
+versions of Riak prior to 1.3.1 so that range queries over the indexes
+will return correct results.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin reformat-indexes [&lt;concurrency&gt;] [&lt;batch size&gt;] --downgrade
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">concurrency</code> option defaults to <code class="language-plaintext highlighter-rouge">2</code> and controls how many
+partitions are concurrently reformatted.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">batch size</code> option controls the number of simultaneous key
+operations and defaults to <code class="language-plaintext highlighter-rouge">100</code>.</p>
+
+<p>This command can be executed while the node is serving requests, and
+default values are recommended for most cases. You should only change
+the default values after testing impact on cluster performance.</p>
+
+<p>Information is written to <code class="language-plaintext highlighter-rouge">console.log</code> upon completion of the process.</p>
+
+<p>A <code class="language-plaintext highlighter-rouge">--downgrade</code> switch can be specified when downgrading a node to a version
+of Riak prior to version 1.3.1.</p>
+
+<p>Additional details are available in the <a href="https://github.com/basho/riak/blob/1.3/RELEASE-NOTES.md">Riak 1.3.1 release
+notes</a>.</p>
+
+<h2 id="top">top</h2>
+
+<p>Top uses Erlang’s etop to provide information about what the Erlang
+processes inside of Riak are doing. Top reports process reductions (an
+indicator of CPU utilization), memory used, and message queue sizes.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin top <span class="o">[</span><span class="nt">-interval</span> N] <span class="o">[</span><span class="nt">-sort</span> reductions|memory|msg_q] <span class="o">[</span><span class="nt">-lines</span> N]
+</code></pre></div></div>
+
+<p>Options:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">interval</code> specifies the number of seconds between each update of the
+top output and defaults to <code class="language-plaintext highlighter-rouge">5</code></li>
+  <li><code class="language-plaintext highlighter-rouge">sort</code> determines on which category <code class="language-plaintext highlighter-rouge">riak-admin top</code> sorts and
+defaults to <code class="language-plaintext highlighter-rouge">reductions</code></li>
+  <li><code class="language-plaintext highlighter-rouge">lines</code> specifies the number of processes to display in the top output
+and defaults to <code class="language-plaintext highlighter-rouge">10</code></li>
+</ul>
+
+<p>More information about Erlang’s etop can be found in the <a href="http://www.erlang.org/doc/man/etop.html">etop
+documentation</a>.</p>
+
+<h2 id="downgrade-objects">downgrade-objects</h2>
+
+<p>This command is used when changing the format of Riak objects, usually
+as part of a version downgrade.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin downgrade-objects &lt;kill-handoffs&gt; <span class="o">[</span>&lt;concurrency&gt;]
+</code></pre></div></div>
+
+<p>More detailed information can be found in <a href="/riak/kv/2.1.4/setup/downgrade">Rolling Downgrades</a>.</p>
+
+<h2 id="security">security</h2>
+
+<p>This command enables you to manage to manage Riak users, choose sources
+of authentication, assign and revoke permissions to/from users and
+groups, enable and disable Riak Security, and more.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin security &lt;<span class="nb">command</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<p>More comprehensive information on user management and can be found in
+the <a href="/riak/kv/2.1.4/using/security/">Authentication and Authorization</a> guide. Detailed information on authentication sources can be found in <a href="/riak/kv/2.1.4/using/security/managing-sources">Managing Security Sources</a>.</p>
+
+<h2 id="bucket-type">bucket-type</h2>
+
+<p>Bucket types are a means of managing bucket properties introduced in
+Riak 2.0, as well as an additional namespace in Riak in addition to
+buckets and keys. This command enables you to create and modify bucket
+types, provide the status of currently available bucket types, and
+activate created bucket types.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type &lt;<span class="nb">command</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<p>More on bucket types can be found in <a href="/riak/kv/2.1.4/using/cluster-operations/bucket-types">Using Bucket Types</a>.</p>
+
+<h2 id="repair-2i">repair-2i</h2>
+
+<p>This command repairs <a href="/riak/kv/2.1.4/using/reference/secondary-indexes">secondary indexes</a> in a
+specific partition or on a cluster-wide basis. Implementation details
+can be found in <a href="/riak/kv/2.1.4/using/repair-recovery">Repairing Indexes</a>.</p>
+
+<p>To repair secondary indexes throughout the entire cluster, run the
+<code class="language-plaintext highlighter-rouge">repair-2i</code>command by itself, without a subcommand:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i
+</code></pre></div></div>
+
+<p>This will initiate the repair process. When you run this command, you
+should see something like the following (where <code class="language-plaintext highlighter-rouge">&lt;ring_size&gt;</code> is the
+number of partitions in your Riak cluster):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Will repair 2i data on &lt;ring_size&gt; partitions
+Watch the logs for 2i repair progress reports
+</code></pre></div></div>
+
+<p>To repair secondary indexes in a specific partition, provide the ID of
+the partition along with the <code class="language-plaintext highlighter-rouge">repair-2i</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i 593735040165679310520246963290989976735222595584
+</code></pre></div></div>
+
+<p>You can check on the status of the repair process at any time:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i status
+</code></pre></div></div>
+
+<p>If the repair is already finished, the console will return <code class="language-plaintext highlighter-rouge">2i repair is
+not running</code>. If the repair is still in progress, the console will
+return a series of statistics like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>2i repair status is running:
+        Total partitions: 64
+        Finished partitions: 44
+        Speed: 100
+        Total 2i items scanned: 0
+        Total tree objects: 0
+        Total objects fixed: 0
+</code></pre></div></div>
+
+<p>If you’re concerned about the computational resources required to repair
+secondary indexes, you can set the speed of the process to an integer
+between 1 and 100 (with 100 being the fastest). This command would set
+the speed to 90:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i <span class="nt">--speed</span> 90
+</code></pre></div></div>
+
+<p>The repair process can be stopped at any moment using the <code class="language-plaintext highlighter-rouge">kill</code>
+command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin repair-2i <span class="nb">kill</span>
+</code></pre></div></div>
+
+<h2 id="search">search</h2>
+
+<p>The search command provides sub-commands for various administrative
+work related to the new Riak Search.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin search &lt;<span class="nb">command</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<h3 id="aae-status-1">aae-status</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin search aae-status
+</code></pre></div></div>
+
+<p>Output active anti-entropy (AAE) statistics for search. There are
+three sections. Each section contains statistics for a specific aspect
+of AAE for every partition owned by the local node.</p>
+
+<p>The first section provides information on exchanges. Exchange is the
+process of comparing hash trees to determine divergences between KV
+data and search indexes. The <code class="language-plaintext highlighter-rouge">Index</code> column contains the partition
+number. The <code class="language-plaintext highlighter-rouge">Last (ago)</code> column is the amount of time that has passed
+since the last exchange. The <code class="language-plaintext highlighter-rouge">All (ago)</code> column is the amount of time
+that has passed since all preflists for that partition have been
+exchanged.</p>
+
+<p>The second section lists how much time has passed since the hashtree
+for that partition has been built from scratch. By default trees
+expire after 1 week and are rebuilt from scratch.</p>
+
+<p>The third section presents statistics on repair operations that have
+occurred. Repair is performed when AAE notices that the KV and search
+hashtree don’t match for a particular key. The <code class="language-plaintext highlighter-rouge">Last</code> column is the
+number of keys repaired during the last exchange. The <code class="language-plaintext highlighter-rouge">Mean</code> column is
+the average number of keys repaired for all exchange rounds since the
+node has started. The <code class="language-plaintext highlighter-rouge">Max</code> column is the maximum number of keys
+repaired for a given exchange round since the node has started.</p>
+
+<h3 id="switch-to-new-search">switch-to-new-search</h3>
+
+<p>This is only needed when migrating from legacy riak search to the new Search
+(Yokozuna).</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin search switch-to-new-search
+</code></pre></div></div>
+
+<p>Switch handling of the HTTP <code class="language-plaintext highlighter-rouge">/solr/&lt;index&gt;/select</code> resource and
+protocol buffer query messages from legacy Riak Search to new Search
+(Yokozuna).</p>
+
+<h2 id="services">services</h2>
+
+<p>Lists available services on the node (e.g. <code class="language-plaintext highlighter-rouge">riak_kv</code>).</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin services
+</code></pre></div></div>
+
+<h2 id="ensemble-status">ensemble-status</h2>
+
+<p>This command is used to provide insight into the current status of the
+consensus subsystem undergirding Riak’s <a href="/riak/kv/2.1.4/using/cluster-operations/strong-consistency">strong consistency</a> feature.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin ensemble-status
+</code></pre></div></div>
+
+<p>This command can also be used to check on the status of a specific
+consensus group in your cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin ensemble-status &lt;group <span class="nb">id</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<p>Complete documentation of this command can be found in <a href="/riak/kv/2.1.4/using/cluster-operations/strong-consistency">Managing Strong Consistency</a>.</p>
+
+<h2 id="handoff">handoff</h2>
+
+<p>Documentation for the <code class="language-plaintext highlighter-rouge">handoff</code> command can be found in <a href="/riak/kv/2.1.4/using/cluster-operations/handoff">Handoff</a>.</p>
+
+<h2 id="set">set</h2>
+
+<p>Enables you to change the value of one of Riak’s configuration
+parameters on the fly, without needing to stop and restart the node.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin <span class="nb">set</span> &lt;variable&gt;<span class="o">=</span>&lt;value&gt;
+</code></pre></div></div>
+
+<p>At the moment, the <code class="language-plaintext highlighter-rouge">set</code> command can only be used for the following
+parameters, all three of which are related to Riak’s <a href="/riak/kv/2.1.4/using/cluster-operations/handoff">handoff</a> subsystem:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">transfer_limit</code></li>
+  <li><code class="language-plaintext highlighter-rouge">handoff.outbound</code></li>
+  <li><code class="language-plaintext highlighter-rouge">handoff.inbound</code></li>
+</ul>
+
+<h2 id="show">show</h2>
+
+<p>Whereas the <a href="/riak/kv/2.1.4/using/admin/riak-admin/#stats"><code class="language-plaintext highlighter-rouge">riak-admin status</code></a> command will display all currently available statistics for your Riak
+cluster, the <code class="language-plaintext highlighter-rouge">show</code> command enables you to view only some of those
+statistics.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin show &lt;variable&gt;
+</code></pre></div></div>
+
+<h2 id="describe">describe</h2>
+
+<p>Provides a brief description of one of Riak’s <a href="/riak/kv/2.1.4/configuring/reference">configurable parameters</a>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin describe &lt;variable&gt;
+</code></pre></div></div>
+
+<p>If you want to know the meaning of the <code class="language-plaintext highlighter-rouge">nodename</code> parameter:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin describe nodename
+</code></pre></div></div>
+
+<p>That will produce the following output:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nodename:
+  Name of the Erlang node
+</code></pre></div></div>

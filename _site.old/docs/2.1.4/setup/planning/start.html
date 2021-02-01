@@ -1,0 +1,38 @@
+
+<p>Here are some steps and recommendations designing and configuring your
+Riak cluster.</p>
+
+<h2 id="backend">Backend</h2>
+
+<p>Backends are what Riak KV uses to persist data. Different backends have
+strengths and weaknesses, so if you are unsure of which backend you
+need, read through the <a href="/riak/kv/2.1.4/setup/planning/backend">Choosing a Backend</a> tutorial.</p>
+
+<h2 id="capacity">Capacity</h2>
+
+<p><a href="/riak/kv/2.1.4/setup/planning/cluster-capacity">Cluster Capacity Planning</a> outlines the various elements and variables that should be considered when planning your Riak cluster.</p>
+
+<p>If you have chosen <a href="/riak/kv/2.1.4/setup/planning/backend/bitcask">Bitcask</a> as your backend, you will also want to run through <a href="/riak/kv/2.1.4/setup/planning/bitcask-capacity-calc">Bitcask Capacity Planning</a> to help you calculate a reasonable capacity.</p>
+
+<h2 id="network-configuration--load-balancing">Network Configuration / Load Balancing</h2>
+
+<p>There are at least two acceptable strategies for load-balancing requests
+across your Riak cluster: <strong>virtual IPs</strong> and <strong>reverse-proxy</strong>.</p>
+
+<p>For <strong>virtual IPs</strong>, we recommend using any of the various VIP
+implementations. We don’t recommend VRRP behavior for the VIP because
+you’ll lose the benefit of spreading client query load to all nodes in a
+ring.</p>
+
+<p>For <strong>reverse-proxy</strong> configurations (HTTP interface), any one of the
+following should work adequately:</p>
+
+<ul>
+  <li>haproxy</li>
+  <li>squid</li>
+  <li>varnish</li>
+  <li>nginx</li>
+  <li>lighttpd</li>
+  <li>Apache</li>
+</ul>
+

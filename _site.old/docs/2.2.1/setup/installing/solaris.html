@@ -1,0 +1,58 @@
+
+<p>The following steps have been tested to work with Riak version 1.3.1 on Solaris 10 i386. They demonstrate installation of a Riak node on Solaris as the root user.</p>
+
+<blockquote>
+  <p><strong>Note:</strong> Before installing Riak on Solaris, be sure that you’ve installed <code class="language-plaintext highlighter-rouge">sudo</code> as Riak’s scripts require it for proper operation.</p>
+</blockquote>
+
+<h2 id="open-files-limit">Open Files Limit</h2>
+
+<p>Before proceeding with installation, you should ensure that the system’s open files limit is at least 65536 by verifying the current value of <code class="language-plaintext highlighter-rouge">nofiles(descriptors)</code>. Check the current value with the <code class="language-plaintext highlighter-rouge">ulimit</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">ulimit</span> <span class="nt">-a</span>
+</code></pre></div></div>
+
+<p>To temporarily increase this limit for the life of your session, use the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">ulimit</span> <span class="nt">-n</span> 65536
+</code></pre></div></div>
+
+<p>To increase this value in a persistent manner that will be enforced after restarting the system, add the following to the <code class="language-plaintext highlighter-rouge">/etc/system</code> file:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>set rlim_fd_max=65536
+set rlim_fd_cur=65536
+</code></pre></div></div>
+
+<p>Note that you must restart to have the above settings take effect.</p>
+
+<h2 id="download-and-install">Download and Install</h2>
+
+<p>Download your version of the Riak binary package for Solaris 10:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-o</span> /tmp/BASHOriak-2.2.1-Solaris10-i386.pkg.gz http://s3.amazonaws.com/downloads.basho.com/riak/2.2/2.2.1/solaris/10/BASHOriak-2.2.1-Solaris10-x86_64.pkg.gz
+</code></pre></div></div>
+
+<p>Next, install the package:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">gunzip</span> /tmp/BASHOriak-2.2.1-Solaris10-i386.pkg.gz
+pkgadd /tmp/BASHOriak-2.2.1-Solaris10-i386.pkg
+</code></pre></div></div>
+
+<p>After installing the package, be sure to include <code class="language-plaintext highlighter-rouge">/opt/riak/bin</code> in the
+appropriate user’s <code class="language-plaintext highlighter-rouge">PATH</code>. After doing so, you can then start Riak:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>Finally, go ahead and ping Riak to ensure it is running:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak ping
+</code></pre></div></div>
+
+<p>Pinging Riak will result in a <code class="language-plaintext highlighter-rouge">pong</code> response if the node is up and reachable. If the node is not up and reachable, a <code class="language-plaintext highlighter-rouge">Node &lt;nodename&gt; not responding to pings</code> error will result instead.</p>
+
+<p>If all responses indicate that riak is up and running, then you have successfully installed Riak on Solaris 10.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p>Now that Riak is installed, check out <a href="/riak/kv/2.2.1/setup/installing/verify">Verifying a Riak Installation</a>.</p>

@@ -1,0 +1,172 @@
+
+<p>Downgrades of Riak KV are tested and supported for two feature release versions, with the general procedure being similar to that of a <a href="/riak/kv/2.2.0/setup/upgrading/cluster">rolling upgrade</a>.</p>
+
+<p>Depending on the versions involved in the downgrade, there are additional steps to be performed before, during, and after the upgrade on on each node. These steps are related to changes or new features that are not present in the downgraded version.</p>
+
+<h2 id="overview">Overview</h2>
+
+<p>For every node in the cluster:</p>
+
+<ol>
+  <li>Stop Riak KV.</li>
+  <li>Back up Riak’s <code class="language-plaintext highlighter-rouge">etc</code> and <code class="language-plaintext highlighter-rouge">data</code> directories.</li>
+  <li>Downgrade the Riak KV.</li>
+  <li>Remove Riak search index and temporary data.</li>
+  <li>Reconfigure Solr cores.</li>
+  <li>Start Riak KV and disable Riak search.</li>
+  <li>Monitor the reindex of the data.</li>
+  <li>Finalize process and restart Riak KV &amp; Riak search.</li>
+</ol>
+
+<h3 id="guidelines">Guidelines</h3>
+
+<ul>
+  <li>Riak control should be disabled throughout the rolling downgrade process.</li>
+  <li><a href="/riak/kv/2.2.0/configuring/reference">Configuration Files</a> must be replaced with those of the version being downgraded to.</li>
+</ul>
+
+<h3 id="components-that-complicate-downgrades">Components That Complicate Downgrades</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Feature</th>
+      <th style="text-align: center">automatic</th>
+      <th style="text-align: center">required</th>
+      <th style="text-align: left">Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Migration to Solr 4.10.4</td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: left">Applies to all clusters using Riak Search.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Active Anti-Entropy file format changes</td>
+      <td style="text-align: center">✔</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: left">Can be opted out using a <a href="#aae_tree_capability">capability</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="when-downgrading-is-no-longer-an-option">When Downgrading is No Longer an Option</h3>
+
+<p>If you enabled LZ4 compression in LevelDB and/or enabled global expiration in LevelDB when you installed KV 2.2.0, you cannot downgrade.</p>
+
+<h2 id="general-process">General Process</h2>
+
+<p>While the cluster contains mixed version members, if you have not set the cluster to use the legacy AAE tree format, you will see the <code class="language-plaintext highlighter-rouge">bad_version</code> error emitted to the log any time nodes with differing versions attempt to exchange AAE data (including AAE fullsync).</p>
+
+<p>This is benign and similar to the <code class="language-plaintext highlighter-rouge">not_built</code> and <code class="language-plaintext highlighter-rouge">already_locked</code> errors which can be seen during normal AAE operation. These events will stop once the downgrade is complete.</p>
+
+<h3 id="stop-riak-kv-and-remove-riak-search-index--temporary-data">Stop Riak KV and remove Riak search index &amp; temporary data</h3>
+
+<p>1. Stop Riak KV:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+<p>2. Back up your Riak KV /etc and /data directories:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo tar</span> <span class="nt">-czf</span> riak_backup.tar.gz /var/lib/riak /etc/riak
+</code></pre></div></div>
+
+<p>3. Downgrade Riak KV:</p>
+
+<pre><code class="language-RHEL/CentOS">sudo rpm -Uvh »riak_package_name«.rpm
+</code></pre>
+
+<pre><code class="language-Ubuntu">sudo dpkg -i »riak_package_name«.deb
+</code></pre>
+
+<p>4. Remove the Riak search index data and AAE data:</p>
+
+<ol>
+  <li>
+    <p>Remove the cached Solr web application from the yz_temp folder.  For the default package paths, this would be <code class="language-plaintext highlighter-rouge">/var/lib/riak/yz_temp/solr-webapp</code>.</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">rm</span> <span class="nt">-rf</span> /var/lib/riak/yz_temp/solr-webapp
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Delete the Solr cores located in the yz directory. If you have custom solrconfig.xml files, you will need to restore the core from backup instead.</p>
+
+    <p>For example:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="nb">rm</span> <span class="nt">-rf</span> /var/lib/riak/yz/example_core1
+ <span class="nb">rm</span> <span class="nt">-rf</span> /var/lib/riak/yz/example_core2
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<h3 id="prepare-to-re-index-solr-cores">Prepare to Re-index Solr Cores</h3>
+
+<p>5. (<strong>Optional</strong>) You can increase the AAE operation concurrency and increase the number of build operations while lowering the build limit’s interval. This will increase the speed at which the AAE trees are rebuilt and the search indexes are repopulated.  However, if you have a latency sensitive application, you should adjust these settings with care.</p>
+
+<pre><code class="language-riak.conf">anti_entropy.concurrency_limit = 8
+anti_entropy.tree.build_limit.number = 4
+anti_entropy.tree.build_limit.per_timespan = 5m
+</code></pre>
+
+<h3 id="start-the-node-and-disable-yokozuna">Start the node and disable Yokozuna</h3>
+
+<p>6. Start Riak KV:
+Search results will be inconsistent until <strong>Step 8.1</strong> is complete.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>7. Wait for Riak search to start by running the following command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin wait-for-service yokozuna
+</code></pre></div></div>
+
+<p>8. Run <code class="language-plaintext highlighter-rouge">riak attach</code>.</p>
+
+<ol>
+  <li>Run the following snippet to prevent this node from participating in distributed Riak Search queries:</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>```
+riak_core_node_watcher:service_down(yokozuna).
+```
+</code></pre></div></div>
+
+<ol>
+  <li>Expire the Yokozuna AAE Trees:</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>```
+yz_entropy_mgr:expire_trees().
+```
+</code></pre></div></div>
+
+<ol>
+  <li>Exit the attach session by pressing <strong>Ctrl-G</strong> then <strong>q</strong>.</li>
+</ol>
+
+<h3 id="monitor-the-reindex-of-the-data">Monitor the reindex of the data</h3>
+
+<p>9. Monitor the build and exchange progress using the <code class="language-plaintext highlighter-rouge">riak-admin aae-status</code> and <code class="language-plaintext highlighter-rouge">riak-admin search aae-status</code> commands.</p>
+
+<p>The <strong>All</strong> column shows how long it has been since a partition exchanged with all of its sibling replicas.  Consult the <a href="/riak/kv/2.2.0/using/admin/riak-admin/#aae-status"><code class="language-plaintext highlighter-rouge">riak-admin aae-status</code> documentation</a> for more information about the AAE status output.</p>
+
+<p>Once both riak-admin aae-status and riak-admin search aae-status show values in the <strong>All</strong> column, the node will have successfully rebuilt all of the indexed data.</p>
+
+<h3 id="finalize-process-and-restart-yokozuna">Finalize process and restart Yokozuna</h3>
+
+<p>10. If you raised the concurrency AAE currency settings in riak.conf during <strong>Step 5</strong>, stop the node and remove the increased AAE thresholds.</p>
+
+<p>11. If you chose not to increase the AAE concurrency via configuration and want to start Yokozuna without restarting the node, run <code class="language-plaintext highlighter-rouge">riak attach</code> and enter the following snippet:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riak_core_node_watcher</span><span class="p">:</span><span class="nf">service_up</span><span class="p">(</span><span class="n">yokozuna</span><span class="p">,</span><span class="nb">whereis</span><span class="p">(</span><span class="n">yz_solr_proc</span><span class="p">)).</span>
+</code></pre></div></div>
+
+<p>12. Exit the attach session by pressing <strong>Ctrl-G</strong> then <strong>q</strong>.</p>
+
+<p>13. Verify that transfers have completed:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin transfers
+</code></pre></div></div>

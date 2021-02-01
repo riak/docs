@@ -1,0 +1,165 @@
+
+<h2 id="riak">riak</h2>
+
+<p>This is the primary script for controlling the processes associated with a Riak node. Running the <code class="language-plaintext highlighter-rouge">riak</code> command by itself will output a listing of available commands:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Usage: riak «command»
+where «command» is one of the following:
+    <span class="o">{</span> <span class="nb">help</span> | start | stop | restart | ping | console | attach
+      attach-direct | ertspath | chkconfig | escript | version | getpid
+      top <span class="o">[</span><span class="nt">-interval</span> N] <span class="o">[</span><span class="nt">-sort</span> <span class="o">{</span> reductions | memory | msg_q <span class="o">}]</span> <span class="o">[</span><span class="nt">-lines</span> N] <span class="o">}</span> |
+      config <span class="o">{</span> generate | effective | describe VARIABLE <span class="o">}</span> <span class="o">[</span><span class="nt">-l</span> debug]
+</code></pre></div></div>
+
+<h2 id="help">help</h2>
+
+<p>Provides a brief description of all available commands.</p>
+
+<h2 id="start">start</h2>
+
+<p>Starts the Riak node in the background. If the node is already started, you will receive the message <code class="language-plaintext highlighter-rouge">Node is already running!</code> If the node is not already running, no output will be given.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<h2 id="stop">stop</h2>
+
+<p>Stops the running Riak node. Prints <code class="language-plaintext highlighter-rouge">ok</code> when successful or <code class="language-plaintext highlighter-rouge">Node &lt;nodename&gt; not responding to pings.</code> when the node is already stopped or not responding.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<h2 id="restart">restart</h2>
+
+<p>Stops and then starts the running Riak node without exiting the Erlang VM.
+Prints <code class="language-plaintext highlighter-rouge">ok</code> when successful, <code class="language-plaintext highlighter-rouge">Node &lt;nodename&gt; not responding to pings.</code> when the node is already stopped or not responding.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak restart
+</code></pre></div></div>
+
+<h2 id="ping">ping</h2>
+
+<p>Checks that the Riak node is running. Prints <code class="language-plaintext highlighter-rouge">pong</code> when successful or <code class="language-plaintext highlighter-rouge">Node &lt;nodename&gt; not responding to pings.</code> when the node is stopped or not responding.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak ping
+</code></pre></div></div>
+
+<h2 id="console">console</h2>
+
+<p>Starts the Riak node in the foreground, giving access to the Erlang shell and
+runtime messages. Prints <code class="language-plaintext highlighter-rouge">Node is already running - use 'riak attach' instead</code>
+when the node is running in the background. You can exit the shell by pressing <strong>Ctrl-C</strong> twice.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak console
+</code></pre></div></div>
+
+<h2 id="attach">attach</h2>
+
+<p>Attaches to the console of a Riak node running in the background, giving access to the Erlang shell and runtime messages. Prints <code class="language-plaintext highlighter-rouge">Node is not running!</code> when the node cannot be reached.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak attach
+</code></pre></div></div>
+
+<h2 id="attach-direct">attach-direct</h2>
+
+<p>Attaches to the console of a Riak running in the background using a directly-connected first-in-first-out (FIFO), providing access to the Erlang shell and runtime messages. Prints <code class="language-plaintext highlighter-rouge">Node is not running!</code> when the node cannot be reached. You can exit the shell by pressing <strong>Ctrl-D</strong>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak attach-direct
+</code></pre></div></div>
+
+<h2 id="ertspath">ertspath</h2>
+
+<p>Outputs the path of the Riak Erlang runtime environment:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak ertspath
+</code></pre></div></div>
+
+<h2 id="chkconfig">chkconfig</h2>
+
+<p>Checks whether the <a href="/riak/kv/2.1.3/configuring/reference/">configuration file</a> is valid. If so, <code class="language-plaintext highlighter-rouge">config is OK</code> will be included in the output.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak chkconfig
+</code></pre></div></div>
+
+<h2 id="escript">escript</h2>
+
+<p>Provides a means of calling <a href="http://www.erlang.org/doc/man/escript.html">escript</a> scripts using the Riak Erlang runtime environment:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak escript &lt;filename&gt;
+</code></pre></div></div>
+
+<h2 id="version">version</h2>
+
+<p>Outputs the Riak version identifier:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak version
+</code></pre></div></div>
+
+<h2 id="getpid">getpid</h2>
+
+<p>Outputs the process identifier for the currently-running instance of Riak:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak getpid
+</code></pre></div></div>
+
+<h2 id="top">top</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak top</code> command is the direct equivalent of <code class="language-plaintext highlighter-rouge">riak-admin top</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak top <span class="o">[</span><span class="nt">-interval</span> N] <span class="o">[</span><span class="nt">-sort</span> <span class="o">{</span> reductions | memory | msg_q <span class="o">}]</span> <span class="o">[</span><span class="nt">-lines</span> N] <span class="o">}</span>
+</code></pre></div></div>
+
+<p>More detailed information can be found in the <a href="/riak/kv/2.1.3/using/admin/riak-admin/#top"><code class="language-plaintext highlighter-rouge">riak-admin</code></a> documentation.</p>
+
+<h2 id="config">config</h2>
+
+<p>Provides information about the current <a href="/riak/kv/2.1.3/configuring/reference/">configuration</a> of a Riak node, i.e. the parameters and values in the node’s riak.conf configuration.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak config <span class="o">{</span> generate | effective | describe VARIABLE <span class="o">}</span> <span class="o">[</span><span class="nt">-l</span> debug]
+</code></pre></div></div>
+
+<ul>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">generate</code> will cause the configuration files to be re-processed.  This behavior happens automatically at node startup; however <code class="language-plaintext highlighter-rouge">riak config generate</code> can be used to test for configuration errors that would prevent the node from starting after modifying the riak.conf or advanced.config files.
+  The output of a successful run will show the paths to the newly generated configuration files.  These configuration files will contain a timestamp to indicate when they were generated.  For example:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>   -config /var/lib/riak/generated.configs/app.2016.12.02.17.47.32.config -args_file /var/lib/riak/generated.configs/vm.2016.12.02.17.47.32.args -vm_args /var/lib/riak/generated.configs/vm.2016.12.02.17.47.32.args  
+</code></pre></div>    </div>
+
+    <p>If you are using the legacy configuration file format (app.config/vm.args), you will receive the following message:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  -config /etc/riak/app.config -args_file /etc/riak/vm.args -vm_args /etc/riak/vm.args  
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">effective</code> prints the effective configuration in the following syntax:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  parameter1 = value1
+  parameter2 = value2
+</code></pre></div>    </div>
+
+    <p>If you are using the legacy configuration file format (app.config/vm.args), you will receive the following error:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  Disabling cuttlefish, legacy configuration files found:
+    /etc/riak/app.config
+    /etc/riak/vm.args
+  Effective config is only visible for cuttlefish conf files. 
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">describe VARIABLE</code> prints the setting specified by <code class="language-plaintext highlighter-rouge">VARIABLE</code>, along with documentation and other useful information, such as the affected location in the configuration file, the data type of the value, the default value, and the effective value. For example, running <code class="language-plaintext highlighter-rouge">riak config describe storage_backend</code> will return the following:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  Documentation for storage_backend
+  Specifies the storage engine used for Riak's key-value data
+  and secondary indexes (if supported).
+
+     Valid Values: 
+       - one of: bitcask, leveldb, memory, multi, prefix_multi
+     Default Value : bitcask
+     Set Value     : bitcask
+     Internal key  : riak_kv.storage_backend 
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p>Adding the <code class="language-plaintext highlighter-rouge">-l debug</code> flag to any <code class="language-plaintext highlighter-rouge">riak config</code> command will produce additional debugging information that can be used in advanced troubleshooting of “cuttlefish”, Riak’s configuration subsystem.</p>

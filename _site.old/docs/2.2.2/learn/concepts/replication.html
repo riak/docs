@@ -1,0 +1,289 @@
+
+<p>Data replication is a core feature of Riak’s basic architecture. Riak
+was designed to operate as a <a href="/riak/kv/2.2.2/learn/concepts/clusters">clustered</a> system containing
+multiple Riak <a href="/riak/kv/2.2.2/learn/glossary/#node">nodes</a>, which allows data to live
+on multiple machines at once in case a node in the cluster goes down.</p>
+
+<p>Replication is fundamental and automatic in Riak, providing security
+that your data will still be there if a node in your Riak cluster goes
+down. All data stored in Riak will be replicated to a number of nodes in
+the cluster according to the N value (<code class="language-plaintext highlighter-rouge">n_val</code>) property set in a
+bucket’s <a href="/riak/kv/2.2.2/developing/usage/bucket-types">bucket type</a>.</p>
+
+<blockquote>
+  <p><strong>Note: Replication across clusters</strong></p>
+
+  <p>If you’re interested in replication not just within a cluster but across
+multiple clusters, we recommend checking out our documentation on Riak’s
+<a href="/riak/kv/2.2.2/setup/planning/backend/multi">Multi-Datacenter Replications</a> capabilities.</p>
+</blockquote>
+
+<h2 id="selecting-an-n-value-n_val">Selecting an N value (<code class="language-plaintext highlighter-rouge">n_val</code>)</h2>
+
+<p>By default, Riak chooses an <code class="language-plaintext highlighter-rouge">n_val</code> of 3 default. This means that data
+stored in any bucket will be replicated to 3 different nodes. For this
+to be effective, you need at least 3 nodes in your cluster.</p>
+
+<p>The ideal value for N depends largely on your application and the shape
+of your data. If your data is highly transient and can be reconstructed
+easily by the application, choosing a lower N value will provide greater
+performance. However, if you need high assurance that data is available
+even after node failure, increasing the N value will help protect
+against loss. How many nodes do you expect will fail at any one time?
+Choose an N value larger than that and your data will still be
+accessible when they go down.</p>
+
+<p>The N value also affects the behavior of read (GET) and write (PUT)
+requests. The tunable parameters you can submit with requests are bound
+by the N value. For example, if N=3, the maximum read quorum (known as
+“R”) you can request is also 3. If some nodes containing the data you
+are requesting are down, an R value larger than the number of available
+nodes with the data will cause the read to fail.</p>
+
+<h2 id="setting-the-n-value-n_val">Setting the N value (<code class="language-plaintext highlighter-rouge">n_val</code>)</h2>
+
+<p>To change the N value for a bucket, you need to create a <a href="/riak/kv/2.2.2/developing/usage/bucket-types">bucket
+type</a> with <code class="language-plaintext highlighter-rouge">n_val</code> set to your desired value and
+then make sure that the bucket bears that type.</p>
+
+<p>In this example, we’ll set N to 2. First, we’ll create the bucket type
+and call it <code class="language-plaintext highlighter-rouge">n_val_of_2</code> and then activate that type:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create n_val_of_2 <span class="s1">'{"props":{"n_val":2}}'</span>
+riak-admin bucket-type activate n_val_of_2
+</code></pre></div></div>
+
+<p>Now, any bucket that bears the type <code class="language-plaintext highlighter-rouge">n_val_of_2</code> will propagate objects
+to 2 nodes.</p>
+
+<blockquote>
+  <p><strong>Note on changing the value of N</strong></p>
+
+  <p>Changing the N value after a bucket has data in it is <em>not
+recommended</em>. If you do change the value, especially if you
+increase it, you might need to force read repair (more on that below).
+Overwritten objects and newly stored objects will automatically be
+replicated to the correct number of nodes.</p>
+</blockquote>
+
+<h2 id="changing-the-n-value-n_val">Changing the N value (<code class="language-plaintext highlighter-rouge">n_val</code>)</h2>
+
+<p>While raising the value of N for a bucket or object shouldn’t cause
+problems, it’s important that you never lower N. If you do so, you can
+wind up with dead, i.e. unreachable data. This can happen because
+objects’ preflists, i.e. lists of <a href="/riak/kv/2.2.2/learn/concepts/vnodes">vnodes</a> responsible for the object,
+can end up</p>
+
+<p>Unreachable data is a problem because it can negatively impact coverage
+queries, e.g. <a href="/riak/kv/2.2.2/developing/usage/secondary-indexes/">secondary index</a> and
+<a href="/riak/kv/2.2.2/developing/usage/mapreduce/">MapReduce</a> queries. Lowering an object or bucket’s
+<code class="language-plaintext highlighter-rouge">n_val</code> will likely mean that objects that you would expect to
+be returned from those queries will no longer be returned.</p>
+
+<h2 id="active-anti-entropy">Active Anti-Entropy</h2>
+
+<p>Riak’s active anti-entropy (AAE) subsystem is a continuous background
+process that compares and repairs any divergent or missing object
+replicas. For more information on AAE, see the following documents:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.2/learn/concepts/active-anti-entropy">Active Anti-Entropy</a></li>
+  <li><a href="/riak/kv/2.2.2/using/cluster-operations/v3-multi-datacenter">Managing Active Anti-Entropy</a></li>
+</ul>
+
+<h2 id="read-repair">Read Repair</h2>
+
+<p>Read repair occurs when a successful read occurs—i.e. when the target
+number of nodes have responded, as determined by R—but not all
+replicas of the object agree on the value. There are two possibilities
+here for the errant nodes:</p>
+
+<ol>
+  <li>The node responded with a <code class="language-plaintext highlighter-rouge">not found</code> for the object, meaning that
+it doesn’t have a copy.</li>
+  <li>The node responded with a <a href="/riak/kv/2.2.2/learn/concepts/causal-context/#vector-clocks">vector clock</a> that is an
+ancestor of the vector clock of the successful read.</li>
+</ol>
+
+<p>When this situation occurs, Riak will force the errant nodes to update
+the object’s value based on the value of the successful read.</p>
+
+<h3 id="forcing-read-repair">Forcing Read Repair</h3>
+
+<p>When you increase the <code class="language-plaintext highlighter-rouge">n_val</code> of a bucket, you may start to see failed
+read operations, especially if the R value you use is larger than the
+number of replicas that originally stored the object. Forcing read
+repair will solve this issue. Or if you have <a href="/riak/kv/2.2.2/developing/usage/replication">active
+anti-entropy</a> enabled, your values will
+eventually replicate as a background task.</p>
+
+<p>For each object that fails read (or the whole bucket, if you like), read
+the object using an R value less than or equal to the original number of
+replicas. For example, if your original <code class="language-plaintext highlighter-rouge">n_val</code> was 3 and you increased
+it to 5, perform your read operations with R=3 or less. This will cause
+the nodes that do not have the object(s) yet to respond with <code class="language-plaintext highlighter-rouge">not
+found</code>, invoking read repair.</p>
+
+<h2 id="so-what-does-n3-really-mean">So what does N=3 really mean?</h2>
+
+<p>N=3 simply means that three copies of each piece of data will be stored
+in the cluster. That is, three different partitions/vnodes will receive
+copies of the data. <strong>There are no guarantees that the three replicas
+will go to three separate physical nodes</strong>; however, the built-in
+functions for determining where replicas go attempts to distribute the
+data evenly.</p>
+
+<p>As nodes are added and removed from the cluster, the ownership of
+partitions changes and may result in an uneven distribution of the data.
+On some rare occasions, Riak will also aggressively reshuffle ownership
+of the partitions to achieve a more even balance.</p>
+
+<p>For cases where the number of nodes is less than the N value, data will
+likely be duplicated on some nodes. For example, with N=3 and 2 nodes in
+the cluster, one node will likely have one replica, and the other node
+will have two replicas.</p>
+
+<h2 id="understanding-replication-by-example">Understanding replication by example</h2>
+
+<p>To better understand how data is replicated in Riak let’s take a look at
+a put request for the bucket/key pair <code class="language-plaintext highlighter-rouge">my_bucket</code>/<code class="language-plaintext highlighter-rouge">my_key</code>. Specifically
+we’ll focus on two parts of the request: routing an object to a set of
+partitions and storing an object on a partition.</p>
+
+<h3 id="routing-an-object-to-a-set-of-partitions">Routing an object to a set of partitions</h3>
+
+<ul>
+  <li>Assume we have 3 nodes</li>
+  <li>Assume we store 3 replicas per object (N=3)</li>
+  <li>Assume we have 8 partitions in our <a href="/riak/kv/2.2.2/learn/glossary/#ring">ring</a> (ring_creation_size=8)</li>
+</ul>
+
+<p><strong>Note</strong>: It is not recommended that you use such a small ring size.
+This is for demonstration purposes only.</p>
+
+<p>With only 8 partitions our ring will look approximately as follows
+(response from <code class="language-plaintext highlighter-rouge">riak_core_ring_manager:get_my_ring/0</code> truncated for
+clarity):</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="n">dev1</span><span class="p">@</span><span class="mi">127</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="mi">3</span><span class="o">&gt;</span> <span class="p">{</span><span class="n">ok</span><span class="p">,</span><span class="nv">Ring</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riak_core_ring_manager</span><span class="p">:</span><span class="nf">get_my_ring</span><span class="p">().</span>
+<span class="p">[{</span><span class="mi">0</span><span class="p">,</span><span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">182687704666362864775460604089535377456991567872</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">365375409332725729550921208179070754913983135744</span><span class="p">,</span> <span class="n">'dev3@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">548063113999088594326381812268606132370974703616</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">730750818665451459101842416358141509827966271488</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">913438523331814323877303020447676887284957839360</span><span class="p">,</span> <span class="n">'dev3@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">1096126227998177188652763624537212264741949407232</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">1278813932664540053428224228626747642198940975104</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">}]</span>
+</code></pre></div></div>
+
+<p>The node handling this request hashes the bucket/key combination:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="n">dev1</span><span class="p">@</span><span class="mi">127</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="mi">4</span><span class="o">&gt;</span> <span class="nv">DocIdx</span> <span class="o">=</span> <span class="nn">riak_core_util</span><span class="p">:</span><span class="nf">chash_key</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"my_bucket"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"my_key"</span><span class="o">&gt;&gt;</span><span class="p">}).</span>
+<span class="o">&lt;&lt;</span><span class="mi">183</span><span class="p">,</span><span class="mi">28</span><span class="p">,</span><span class="mi">67</span><span class="p">,</span><span class="mi">173</span><span class="p">,</span><span class="mi">80</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">26</span><span class="p">,</span><span class="mi">94</span><span class="p">,</span><span class="mi">190</span><span class="p">,</span><span class="mi">198</span><span class="p">,</span><span class="mi">65</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span><span class="mi">27</span><span class="p">,</span><span class="mi">243</span><span class="p">,</span><span class="mi">135</span><span class="p">,</span><span class="mi">127</span><span class="p">,</span><span class="mi">121</span><span class="p">,</span><span class="mi">101</span><span class="p">,</span><span class="mi">255</span><span class="p">,</span><span class="mi">96</span><span class="o">&gt;&gt;</span>
+</code></pre></div></div>
+
+<p>The DocIdx hash is a 160-bit integer:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="n">dev1</span><span class="p">@</span><span class="mi">127</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="mi">5</span><span class="o">&gt;</span> <span class="o">&lt;&lt;</span><span class="nv">I</span><span class="p">:</span><span class="mi">160</span><span class="o">/</span><span class="n">integer</span><span class="o">&gt;&gt;</span> <span class="o">=</span> <span class="nv">DocIdx</span><span class="p">.</span>
+<span class="o">&lt;&lt;</span><span class="mi">183</span><span class="p">,</span><span class="mi">28</span><span class="p">,</span><span class="mi">67</span><span class="p">,</span><span class="mi">173</span><span class="p">,</span><span class="mi">80</span><span class="p">,</span><span class="mi">128</span><span class="p">,</span><span class="mi">26</span><span class="p">,</span><span class="mi">94</span><span class="p">,</span><span class="mi">190</span><span class="p">,</span><span class="mi">198</span><span class="p">,</span><span class="mi">65</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span><span class="mi">27</span><span class="p">,</span><span class="mi">243</span><span class="p">,</span><span class="mi">135</span><span class="p">,</span><span class="mi">127</span><span class="p">,</span><span class="mi">121</span><span class="p">,</span><span class="mi">101</span><span class="p">,</span><span class="mi">255</span><span class="p">,</span><span class="mi">96</span><span class="o">&gt;&gt;</span>
+<span class="p">(</span><span class="n">dev1</span><span class="p">@</span><span class="mi">127</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="mi">6</span><span class="o">&gt;</span> <span class="nv">I</span><span class="p">.</span>
+<span class="mi">1045375627425331784151332358177649483819648417632</span>
+</code></pre></div></div>
+
+<p>The node looks up the hashed key in the ring, which returns a list of
+<em>preferred</em> partitions for the given key.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="n">node1</span><span class="p">@</span><span class="mi">127</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="o">&gt;</span> <span class="nv">Preflist</span> <span class="o">=</span> <span class="nn">riak_core_ring</span><span class="p">:</span><span class="nf">preflist</span><span class="p">(</span><span class="nv">DocIdx</span><span class="p">,</span> <span class="nv">Ring</span><span class="p">).</span>
+<span class="p">[{</span><span class="mi">1096126227998177188652763624537212264741949407232</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">1278813932664540053428224228626747642198940975104</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">182687704666362864775460604089535377456991567872</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">365375409332725729550921208179070754913983135744</span><span class="p">,</span> <span class="n">'dev3@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">548063113999088594326381812268606132370974703616</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">730750818665451459101842416358141509827966271488</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">913438523331814323877303020447676887284957839360</span><span class="p">,</span> <span class="n">'dev3@127.0.0.1'</span><span class="p">}]</span>
+</code></pre></div></div>
+
+<p>The node chooses the first N partitions from the list. The remaining
+partitions of the “preferred” list are retained as fallbacks to use if
+any of the target partitions are unavailable.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="n">dev1</span><span class="p">@</span><span class="mi">127</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="mi">9</span><span class="o">&gt;</span> <span class="p">{</span><span class="nv">Targets</span><span class="p">,</span> <span class="nv">Fallbacks</span><span class="p">}</span> <span class="o">=</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">split</span><span class="p">(</span><span class="nv">N</span><span class="p">,</span> <span class="nv">Preflist</span><span class="p">).</span>
+<span class="p">{[{</span><span class="mi">1096126227998177188652763624537212264741949407232</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">1278813932664540053428224228626747642198940975104</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">0</span><span class="p">,</span><span class="n">'dev1@127.0.0.1'</span><span class="p">}],</span>
+<span class="p">[{</span><span class="mi">182687704666362864775460604089535377456991567872</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">365375409332725729550921208179070754913983135744</span><span class="p">,</span> <span class="n">'dev3@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">548063113999088594326381812268606132370974703616</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">730750818665451459101842416358141509827966271488</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">},</span>
+<span class="p">{</span><span class="mi">913438523331814323877303020447676887284957839360</span><span class="p">,</span> <span class="n">'dev3@127.0.0.1'</span><span class="p">}]}</span>
+</code></pre></div></div>
+
+<p>The partition information returned from the ring contains a partition
+identifier and the parent node of that partition:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="mi">1096126227998177188652763624537212264741949407232</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">}</span>
+</code></pre></div></div>
+
+<p>The requesting node sends a message to each parent node with the object
+and partition identifier (pseudocode for clarity):</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">'dev1@127.0.0.1'</span> <span class="o">!</span> <span class="p">{</span><span class="nb">put</span><span class="p">,</span> <span class="nv">Object</span><span class="p">,</span> <span class="mi">1096126227998177188652763624537212264741949407232</span><span class="p">}</span>
+<span class="n">'dev2@127.0.0.1'</span> <span class="o">!</span> <span class="p">{</span><span class="nb">put</span><span class="p">,</span> <span class="nv">Object</span><span class="p">,</span> <span class="mi">1278813932664540053428224228626747642198940975104</span><span class="p">}</span>
+<span class="n">'dev1@127.0.0.1'</span> <span class="o">!</span> <span class="p">{</span><span class="nb">put</span><span class="p">,</span> <span class="nv">Object</span><span class="p">,</span> <span class="mi">0</span><span class="p">}</span>
+</code></pre></div></div>
+
+<p>If any of the target partitions fail, the node sends the object to one
+of the fallbacks. When the message is sent to the fallback node, the
+message references the object and original partition identifier. For
+example, if <code class="language-plaintext highlighter-rouge">dev2@127.0.0.1</code> were unavailable, the requesting node would
+then try each of the fallbacks. The fallbacks in this example are:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="mi">182687704666362864775460604089535377456991567872</span><span class="p">,</span> <span class="n">'dev2@127.0.0.1'</span><span class="p">}</span>
+<span class="p">{</span><span class="mi">365375409332725729550921208179070754913983135744</span><span class="p">,</span> <span class="n">'dev3@127.0.0.1'</span><span class="p">}</span>
+<span class="p">{</span><span class="mi">548063113999088594326381812268606132370974703616</span><span class="p">,</span> <span class="n">'dev1@127.0.0.1'</span><span class="p">}</span>
+</code></pre></div></div>
+
+<p>The next available fallback node would be <code class="language-plaintext highlighter-rouge">dev3@127.0.0.1</code>. The
+requesting node would send a message to the fallback node with the
+object and original partition identifier:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">'dev3@127.0.0.1'</span> <span class="o">!</span> <span class="p">{</span><span class="nb">put</span><span class="p">,</span> <span class="nv">Object</span><span class="p">,</span> <span class="mi">1278813932664540053428224228626747642198940975104</span><span class="p">}</span>
+</code></pre></div></div>
+
+<p>Note that the partition identifier in the message is the same that was
+originally sent to <code class="language-plaintext highlighter-rouge">dev2@127.0.0.1</code> only this time it is being sent to
+<code class="language-plaintext highlighter-rouge">dev3@127.0.0.1</code>. Even though <code class="language-plaintext highlighter-rouge">dev3@127.0.0.1</code> is not the parent node of
+that partition, it is smart enough to hold on to the object until
+<code class="language-plaintext highlighter-rouge">dev2@127.0.0.1</code> returns to the cluster.</p>
+
+<h2 id="processing-partition-requests">Processing partition requests</h2>
+
+<p>Processing requests per partition is fairly simple. Each node runs a
+single process (<code class="language-plaintext highlighter-rouge">riak_kv_vnode_master</code>) that distributes requests to
+individual partition processes (<code class="language-plaintext highlighter-rouge">riak_kv_vnode</code>). The
+<code class="language-plaintext highlighter-rouge">riak_kv_vnode_master</code> process maintains a list of partition identifiers
+and corresponding partition processes. If a process does not exist for a
+given partition identifier a new process is spawned to manage that
+partition.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">riak_kv_vnode_master</code> process treats all requests the same and
+spawns partition processes as needed even when nodes receive requests
+for partitions they do not own. When a partition’s parent node is
+unavailable, requests are sent to fallback nodes (handoff). The
+<code class="language-plaintext highlighter-rouge">riak_kv_vnode_master</code> process on the fallback node spawns a process to
+manage the partition even though the partition does not belong to the
+fallback node.</p>
+
+<p>The individual partition processes perform hometests throughout the life
+of the process. The hometest checks if the current node (<code class="language-plaintext highlighter-rouge">node/0</code>)
+matches the parent node of the partition as defined in the ring. If the
+process determines that the partition it is managing belongs on another
+node (the parent node), it will attempt to contact that node. If that
+parent node responds, the process will hand off any objects it has
+processed for that partition and shut down. If that parent node does not
+respond, the process will continue to manage that partition and check
+the parent node again after a delay. The hometest is also run by
+partition processes to account for changes in the ring, such as the
+addition or removal of nodes to the cluster.</p>
+

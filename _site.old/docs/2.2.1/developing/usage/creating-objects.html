@@ -1,0 +1,527 @@
+
+<p>Writes in Riak KV (storing or modifying objects) are like HTTP <code class="language-plaintext highlighter-rouge">PUT</code>
+requests. Here is the basic form of writes:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PUT /types/&lt;type&gt;/buckets/&lt;bucket&gt;/keys/&lt;key&gt;
+
+# If you're using HTTP to interact with Riak, you can also use POST
+</code></pre></div></div>
+
+<p>As an example, let’s store an object containing information about a dog named Rufus. We’ll store that object in the key <code class="language-plaintext highlighter-rouge">rufus</code> in the bucket <code class="language-plaintext highlighter-rouge">dogs</code>, which bears the <code class="language-plaintext highlighter-rouge">animals</code> <a href="/riak/kv/2.2.1/using/cluster-operations/bucket-types">bucket type</a>.</p>
+
+<p>The object we’re storing will be very simple, just a basic text snippet
+of something that Rufus might say. Let’s build the object and then store
+it.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">String</span> <span class="n">quote</span> <span class="o">=</span> <span class="s">"WOOF!"</span><span class="o">;</span>
+<span class="nc">Namespace</span> <span class="n">bucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"animals"</span><span class="o">,</span> <span class="s">"dogs"</span><span class="o">);</span>
+<span class="nc">Location</span> <span class="n">rufusLocation</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">bucket</span><span class="o">,</span> <span class="s">"rufus"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">rufusObject</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="n">quote</span><span class="o">));</span>
+<span class="nc">StoreValue</span> <span class="n">storeOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">rufusObject</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withLocation</span><span class="o">(</span><span class="n">rufusLocation</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeOp</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'animals'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'dogs'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'rufus'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">data</span> <span class="o">=</span> <span class="s1">'WOOF!'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'rufus'</span><span class="p">,</span> <span class="s1">'users'</span><span class="p">,</span> <span class="s1">'animals'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildObject</span><span class="p">(</span><span class="s1">'WOOF!'</span><span class="p">,</span> <span class="s1">'text/plain'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'animals'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'dogs'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'rufus'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'WOOF!'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"animals"</span><span class="p">,</span> <span class="s">"dogs"</span><span class="p">,</span> <span class="s">"rufus"</span><span class="p">)</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"WOOF!"</span><span class="p">,</span> <span class="s">"text/plain"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">WOOF!</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">({</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">animals</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">dogs</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">rufus</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">value</span><span class="p">:</span> <span class="nx">riakObj</span>
+<span class="p">},</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">obj</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="n">ContentType</span><span class="o">:</span>     <span class="s">"text/plain"</span><span class="p">,</span>
+    <span class="n">Charset</span><span class="o">:</span>         <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">ContentEncoding</span><span class="o">:</span> <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">Value</span><span class="o">:</span>           <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"WOOF!"</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucketType</span><span class="p">(</span><span class="s">"animals"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="s">"dogs"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="s">"rufus"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="n">svc</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">StoreValueCommand</span><span class="p">)</span>
+<span class="n">rsp</span> <span class="o">:=</span> <span class="n">svc</span><span class="o">.</span><span class="n">Response</span>
+</code></pre></div></div>
+
+<p>Notice that we specified both a value for the object, i.e. <code class="language-plaintext highlighter-rouge">WOOF!</code>, and
+a content type, <code class="language-plaintext highlighter-rouge">text/plain</code>. See <a href="/riak/kv/2.2.1/developing/usage/content-types">content types</a> for more information.</p>
+
+<p>Now, you run the same read operation as in <a href="/riak/kv/2.2.1/developing/usage/reading-objects">Reading Objects</a>. If the write operation was successful, you should be able to successfully read the object. Please note that the operation will fail if you don’t first create the bucket-type <code class="language-plaintext highlighter-rouge">animals</code> as per the page on <a href="/riak/kv/2.2.1/using/cluster-operations/bucket-types">bucket types</a>.</p>
+
+<h3 id="store-an-object">Store an Object</h3>
+
+<p>Your application will often have its own method of generating the keys
+for its data, e.g. on the basis of timestamps. If so, storing that data
+is easy. The basic request looks like this.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PUT /types/TYPE/buckets/BUCKET/keys/KEY
+
+# If you're using HTTP, POST can be used instead of PUT. The only
+# difference between POST and PUT is that you should POST in cases where
+# you want Riak to auto-generate a key. More on this can be found in the
+# examples below.
+</code></pre></div></div>
+
+<p>There is no need to intentionally create buckets in Riak. They pop into
+existence when keys are added to them, and disappear when all keys have
+been removed from them. If you don’t specify a bucket’s type, the type
+<a href="/riak/kv/2.2.1/developing/usage/bucket-types"><code class="language-plaintext highlighter-rouge">default</code></a> will be applied.</p>
+
+<h4 id="write-parameters">Write Parameters</h4>
+
+<p>Write requests support the following parameters:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Default</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">w</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">quorum</code></td>
+      <td style="text-align: left">How many replicas to write to before returning a successful response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pw</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">0</code></td>
+      <td style="text-align: left">How many primary vnodes must respond for a write to be deemed successful</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">dw</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">quorum</code></td>
+      <td style="text-align: left">How many replicas to commit to durable storage before returning a successful response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">returnbody</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left">Whether to return the contents of the stored object</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Here is an example of storing an object (another brief text snippet)
+under the key <code class="language-plaintext highlighter-rouge">viper</code> in the bucket <code class="language-plaintext highlighter-rouge">dodge</code>, which bears the type
+<code class="language-plaintext highlighter-rouge">cars</code>, with <code class="language-plaintext highlighter-rouge">w</code> set to <code class="language-plaintext highlighter-rouge">3</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">viperKey</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"cars"</span><span class="o">,</span> <span class="s">"dodge"</span><span class="o">),</span> <span class="s">"viper"</span><span class="o">);</span>
+<span class="nc">BinaryValue</span> <span class="n">text</span> <span class="o">=</span> <span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"vroom"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="n">text</span><span class="o">);</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">myKey</span><span class="o">,</span> <span class="n">obj</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">StoreOption</span><span class="o">.</span><span class="na">W</span><span class="o">,</span> <span class="k">new</span> <span class="nc">Quorum</span><span class="o">(</span><span class="mi">3</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'cars'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'dodge'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'viper'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'vroom'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="ss">w: </span><span class="mi">3</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'viper'</span><span class="p">,</span> <span class="s1">'dodge'</span><span class="p">,</span> <span class="s1">'cars'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildObject</span><span class="p">(</span><span class="s1">'vroom'</span><span class="p">,</span> <span class="s1">'text/plain'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'w'</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'cars'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'dodge'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'viper'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'vroom'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"cars"</span><span class="p">,</span> <span class="s">"dodge"</span><span class="p">,</span> <span class="s">"viper"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"vroom"</span><span class="p">,</span> <span class="s">"text/plain"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakPutOptions</span><span class="p">();</span>
+<span class="n">options</span><span class="p">.</span><span class="nf">SetW</span><span class="p">(</span><span class="k">new</span> <span class="nf">Quorum</span><span class="p">(</span><span class="m">3</span><span class="p">));</span>
+<span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">options</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">vroom</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cars</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">dodge</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">viper</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">w</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="na">value</span><span class="p">:</span> <span class="nx">riakObj</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Object</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"cars"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"dodge"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"viper"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"vroom"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"text/plain"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="p">[{</span><span class="n">w</span><span class="p">,</span> <span class="mi">3</span><span class="p">}]).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Object</span><span class="p">).</span>
+</code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">obj</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="n">ContentType</span><span class="o">:</span>     <span class="s">"text/plain"</span><span class="p">,</span>
+    <span class="n">Charset</span><span class="o">:</span>         <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">ContentEncoding</span><span class="o">:</span> <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">Value</span><span class="o">:</span>           <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"vroom"</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucketType</span><span class="p">(</span><span class="s">"cars"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="s">"dodge"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="s">"viper"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithW</span><span class="p">(</span><span class="m">3</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT \
+  -H "Content-Type: text/plain" \
+  -d "vroom" \
+  http://localhost:8098/types/cars/buckets/dodge/keys/viper?w=3
+</code></pre>
+
+<p>Again, the above will only work if the <code class="language-plaintext highlighter-rouge">cars</code> bucket type has been created and activated.</p>
+
+<h4 id="return-body">Return Body</h4>
+
+<p>If <code class="language-plaintext highlighter-rouge">returnbody</code> is set to <code class="language-plaintext highlighter-rouge">true</code>, any of the response headers expected
+from a read request may be present. Like a <code class="language-plaintext highlighter-rouge">GET</code> request, <code class="language-plaintext highlighter-rouge">300 Multiple
+Choices</code> may be returned if siblings existed or were created as part of
+the operation, and the response can be dealt with similarly.</p>
+
+<p>Normal HTTP status codes (responses will vary for client libraries):</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+  <li><code class="language-plaintext highlighter-rouge">204 No Content</code></li>
+  <li><code class="language-plaintext highlighter-rouge">300 Multiple Choices</code></li>
+</ul>
+
+<p>For example, using the same object from above:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">viperKey</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"cars"</span><span class="o">,</span> <span class="s">"dodge"</span><span class="o">),</span> <span class="s">"viper"</span><span class="o">);</span>
+<span class="nc">BinaryValue</span> <span class="n">text</span> <span class="o">=</span> <span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"vroom"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="n">text</span><span class="o">);</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">myKey</span><span class="o">,</span> <span class="n">obj</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">StoreOption</span><span class="o">.</span><span class="na">W</span><span class="o">,</span> <span class="k">new</span> <span class="nc">Quorum</span><span class="o">(</span><span class="mi">3</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">StoreOption</span><span class="o">.</span><span class="na">RETURN_BODY</span><span class="o">,</span> <span class="kc">true</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'cars'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'dodge'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'viper'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'vroom'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="ss">w: </span><span class="mi">3</span><span class="p">,</span> <span class="ss">returnbody: </span><span class="kp">true</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'viper'</span><span class="p">,</span> <span class="s1">'dodge'</span><span class="p">,</span> <span class="s1">'cars'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildObject</span><span class="p">(</span><span class="s1">'vroom'</span><span class="p">,</span> <span class="s1">'text/plain'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'w'</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'returnbody'</span><span class="p">,</span> <span class="s1">'true'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'cars'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'dodge'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'viper'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'vroom'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">return_body</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"cars"</span><span class="p">,</span> <span class="s">"dodge"</span><span class="p">,</span> <span class="s">"viper"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">"vroom"</span><span class="p">,</span> <span class="s">"text/plain"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">options</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakPutOptions</span><span class="p">();</span>
+<span class="n">options</span><span class="p">.</span><span class="nf">SetW</span><span class="p">(</span><span class="k">new</span> <span class="nf">Quorum</span><span class="p">(</span><span class="m">3</span><span class="p">));</span>
+<span class="n">options</span><span class="p">.</span><span class="nf">SetReturnBody</span><span class="p">(</span><span class="k">true</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">options</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">KV</span><span class="p">.</span><span class="nx">RiakObject</span><span class="p">();</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setContentType</span><span class="p">(</span><span class="dl">'</span><span class="s1">text/plain</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">riakObj</span><span class="p">.</span><span class="nx">setValue</span><span class="p">(</span><span class="dl">'</span><span class="s1">vroom</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cars</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">dodge</span><span class="dl">'</span><span class="p">,</span> <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">viper</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">w</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="na">returnBody</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span> <span class="na">value</span><span class="p">:</span> <span class="nx">riakObj</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">shift</span><span class="p">();</span>
+    <span class="kd">var</span> <span class="nx">viper</span> <span class="o">=</span> <span class="nx">riakObj</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">dodge viper: %s</span><span class="dl">"</span><span class="p">,</span> <span class="nx">viper</span><span class="p">.</span><span class="nx">toString</span><span class="p">(</span><span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">));</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Object</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"cars"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"dodge"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"viper"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"vroom"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"text/plain"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Object</span><span class="p">,</span> <span class="p">[</span><span class="n">return_body</span><span class="p">]).</span>
+</code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">obj</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="n">ContentType</span><span class="o">:</span>     <span class="s">"text/plain"</span><span class="p">,</span>
+    <span class="n">Charset</span><span class="o">:</span>         <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">ContentEncoding</span><span class="o">:</span> <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">Value</span><span class="o">:</span>           <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"vroom"</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucketType</span><span class="p">(</span><span class="s">"cars"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="s">"dodge"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithKey</span><span class="p">(</span><span class="s">"viper"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithW</span><span class="p">(</span><span class="m">3</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithReturnBody</span><span class="p">(</span><span class="no">true</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT \
+  -H "Content-Type: text/plain" \
+  -d "vroom" \
+  http://localhost:8098/types/cars/buckets/dodge/keys/viper?w=3&amp;returnbody=true
+</code></pre>
+
+<h3 id="store-a-new-object-and-assign-a-random-key">Store a New Object and Assign a Random Key</h3>
+
+<p>If your application would rather leave key-generation up to Riak, issue
+a <code class="language-plaintext highlighter-rouge">POST</code> request to the bucket URL instead of a PUT to a bucket/key
+pair:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>POST /types/TYPE/buckets/BUCKET/keys
+</code></pre></div></div>
+
+<p>If you don’t pass Riak a <code class="language-plaintext highlighter-rouge">key</code> name after the bucket, it will know to
+create one for you.</p>
+
+<p>Supported headers are the same as for bucket/key write requests, though
+<code class="language-plaintext highlighter-rouge">X-Riak-Vclock</code> will never be relevant for these POST requests.
+Supported query parameters are also the same as for bucket/key PUT
+requests.</p>
+
+<p>Normal status codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">201 Created</code></li>
+</ul>
+
+<p>This command will store an object in the bucket <code class="language-plaintext highlighter-rouge">random_user_keys</code>,
+which bears the bucket type <code class="language-plaintext highlighter-rouge">users</code>.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Namespace</span> <span class="n">locationWithoutKey</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"users"</span><span class="o">,</span> <span class="s">"random_user_keys"</span><span class="o">);</span>
+<span class="nc">BinaryValue</span> <span class="n">text</span> <span class="o">=</span> <span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"{'user':'data'}"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"application/json"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="n">text</span><span class="o">);</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">locationWithoutKey</span><span class="o">,</span> <span class="n">obj</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">String</span> <span class="n">key</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">).</span><span class="na">getLocation</span><span class="o">().</span><span class="na">getKeyAsString</span><span class="o">();</span>
+
+<span class="c1">// The Java client will assign a random key along the following lines:</span>
+<span class="s">"ZPFF18PUqGW9efVou7EHhfE6h8a"</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'users'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'random_user_keys'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'application/json'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'{"user":"data"}'</span>
+
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+
+<span class="c1"># The client will assign a key like the following:</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">key</span>
+<span class="s2">"GB8fW6DDZtXogK19OLmaJf247DN"</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildBucket</span><span class="p">(</span><span class="s1">'random_user_keys'</span><span class="p">,</span> <span class="s1">'users'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildJsonObject</span><span class="p">([</span><span class="s1">'user'</span><span class="o">=&gt;</span><span class="s1">'data'</span><span class="p">])</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="k">echo</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getLocation</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getKey</span><span class="p">();</span> <span class="c1">// GB8fW6DDZtXogK19OLmaJf247DN</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'users'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'random_user_keys'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'application/json'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'{"user":"data"}'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="n">obj</span><span class="p">.</span><span class="n">key</span>
+
+<span class="c1"># The Python client will assign a random key along the following lines:
+</span><span class="s">'ZPFF18PUqGW9efVou7EHhfE6h8a'</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">id</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObjectId</span><span class="p">(</span><span class="s">"users"</span><span class="p">,</span> <span class="s">"random_user_keys"</span><span class="p">,</span> <span class="k">null</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">obj</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">id</span><span class="p">,</span> <span class="s">@"{'user':'data'}"</span><span class="p">,</span>
+    <span class="n">RiakConstants</span><span class="p">.</span><span class="n">ContentTypes</span><span class="p">.</span><span class="n">ApplicationJson</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">obj</span><span class="p">);</span>
+<span class="n">Debug</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="n">format</span><span class="p">:</span> <span class="s">"Generated key: {0}"</span><span class="p">,</span> <span class="n">args</span><span class="p">:</span> <span class="n">rslt</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">Key</span><span class="p">);</span>
+
+<span class="c1">// The .NET client will output a random key similar to this:</span>
+<span class="c1">// Generated key: DWDsnpYSqOU363c0Bqe8hCwAM7Q</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">user</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">user</span><span class="p">:</span> <span class="dl">'</span><span class="s1">data</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">users</span><span class="dl">'</span><span class="p">,</span> <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">random_user_keys</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">returnBody</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span> <span class="na">value</span><span class="p">:</span> <span class="nx">user</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeValue</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="kd">var</span> <span class="nx">riakObj</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">values</span><span class="p">.</span><span class="nx">shift</span><span class="p">();</span>
+    <span class="kd">var</span> <span class="nx">generatedKey</span> <span class="o">=</span> <span class="nx">riakObj</span><span class="p">.</span><span class="nx">getKey</span><span class="p">();</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">Generated key: %s</span><span class="dl">"</span><span class="p">,</span> <span class="nx">generatedKey</span><span class="p">);</span>
+<span class="p">});</span>
+
+<span class="c1">// The Node.js client will output a random key similar to this:</span>
+<span class="c1">// info: Generated key: VBAMoX0OOucymVCxeQEYzLzzAh2</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Object</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"users"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"random_user_keys"</span><span class="o">&gt;&gt;</span><span class="p">},</span> <span class="n">undefined</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"{'user':'data'}"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"application/json"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Object</span><span class="p">).</span>
+
+<span class="c">%% The key can be retrieved from the output of the above call.
+%% It will look something like this:
+</span>
+<span class="p">{</span><span class="n">ok</span><span class="p">,{</span><span class="n">riakc_obj</span><span class="p">,{</span><span class="o">&lt;&lt;</span><span class="s">"users"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="o">&lt;&lt;</span><span class="s">"random_user_keys"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+               <span class="o">&lt;&lt;</span><span class="s">"EZ7pp4bpdfpZw0fPUdTUafveQjO"</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="n">undefined</span><span class="p">,[],</span><span class="n">undefined</span><span class="p">,</span>
+               <span class="n">undefined</span><span class="p">}}</span>
+</code></pre></div></div>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">obj</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">Object</span><span class="p">{</span>
+    <span class="n">ContentType</span><span class="o">:</span>     <span class="s">"application/json"</span><span class="p">,</span>
+    <span class="n">Charset</span><span class="o">:</span>         <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">ContentEncoding</span><span class="o">:</span> <span class="s">"utf-8"</span><span class="p">,</span>
+    <span class="n">Value</span><span class="o">:</span>           <span class="p">[]</span><span class="kt">byte</span><span class="p">(</span><span class="s">"{'user':'data'}"</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="n">cmd</span><span class="p">,</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewStoreValueCommandBuilder</span><span class="p">()</span><span class="o">.</span>
+    <span class="n">WithBucketType</span><span class="p">(</span><span class="s">"users"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithBucket</span><span class="p">(</span><span class="s">"random_user_keys"</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">WithContent</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span>
+    <span class="n">Build</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">cluster</span><span class="o">.</span><span class="n">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">fmt</span><span class="o">.</span><span class="n">Println</span><span class="p">(</span><span class="n">err</span><span class="o">.</span><span class="n">Error</span><span class="p">())</span>
+    <span class="k">return</span>
+<span class="p">}</span>
+
+<span class="n">svc</span> <span class="o">:=</span> <span class="n">cmd</span><span class="o">.</span><span class="p">(</span><span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">StoreValueCommand</span><span class="p">)</span>
+<span class="n">rsp</span> <span class="o">:=</span> <span class="n">svc</span><span class="o">.</span><span class="n">Response</span>
+<span class="n">fmt</span><span class="o">.</span><span class="n">Printf</span><span class="p">(</span><span class="s">"Generated key: %v</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">rsp</span><span class="o">.</span><span class="n">GeneratedKey</span><span class="p">)</span>
+
+<span class="c">// Output:</span>
+<span class="c">// Generated key: QSHkZjFdWwfrxtKl3wtUhL2gz7N</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -i -XPOST \
+  -H "Content-Type: text/plain" \
+  -d "this is a test" \
+  http://localhost:8098/types/users/buckets/random_user_keys/keys
+
+# In the output, you should see a Location header that will give you the
+# location of the object in Riak, with the key at the end:
+
+Location: /buckets/test/keys/G7FYUXtTsEdru4NP32eijMIRK3o
+</code></pre>

@@ -1,0 +1,180 @@
+<p>Stores an object under the specified location, as determined by the
+intended <a href="/riak/kv/2.1.4/learn/concepts/keys-and-objects">key</a>, <a href="/riak/kv/2.1.4/learn/concepts/buckets">bucket</a>, and <a href="/riak/kv/2.1.4/developing/usage/bucket-types">bucket type</a>. A bucket must always be specified (via
+<code class="language-plaintext highlighter-rouge">bucket</code>), whereas key (<code class="language-plaintext highlighter-rouge">key</code>) and bucket type (<code class="language-plaintext highlighter-rouge">type</code>) are optional. If
+no key is specified, Riak will assign a random key to the object. If no
+<a href="/riak/kv/2.1.4/developing/usage/bucket-types">bucket type</a> is assigned, Riak will assign
+<code class="language-plaintext highlighter-rouge">default</code>, which means that the <a href="/riak/kv/2.1.4/configuring/reference/#default-bucket-properties">default bucket configuration</a> will be used.</p>
+
+<h4 id="request">Request</h4>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbPutReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">bucket</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">key</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">vclock</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+    <span class="k">required</span> <span class="n">RpbContent</span> <span class="na">content</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">w</span> <span class="o">=</span> <span class="mi">5</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">dw</span> <span class="o">=</span> <span class="mi">6</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">return_body</span> <span class="o">=</span> <span class="mi">7</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">pw</span> <span class="o">=</span> <span class="mi">8</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">if_not_modified</span> <span class="o">=</span> <span class="mi">9</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">if_none_match</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">return_head</span> <span class="o">=</span> <span class="mi">11</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">timeout</span> <span class="o">=</span> <span class="mi">12</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">asis</span> <span class="o">=</span> <span class="mi">13</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bool</span> <span class="na">sloppy_quorum</span> <span class="o">=</span> <span class="mi">14</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">n_val</span> <span class="o">=</span> <span class="mi">15</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">16</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h4 id="required-parameters">Required Parameters</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">bucket</code></td>
+      <td style="text-align: left">The name of the bucket, in bytes, in which the key/value is to reside</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">content</code></td>
+      <td style="text-align: left">The new or updated contented of the object. Uses the same <code class="language-plaintext highlighter-rouge">RpbContent</code> message returned as part of an <code class="language-plaintext highlighter-rouge">RpbGetResp</code> message, documented in <a href="/riak/kv/2.1.4/developing/api/protocol-buffers/fetch-object">PBC Fetch Object</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="optional-parameters">Optional Parameters</h4>
+
+<p>All of the optional parameters below have default values determined on a
+per-bucket basis. Please refer to the documentation on <a href="http://docs.basho.com/riak/kv/2.1.4/developing/api/protocol-buffers/set-bucket-props/">setting
+bucket properties</a> for more information.</p>
+
+<p>Furthermore, you can assign an integer value to the <code class="language-plaintext highlighter-rouge">w</code>, <code class="language-plaintext highlighter-rouge">dw</code>, <code class="language-plaintext highlighter-rouge">pr</code>, and <code class="language-plaintext highlighter-rouge">pw</code>,
+provided that that integer value is less than or equal to N, <em>or</em> a special
+value denoting <code class="language-plaintext highlighter-rouge">one</code> (<code class="language-plaintext highlighter-rouge">4294967295-1</code>), <code class="language-plaintext highlighter-rouge">quorum</code> (<code class="language-plaintext highlighter-rouge">4294967295-2</code>), <code class="language-plaintext highlighter-rouge">all</code>
+(<code class="language-plaintext highlighter-rouge">4294967295-3</code>), or <code class="language-plaintext highlighter-rouge">default</code> (<code class="language-plaintext highlighter-rouge">4294967295-4</code>).</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">key</code></td>
+      <td style="text-align: left">The key to create/update. If not specified, Riak will generate a random key and return that key as part of the response to that request.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">vclock</code></td>
+      <td style="text-align: left">Opaque vector clock provided by an earlier <code class="language-plaintext highlighter-rouge">RpbGetResp</code> message. Omit if this is a new key or if you deliberately want to create a sibling.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">w</code></td>
+      <td style="text-align: left">Write quorum, i.e. how many replicas to write to before returning a successful response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">dw</code></td>
+      <td style="text-align: left">Durable write quorum, i.e. how many replicas to commit to durable storage before returning a successful response</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">return_body</code></td>
+      <td style="text-align: left">Whether to return the contents of the now-stored object. Defaults to <code class="language-plaintext highlighter-rouge">false</code>.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pw</code></td>
+      <td style="text-align: left">Primary write quorum, i.e. how many primary nodes must be up when the write is attempted</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">return_head</code></td>
+      <td style="text-align: left">Return the metadata for the now-stored object without returning the value of the object</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">timeout</code></td>
+      <td style="text-align: left">The timeout duration, in milliseconds, after which Riak will return an error message</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">sloppy_quorum</code></td>
+      <td style="text-align: left">If this parameter is set to <code class="language-plaintext highlighter-rouge">true</code>, the next available node in the ring will accept requests if any primary node is unavailable</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">n_val</code></td>
+      <td style="text-align: left">The number of nodes on which the value is to be stored</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The <code class="language-plaintext highlighter-rouge">if_not_modified</code>, <code class="language-plaintext highlighter-rouge">if_none_match</code>, and <code class="language-plaintext highlighter-rouge">asis</code> parameters are set
+only for messages sent between nodes in a Riak cluster and should not be
+set by Riak clients.</p>
+
+<h4 id="response">Response</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>message RpbPutResp <span class="o">{</span>
+    repeated RpbContent contents <span class="o">=</span> 1<span class="p">;</span>
+    optional bytes vclock <span class="o">=</span> 2<span class="p">;</span>
+    optional bytes key <span class="o">=</span> 3<span class="p">;</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>If <code class="language-plaintext highlighter-rouge">return_body</code> is set to <code class="language-plaintext highlighter-rouge">true</code> on the PUT request, the <code class="language-plaintext highlighter-rouge">RpbPutResp</code>
+will contain the current object after the PUT completes, in <code class="language-plaintext highlighter-rouge">contents</code>,
+as well as the object’s <a href="/riak/kv/2.1.4/learn/concepts/causal-context">causal context</a>, in the <code class="language-plaintext highlighter-rouge">vclock</code>
+field. The <code class="language-plaintext highlighter-rouge">key</code> will be sent only if the server generated a random key
+for the object.</p>
+
+<p>If <code class="language-plaintext highlighter-rouge">return_body</code> is not set and no key is generated, the PUT response
+will be empty.</p>
+
+<h2 id="example">Example</h2>
+
+<h4 id="request-1">Request</h4>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 1C 0B 0A 01 62 12 01 6B 22 0F 0A 0D 7B
+         22 66 6F 6F 22 3A 22 62 61 72 22 7D 28 02 38 01
+Erlang &lt;&lt;0,0,0,28,11,10,1,98,18,1,107,34,15,10,13,123,34,102,111,111,34,58,34,
+         98,97,114,34,125,40,2,56,1&gt;&gt;
+
+RpbPutReq protoc decode:
+bucket: "b"
+key: "k"
+content {
+  value: "{"foo":"bar"}"
+}
+w: 2
+return_body: true
+
+</code></pre></div></div>
+
+<h4 id="response-1">Response</h4>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 62 0C 0A 31 0A 0D 7B 22 66 6F 6F 22 3A
+         22 62 61 72 22 7D 2A 16 31 63 61 79 6B 4F 44 39
+         36 69 4E 41 68 6F 6D 79 65 56 6A 4F 59 43 38 AF
+         B0 A3 DE 04 40 90 E7 18 12 2C 6B CE 61 60 60 60
+         CA 60 CA 05 52 2C 2C E9 0C 86 19 4C 89 8C 79 AC
+         0C 5A 21 B6 47 F9 20 C2 6C CD 49 AC 0D 77 7C A0
+         12 FA 20 89 2C 00
+Erlang &lt;&lt;0,0,0,98,12,10,49,10,13,123,34,102,111,111,34,58,34,98,97,114,34,125,
+         42,22,49,99,97,121,107,79,68,57,54,105,78,65,104,111,109,121,101,86,
+         106,79,89,67,56,175,176,163,222,4,64,144,231,24,18,44,107,206,97,96,
+         96,96,202,96,202,5,82,44,44,233,12,134,25,76,137,140,121,172,12,90,33,
+         182,71,249,32,194,108,205,73,172,13,119,124,160,18,250,32,137,44,0&gt;&gt;
+
+RpbPutResp protoc decode:
+contents {
+  value: "{"foo":"bar"}"
+  vtag: "1caykOD96iNAhomyeVjOYC"
+  last_mod: 1271453743
+  last_mod_usecs: 406416
+}
+vclock: "k316a```312`312005R,,351014206031L211214y254014Z!266G371
+302l315I254rw|240022372 211,000"
+
+</code></pre></div></div>

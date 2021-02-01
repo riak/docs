@@ -1,0 +1,634 @@
+
+<p>Riak was built to act as a multi-node <a href="/riak/kv/2.2.0/learn/concepts/clusters">cluster</a>.  It
+distributes data across multiple physical servers, which enables it to
+provide strong availability guarantees and fault tolerance.</p>
+
+<p>The <a href="http://en.wikipedia.org/wiki/CAP_theorem">CAP theorem</a>, which
+undergirds many of the design decisions behind Riak’s architecture,
+defines distributed systems in terms of three desired properties:
+consistency, availability, and partition (i.e. failure) tolerance. Riak
+can be used either as an AP, i.e. available/partition-tolerant, system
+or as a CP, i.e. consistent/partition-tolerant, system. The former
+relies on an <a href="/riak/kv/2.2.0/learn/concepts/eventual-consistency">Eventual Consistency</a> model, while the latter relies on
+a special <a href="/riak/kv/2.2.0/using/reference/strong-consistency">strong consistency</a> subsystem.</p>
+
+<p>Although the <a href="http://en.wikipedia.org/wiki/CAP_theorem">CAP theorem</a>
+dictates that there is a necessary trade-off between data consistency
+and availability, if you are using Riak in an eventually consistent
+manner, you can fine-tune that trade-off. The ability to make these
+kinds of fundamental choices has immense value for your applications and
+is one of the features that differentiates Riak from other databases.</p>
+
+<p>At the bottom of the page, you’ll find a <a href="/riak/kv/2.2.0/developing/app-guide/replication-properties#screencast">screencast</a> that briefly explains how to adjust your
+replication levels to match your application and business needs.</p>
+
+<p>An option introduced in Riak version 2.0 is to use Riak as a
+<a href="http://docs.basho.com/riak/kv/2.2.0/using/reference/strong-consistency/">strongly
+consistent</a> system for data in specified buckets. Using Riak in this way is
+fundamentally different from adjusting replication properties and fine-tuning
+the availability/consistency trade-off, as it sacrifices <em>all</em> availability
+guarantees when necessary. Therefore, you should consult the
+<a href="http://docs.basho.com/riak/kv/2.2.0/developing/app-guide/strong-consistency/">Using
+Strong Consistency</a> documentation, as this option will not be covered in
+this tutorial.</p>
+
+<h2 id="how-replication-properties-work">How Replication Properties Work</h2>
+
+<p>When using Riak, there are two ways of choosing replication properties:</p>
+
+<ol>
+  <li>On a per-request basis</li>
+  <li>In a more programmatic fashion, <a href="/riak/kv/2.2.0/developing/usage/bucket-types">using bucket types</a></li>
+</ol>
+
+<h3 id="per-request-replication-properties">Per-request Replication Properties</h3>
+
+<p>The simplest way to apply replication properties to objects stored in
+Riak is to specify those properties</p>
+
+<h3 id="replication-properties-through-bucket-types">Replication Properties Through Bucket Types</h3>
+
+<p>Let’s say, for example, that you want to apply an <code class="language-plaintext highlighter-rouge">n_val</code> of 5, an <code class="language-plaintext highlighter-rouge">r</code>
+of 3, and a <code class="language-plaintext highlighter-rouge">w</code> of 3 to all of the data in some of the <a href="/riak/kv/2.2.0/learn/concepts/buckets">buckets</a> that
+you’re using. In order to set those replication properties, you should
+create a bucket type that sets those properties. Below is an example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create custom_props <span class="s1">'{"props":{"n_val":5,"r":3,"w":3}}'</span>
+riak-admin bucket-type activate custom_props
+</code></pre></div></div>
+
+<p>Now, any time you store an object in a bucket with the type
+<code class="language-plaintext highlighter-rouge">custom_props</code> those properties will apply to it.</p>
+
+<h2 id="available-parameters">Available Parameters</h2>
+
+<p>The table below lists the most frequently used replication parameters
+that are available in Riak. Symbolic values like <code class="language-plaintext highlighter-rouge">quorum</code> are discussed
+<a href="#symbolic-consistency-names">below</a>. Each
+parameter will be explained in more detail in later sections:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Parameter</th>
+      <th style="text-align: left">Common name</th>
+      <th style="text-align: left">Default value</th>
+      <th style="text-align: left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">n_val</code></td>
+      <td style="text-align: left">N</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">3</code></td>
+      <td style="text-align: left">Replication factor, i.e. the number of nodes in the cluster on which an object is to be stored</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">r</code></td>
+      <td style="text-align: left">R</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">quorum</code></td>
+      <td style="text-align: left">The number of servers that must respond to a read request</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">w</code></td>
+      <td style="text-align: left">W</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">quorum</code></td>
+      <td style="text-align: left">Number of servers that must respond to a write request</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pr</code></td>
+      <td style="text-align: left">PR</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">0</code></td>
+      <td style="text-align: left">The number of primary <a href="http://docs.basho.com/riak/kv/2.2.0/learn/concepts/vnodes/">vnodes</a> that must respond to a read request</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">pw</code></td>
+      <td style="text-align: left">PW</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">0</code></td>
+      <td style="text-align: left">The number of primary <a href="http://docs.basho.com/riak/kv/2.2.0/learn/concepts/vnodes/">vnodes</a> that must respond to a write request</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">dw</code></td>
+      <td style="text-align: left">DW</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">quorum</code></td>
+      <td style="text-align: left">The number of servers that must report that a write has been successfully written to disk</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">rw</code></td>
+      <td style="text-align: left">RW</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">quorum</code></td>
+      <td style="text-align: left">If R and W are undefined, this parameter will substitute for both R and W during object deletes. It is extremely unlikely that you will need to adjust this parameter.</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">notfound_ok</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td style="text-align: left">This parameter determines how Riak responds if a read fails on a node. Setting to <code class="language-plaintext highlighter-rouge">true</code> (the default) is the equivalent to setting R to 1: if the first node to respond doesn’t have a copy of the object, Riak will immediately return a <code class="language-plaintext highlighter-rouge">not found</code> error. If set to <code class="language-plaintext highlighter-rouge">false</code>, Riak will continue to look for the object on the number of nodes specified by N (aka <code class="language-plaintext highlighter-rouge">n_val</code>).</td>
+    </tr>
+    <tr>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">basic_quorum</code></td>
+      <td style="text-align: left"> </td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left">If <code class="language-plaintext highlighter-rouge">notfound_ok</code> is set to <code class="language-plaintext highlighter-rouge">false</code>, Riak will be more thorough in looking for an object on multiple nodes. Setting <code class="language-plaintext highlighter-rouge">basic_quorum</code> to <code class="language-plaintext highlighter-rouge">true</code> in this case will instruct Riak to wait for only a <code class="language-plaintext highlighter-rouge">quorum</code> of responses to return a <code class="language-plaintext highlighter-rouge">notfound</code> error instead of N responses.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="a-primer-on-n-r-and-w">A Primer on N, R, and W</h2>
+
+<p>The most important thing to note about Riak’s replication controls is
+that they can be at the bucket level. You can use <a href="/riak/kv/2.2.0/developing/usage/bucket-types">bucket types</a>
+to set up bucket <code class="language-plaintext highlighter-rouge">A</code> to use a particular set of replication properties
+and bucket <code class="language-plaintext highlighter-rouge">B</code> to use entirely different properties.</p>
+
+<p>At the bucket level, you can choose how many copies of data you want to
+store in your cluster (N, or <code class="language-plaintext highlighter-rouge">n_val</code>), how many copies you wish to read
+from at one time (R, or <code class="language-plaintext highlighter-rouge">r</code>), and how many copies must be written to be
+considered a success (W, or <code class="language-plaintext highlighter-rouge">w</code>).</p>
+
+<p>In addition to the bucket level, you can also specify replication
+properties on the client side for any given read or write. The examples
+immediately below will deal with bucket-level replication settings, but
+check out the <a href="#client-level-replication-settings">section below</a>
+for more information on setting properties on a per-operation basis.</p>
+
+<p>The most general trade-off to be aware of when setting these values is
+the trade-off between <strong>data accuracy</strong> and <strong>client responsiveness</strong>.
+Choosing higher values for N, R, and W will mean higher accuracy because
+more nodes are checked for the correct value on read and data is written
+to more nodes upon write; but higher values will also entail degraded
+responsiveness, especially if one or more nodes is failing, because Riak
+has to wait for responses from more nodes.</p>
+
+<h2 id="n-value-and-replication">N Value and Replication</h2>
+
+<p>All data stored in Riak will be replicated to the number of nodes in the
+cluster specified by a bucket’s N value (<code class="language-plaintext highlighter-rouge">n_val</code>). The default <code class="language-plaintext highlighter-rouge">n_val</code>
+in Riak is 3, which means that data stored in a bucket with the default
+N will be replicated to three different nodes, thus storing three
+<strong>replicas</strong> of the object.</p>
+
+<p>In order for this to be effective, you need at least three nodes in your
+cluster. The merits of this system, however, can be demonstrated using
+your local environment.</p>
+
+<p>Let’s create a bucket type that sets the <code class="language-plaintext highlighter-rouge">n_val</code> for any bucket with
+that type to 2. To do so, you must create and activate a bucket type
+that sets this property:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create n_val_equals_2 <span class="s1">'{"props":{"n_val":2}}'</span>
+riak-admin bucket-type activate n_val_equals_2
+</code></pre></div></div>
+
+<p>Now, all buckets that bear the type <code class="language-plaintext highlighter-rouge">n_val_equals_2</code> will have <code class="language-plaintext highlighter-rouge">n_val</code>
+set to 2. Here’s an example write:</p>
+
+<pre><code class="language-curl">curl -XPUT http://localhost:8098/types/n_val_equals_2/buckets/test_bucket/keys/test_key \
+  -H "Content-Type: text/plain" \
+  -d "the n_val on this write is 2"
+</code></pre>
+
+<p>Now, whenever we write to a bucket of this type, Riak will write a
+replica of the object to two different nodes.</p>
+
+<p><code class="language-plaintext highlighter-rouge">n_val</code> must be greater than 0 and less than or equal to the number of actual
+nodes in your cluster to get all the benefits of replication. We advise
+against modifying the <code class="language-plaintext highlighter-rouge">n_val</code> of a bucket after its initial creation as this
+may result in failed reads because the new value may not be replicated to all
+the appropriate partitions.</p>
+
+<h2 id="r-value-and-read-failure-tolerance">R Value and Read Failure Tolerance</h2>
+
+<p>Read requests to Riak are sent to all N nodes that are known to be
+currently responsible for the data. The R value (<code class="language-plaintext highlighter-rouge">r</code>) enables you to
+specify how many of those nodes have to return a result on a given read
+for the read to be considered successful. This allows Riak to provide
+read availability even when nodes are down or laggy.</p>
+
+<p>You can set R anywhere from 1 to N; lower values mean faster response
+time but a higher likelihood of Riak not finding the object you’re
+looking for, while higher values mean that Riak is more likely to find
+the object but takes longer to look.</p>
+
+<p>As an example, let’s create and activate a bucket type with <code class="language-plaintext highlighter-rouge">r</code> set to
+<code class="language-plaintext highlighter-rouge">1</code>. All reads performed on data in buckets with this type require a
+result from only one node.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create r_equals_1 <span class="s1">'{"props":{"r":1}}'</span>
+riak-admin bucket-type activate r_equals_1
+</code></pre></div></div>
+
+<p>Here’s an example read request using the <code class="language-plaintext highlighter-rouge">r_equals_1</code> bucket type:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'r_equals_1'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'animal_facts'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'chimpanzee'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">chimpanzeeFact</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"r_equals_1"</span><span class="o">,</span> <span class="s">"animal_facts"</span><span class="o">),</span> <span class="s">"chimpanzee"</span><span class="o">);</span>
+<span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">chimpanzeeFact</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchValue</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getValue</span><span class="o">(</span><span class="nc">RiakObject</span><span class="o">.</span><span class="na">class</span><span class="o">);</span>
+<span class="nc">System</span><span class="o">.</span><span class="na">out</span><span class="o">.</span><span class="na">println</span><span class="o">(</span><span class="n">obj</span><span class="o">.</span><span class="na">getValue</span><span class="o">().</span><span class="na">toString</span><span class="o">());</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'chimpanzee'</span><span class="p">,</span> <span class="s1">'animal_facts'</span><span class="p">,</span> <span class="s1">'r_equals_1'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="k">echo</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getObject</span><span class="p">()</span><span class="o">-&gt;</span><span class="nf">getData</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'r_equals_1'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'animal_facts'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'chimpanzee'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Obj</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"r_equals_1"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"animal_facts"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                                <span class="o">&lt;&lt;</span><span class="s">"chimpanzee"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/types/r_equals_1/buckets/animal_facts/keys/chimpanzee
+</code></pre>
+
+<p>As explained above, reads to buckets with the <code class="language-plaintext highlighter-rouge">r_equals_1</code> type will
+typically be completed more quickly, but if the first node to respond
+to a read request has yet to receive a replica of the object, Riak will
+return a <code class="language-plaintext highlighter-rouge">not found</code> response (which may happen even if the object lives
+on one or more other nodes). Setting <code class="language-plaintext highlighter-rouge">r</code> to a higher value will mitigate
+this risk.</p>
+
+<h2 id="w-value-and-write-fault-tolerance">W Value and Write Fault Tolerance</h2>
+
+<p>As with read requests, writes to Riak are sent to all N nodes that are
+know to be currently responsible for the data. The W value (<code class="language-plaintext highlighter-rouge">w</code>) enables
+you to specify how many nodes must complete a write to be considered
+successful—a direct analogy to R. This allows Riak to provide write
+availability even when nodes are down or laggy.</p>
+
+<p>As with R, you can set W to any value between 1 and N. The same
+performance vs. fault tolerance trade-offs that apply to R apply to W.</p>
+
+<p>As an example, let’s create and activate a bucket type with <code class="language-plaintext highlighter-rouge">w</code> set to
+<code class="language-plaintext highlighter-rouge">3</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create w_equals_3 <span class="s1">'{"props":{"w":3}}'</span>
+riak-admin activate w_equals_3
+</code></pre></div></div>
+
+<p>Now, we can attempt a write to a bucket bearing the type <code class="language-plaintext highlighter-rouge">w_equals_3</code>:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'w_equals_3'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'animal_facts'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'giraffe'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">raw_data</span> <span class="o">=</span> <span class="s1">'The species name of the giraffe is Giraffa camelopardalis'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span>
+</code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">storyKey</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"w_equals_3"</span><span class="o">,</span> <span class="s">"animal_facts"</span><span class="o">),</span> <span class="s">"giraffe"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"text/plain"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"The species name of the giraffe is Giraffa camelopardalis"</span><span class="o">));</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">obj</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withLocation</span><span class="o">(</span><span class="s">"giraffe"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'giraffe'</span><span class="p">,</span> <span class="s1">'animal_facts'</span><span class="p">,</span> <span class="s1">'w_equals_3'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'w_equals_3'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'animal_facts'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">RiakObject</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">bucket</span><span class="p">,</span> <span class="s">'giraffe'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">content_type</span> <span class="o">=</span> <span class="s">'text/plain'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="s">'The species name of the giraffe is Giraffa camelopardalis'</span>
+<span class="n">obj</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Obj</span> <span class="o">=</span> <span class="nn">riakc_object</span><span class="p">:</span><span class="nf">new</span><span class="p">({</span><span class="o">&lt;&lt;</span><span class="s">"w_equals_3"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"animal_facts"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"giraffe"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"The species name of the giraffe is Giraffa camelopardalis"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                       <span class="o">&lt;&lt;</span><span class="s">"text/plain"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Obj</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT \
+  -H "Content-type: text/plain" \
+  -d "The species name of the giraffe is Giraffa camelopardalis" \
+  http://localhost:8098/types/w_equals_3/buckets/animal_facts/keys/giraffe
+</code></pre>
+
+<p>Writing our <code class="language-plaintext highlighter-rouge">story.txt</code> will return a success response from Riak only if
+3 nodes respond that the write was successful. Setting <code class="language-plaintext highlighter-rouge">w</code> to 1, for
+example, would mean that Riak would return a response more quickly, but
+with a higher risk that the write will fail because the first node it
+seeks to write the object to is unavailable.</p>
+
+<h2 id="primary-reads-and-writes-with-pr-and-pw">Primary Reads and Writes with PR and PW</h2>
+
+<p>In Riak’s replication model, there are N <a href="/riak/kv/2.2.0/learn/glossary/#vnode">vnodes</a>,
+called <em>primary vnodes</em>, that hold primary responsibility for any given
+key. Riak will attempt reads and writes to primary vnodes first, but in
+case of failure, those operations will go to failover nodes in order to
+comply with the R and W values that you have set. This failover option
+is called <em>sloppy quorum</em>.</p>
+
+<p>In addition to R and W, you can also set integer values for the <em>primary
+read</em> (PR) and <em>primary write</em> (PW) parameters that specify how many
+primary nodes must respond to a request in order to report success to
+the client. The default for both values is zero.</p>
+
+<p>Setting PR and/or PW to non-zero values produces a mode of operation
+called <em>strict quorum</em>. This mode has the advantage that the client is
+more likely to receive the most up-to-date values, but at the cost of a
+higher probability that reads or writes will fail because primary vnodes
+are unavailable.</p>
+
+<p>If PW is set to a non-zero value, there is a higher risk (usually very small)
+that failure will be reported to the client upon write. But this does not
+necessarily mean that the write has failed completely. If there are reachable
+primary vnodes, those vnodes will still write the new data to Riak. When the
+failed vnode returns to service, it will receive the new copy of the data via
+either read repair or active anti-entropy.</p>
+
+<h2 id="durable-writes-with-dw">Durable Writes with DW</h2>
+
+<p>The W and PW parameters specify how many vnodes must <em>respond</em> to a
+write in order for it to be deemed successful. What they do not specify
+is whether data has actually been written to disk in the storage backend.
+The DW parameters enables you to specify a number of vnodes between 1
+and N that must write the data to disk before the request is deemed
+successful. The default value is <code class="language-plaintext highlighter-rouge">quorum</code> (more on symbolic names below).</p>
+
+<p>How quickly and robustly data is written to disk depends on the
+configuration of your backend or backends. For more details, see the
+documentation on <a href="/riak/kv/2.2.0/setup/planning/backend/bitcask">Bitcask</a>, <a href="/riak/kv/2.2.0/setup/planning/backend/leveldb">LevelDB</a>, and <a href="/riak/kv/2.2.0/setup/planning/backend/multi">multiple backends</a>.</p>
+
+<h2 id="delete-quorum-with-rw">Delete Quorum with RW</h2>
+
+<p>It is no longer necessary to specify an RW value when making delete requests.
+We explain its meaning here, however, because RW still shows up as a property
+of Riak buckets (as <code class="language-plaintext highlighter-rouge">rw</code>) for the sake of backwards compatibility. Feel free
+to skip this explanation unless you are curious about the meaning of RW.</p>
+
+<p>Deleting an object requires successfully reading an object and then
+writing a tombstone to the object’s key that specifies that an object
+once resided there. In the course of their operation, all deletes must
+comply with any R, W, PR, and PW values that apply along the way.</p>
+
+<p>If R and W are undefined, however, the RW (<code class="language-plaintext highlighter-rouge">rw</code>) value will substitute
+for both R and W during object deletes. In recent versions of Riak, it
+is nearly impossible to make reads or writes that do not somehow specify 
+oth R and W, and so you will never need to worry about RW.</p>
+
+<h2 id="the-implications-of-notfound_ok">The Implications of <code class="language-plaintext highlighter-rouge">notfound_ok</code></h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">notfound_ok</code> parameter is a bucket property that determines how
+Riak responds if a read fails on a node. If <code class="language-plaintext highlighter-rouge">notfound_ok</code> is set to
+<code class="language-plaintext highlighter-rouge">true</code> (the default value) and the first vnode to respond doesn’t have a
+copy of the object, Riak will assume that the missing value is
+authoritative and immediately return a <code class="language-plaintext highlighter-rouge">not found</code> result to the client.
+This will generally lead to faster response times.</p>
+
+<p>On the other hand, setting <code class="language-plaintext highlighter-rouge">notfound_ok</code> to <code class="language-plaintext highlighter-rouge">false</code> means that the
+responding vnode will wait for something other than a <code class="language-plaintext highlighter-rouge">not found</code> error
+before reporting a value to the client. If an object doesn’t exist under
+a key, the coordinating vnode will wait for N vnodes to respond with
+<code class="language-plaintext highlighter-rouge">not found</code> before it reports <code class="language-plaintext highlighter-rouge">not found</code> to the client. This setting
+makes Riak search more thoroughly for objects but at the cost of slower
+response times, a problem can be mitigated by setting <code class="language-plaintext highlighter-rouge">basic_quorum</code> to
+<code class="language-plaintext highlighter-rouge">true</code>, which is discussed in the next section.</p>
+
+<h2 id="early-failure-return-with-basic_quorum">Early Failure Return with <code class="language-plaintext highlighter-rouge">basic_quorum</code></h2>
+
+<p>Setting <code class="language-plaintext highlighter-rouge">notfound_ok</code> to <code class="language-plaintext highlighter-rouge">false</code> on a request (or as a bucket property)
+is likely to introduce additional latency. If you read a non-existent
+key, Riak will check all 3 responsible vnodes for the value before
+returning <code class="language-plaintext highlighter-rouge">not found</code> instead of checking just one.</p>
+
+<p>This latency problem can be mitigated by setting <code class="language-plaintext highlighter-rouge">basic_quorum</code> to
+<code class="language-plaintext highlighter-rouge">true</code>, which will instruct Riak to query a quorum of nodes instead of N
+nodes. A quorum of nodes is calculated as floor(N/2) + 1, meaning that 5
+nodes will produce a quorum of 3, 6 nodes a quorum of 4, 7 nodes a
+quorum of 4, 8 nodes a quorum of 5, etc.</p>
+
+<p>The default for <code class="language-plaintext highlighter-rouge">basic_quorum</code> is <code class="language-plaintext highlighter-rouge">false</code>, so you will need to
+explicitly set it to <code class="language-plaintext highlighter-rouge">true</code> on reads or in a bucket’s properties. While
+the scope of this setting is fairly narrow, it can reduce latency in
+read-heavy use cases.</p>
+
+<h2 id="symbolic-consistency-names">Symbolic Consistency Names</h2>
+
+<p>Riak provides a number of “symbolic” consistency options for R, W, PR,
+RW, and DW that are often easier to use and understand than specifying
+integer values. The following symbolic names are available:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">all</code> — All replicas must reply. This is the same as setting R, W, PR, RW, or DW equal to N.</li>
+  <li><code class="language-plaintext highlighter-rouge">one</code> — This is the same as setting 1 as the value for R, W, PR, RW, or DW.</li>
+  <li><code class="language-plaintext highlighter-rouge">quorum</code> — A majority of the replicas must respond, that is, half plus one. For the default N value of 3, this calculates to 2, an N value of 5 calculates to 3, and so on.</li>
+  <li><code class="language-plaintext highlighter-rouge">default</code> — Uses whatever the per-bucket consistency property is for R, W, PR, RW, or DW, which may be any of the above symbolic values or an integer.</li>
+</ul>
+
+<p>Not submitting a value for R, W, PR, RW, or DW is the same as using
+<code class="language-plaintext highlighter-rouge">default</code>.</p>
+
+<h2 id="client-level-replication-settings">Client-level Replication Settings</h2>
+
+<p>Adjusting replication properties at the bucket level by <a href="/riak/kv/2.2.0/developing/usage/bucket-types">using bucket types</a>
+is how you set default properties for <em>all</em> of a bucket’s reads and
+writes. But you can also set replication properties for specific reads
+and writes without setting those properties at the bucket level, instead
+specifying them on a per-operation basis.</p>
+
+<p>Let’s say that you want to set <code class="language-plaintext highlighter-rouge">r</code> to 2 and <code class="language-plaintext highlighter-rouge">notfound_ok</code> to <code class="language-plaintext highlighter-rouge">true</code> for
+just one read. We’ll fetch <a href="http://en.wikipedia.org/wiki/John_Stockton">John Stockton</a>’s
+statistics from the <code class="language-plaintext highlighter-rouge">nba_stats</code> bucket.</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'nba_stats'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s1">'john_stockton'</span><span class="p">,</span> <span class="ss">r: </span><span class="mi">2</span><span class="p">,</span> <span class="ss">notfound_ok: </span><span class="kp">true</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">johnStocktonStats</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Namespace</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"nba_stats"</span><span class="o">),</span> <span class="s">"john_stockton"</span><span class="o">);</span>
+<span class="nc">FetchValue</span> <span class="n">fetch</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FetchValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">johnStocktonStats</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">FetchOption</span><span class="o">.</span><span class="na">R</span><span class="o">,</span> <span class="k">new</span> <span class="nc">Quorum</span><span class="o">(</span><span class="mi">2</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">FetchOption</span><span class="o">.</span><span class="na">NOTFOUND_OK</span><span class="o">,</span> <span class="kc">true</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetch</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'john_stockton'</span><span class="p">,</span> <span class="s1">'nba_stats'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'r'</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'notfound_ok'</span><span class="p">,</span> <span class="kc">true</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'nba_stats'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="n">bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'john_stockton'</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">notfound_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Obj</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">get</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                                <span class="o">&lt;&lt;</span><span class="s">"nba_stats"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                                <span class="o">&lt;&lt;</span><span class="s">"john_stockton"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                                <span class="p">[{</span><span class="n">r</span><span class="p">,</span> <span class="mi">2</span><span class="p">},</span> <span class="p">{</span><span class="n">notfound_ok</span><span class="p">,</span> <span class="n">true</span><span class="p">}]).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8098/buckets/nba_stats/keys/john_stockton?r=2&amp;notfound_ok=true
+</code></pre>
+
+<p>Now, let’s say that you want to attempt a write with <code class="language-plaintext highlighter-rouge">w</code> set to 3 and
+<code class="language-plaintext highlighter-rouge">dw</code> set to 2. As in the previous example, we’ll be using the <code class="language-plaintext highlighter-rouge">default</code>
+bucket type, which enables us to not specify a bucket type upon write.
+Here’s what that would look like:</p>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'nba_stats'</span><span class="p">)</span>
+<span class="n">obj</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">RObject</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'michael_jordan'</span><span class="p">)</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">content_type</span> <span class="o">=</span> <span class="s1">'application/json'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">data</span> <span class="o">=</span> <span class="s1">'{"stats":{ ... large stats object ... }}'</span>
+<span class="n">obj</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="ss">w: </span><span class="mi">3</span><span class="p">,</span> <span class="ss">dw: </span><span class="mi">2</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">michaelJordanKey</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nf">Location</span><span class="o">(</span><span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"nba_stats"</span><span class="o">),</span> <span class="s">"michael_jordan"</span><span class="o">);</span>
+<span class="nc">RiakObject</span> <span class="n">obj</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">RiakObject</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">setContentType</span><span class="o">(</span><span class="s">"application/json"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">setValue</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"{'stats':{ ... large stats object ... }}"</span><span class="o">));</span>
+<span class="nc">StoreValue</span> <span class="n">store</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreValue</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">obj</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withLocation</span><span class="o">(</span><span class="n">michaelJordanKey</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">StoreOption</span><span class="o">.</span><span class="na">W</span><span class="o">,</span> <span class="k">new</span> <span class="nc">Quorum</span><span class="o">(</span><span class="mi">3</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">withOption</span><span class="o">(</span><span class="nc">StoreOption</span><span class="o">.</span><span class="na">DW</span><span class="o">,</span> <span class="k">new</span> <span class="nc">Quorum</span><span class="o">(</span><span class="mi">2</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">store</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\StoreObject</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildJsonObject</span><span class="p">(</span><span class="s1">'{'</span><span class="n">stats</span><span class="s1">':{ ... large stats object ... }}'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'john_stockton'</span><span class="p">,</span> <span class="s1">'nba_stats'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'w'</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withParameter</span><span class="p">(</span><span class="s1">'dw'</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Obj</span> <span class="o">=</span> <span class="nn">riakc_obj</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"nba_stats"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                    <span class="o">&lt;&lt;</span><span class="s">"michael_jordan"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                    <span class="o">&lt;&lt;</span><span class="s">"{'stats':{ ... large stats object ... }}"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                    <span class="o">&lt;&lt;</span><span class="s">"application/json"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nb">put</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="nv">Obj</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT \
+  -H "Content-Type: application/json" \
+  -d '{"stats":{ ... large stats object ... }}' \
+  http://localhost:8098/buckets/nba_stats/keys/michael_jordan?w=3&amp;dw=2
+</code></pre>
+
+<p>All of Basho’s <a href="/riak/kv/2.2.0/developing/client-libraries">official Riak clients</a> enable you to
+set replication properties this way. For more detailed information,
+refer to the tutorial on <a href="/riak/kv/2.2.0/developing/getting-started">basic key/value operations in Riak KV</a>
+or to client-specific documentation:</p>
+
+<ul>
+  <li><a href="https://github.com/basho/riak-ruby-client/blob/master/README.md">Ruby</a></li>
+  <li><a href="http://basho.github.io/riak-java-client/2.0.0/">Java</a></li>
+  <li><a href="http://basho.github.io/riak-python-client/">Python</a></li>
+  <li><a href="http://basho.github.io/riak-erlang-client/">Erlang</a></li>
+</ul>
+
+<h2 id="illustrative-scenarios">Illustrative Scenarios</h2>
+
+<p>In case the above explanations were a bit too abstract for your tastes,
+the following table lays out a number of possible scenarios for reads
+and writes in Riak and how Riak is likely to respond. Some of these
+scenarios involve issues surrounding conflict resolution, vector clocks,
+and siblings, so we recommend reading the <a href="/riak/kv/2.2.0/learn/concepts/causal-context#vector-clocks">Vector Clocks</a> documentation for more information.</p>
+
+<h4 id="read-scenarios">Read Scenarios</h4>
+
+<p>These scenarios assume that a read request is sent to all 3 primary
+vnodes responsible for an object.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Scenario</th>
+      <th style="text-align: left">What happens in Riak</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">All 3 vnodes agree on the value</td>
+      <td style="text-align: left">Once the first 2 vnodes return the value, that value is returned to the client</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">2 of 3 vnodes agree on the value, and those 2 are the first to reach the coordinating node</td>
+      <td style="text-align: left">The value is returned to the client. Read repair will deal with the conflict per the later scenarios, which means that a future read may return a different value or <a href="/riak/kv/2.2.0/learn/concepts/causal-context#siblings">siblings</a></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">2 conflicting values reach the coordinating node and <a href="/riak/kv/2.2.0/learn/concepts/causal-context#vector-clocks">vector clocks</a> allow for resolution</td>
+      <td style="text-align: left">The vector clocks are used to resolve the conflict and return a single value, which is propagated via read repair to the relevant vnodes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">2 conflicting values reach the coordinating node, vector clocks indicate a fork in the object history, and <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left">The object with the most recent timestamp is returned and propagated via read repair to the relevant vnodes</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">2 siblings or conflicting values reach the coordinating node, vector clocks indicate a fork in the object history, and <code class="language-plaintext highlighter-rouge">allow_mult</code> is set to <code class="language-plaintext highlighter-rouge">true</code></td>
+      <td style="text-align: left">All keys are returned as siblings, optionally with associated values (depending on how the request is made)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="write-scenarios">Write Scenarios</h4>
+
+<p>These scenarios assume that a write request is sent to all 3 primary
+vnodes responsible for an object.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Scenario</th>
+      <th style="text-align: left">What happens in Riak</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">A vector clock is included with the write request, and is newer than the vclock attached to the existing object</td>
+      <td style="text-align: left">The new value is written and success is indicated as soon as 2 vnodes acknowledge the write</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">A vector clock is included with the write request but conflicts with the vclock attached to the existing object, with <code class="language-plaintext highlighter-rouge">allow_mult</code> set to <code class="language-plaintext highlighter-rouge">true</code></td>
+      <td style="text-align: left">The new value is created as a sibling for future reads</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">A vector clock is included with the write request but conflicts with (or is older than) the vclock attached to the existing object, with <code class="language-plaintext highlighter-rouge">allow_mult</code> set to <code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left">Riak will decide which object “wins” on the basis of timestamps; no sibling will be created</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">A vector clock is not included with the write request and an object already exists, with <code class="language-plaintext highlighter-rouge">allow_mult</code> set to <code class="language-plaintext highlighter-rouge">true</code></td>
+      <td style="text-align: left">The new value is created as a sibling for future reads</td>
+    </tr>
+    <tr>
+      <td style="text-align: left">A vector clock is not included with the write request and an object already exists, with <code class="language-plaintext highlighter-rouge">allow_mult</code> set to <code class="language-plaintext highlighter-rouge">false</code></td>
+      <td style="text-align: left">The new value overwrites the existing value</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="screencast">Screencast</h2>
+
+<p>Here is a brief screencast that shows just how the N, R, and W values
+function in our running 3-node Riak cluster:</p>
+
+<div style="display:none" class="iframe-video" id="http://player.vimeo.com/video/11172656"></div>
+
+<p><a href="http://vimeo.com/11172656">Tuning CAP Controls in Riak</a> from
+<a href="http://vimeo.com/bashotech">Basho Technologies</a> on <a href="http://vimeo.com">Vimeo</a>.</p>

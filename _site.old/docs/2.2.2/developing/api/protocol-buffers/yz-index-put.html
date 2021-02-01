@@ -1,0 +1,26 @@
+<p>Create a new index or modify an existing index.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaIndexPutReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="n">RpbYokozunaIndex</span> <span class="na">index</span>  <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Each message must contain a <code class="language-plaintext highlighter-rouge">RpbYokozunaIndex</code> message providing
+information about the index being stored.</p>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbYokozunaIndex</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">name</span>   <span class="o">=</span>  <span class="mi">1</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">schema</span> <span class="o">=</span>  <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">uint32</span> <span class="na">n_val</span> <span class="o">=</span>  <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Each message specifying an index must include the index’s name as a
+binary (as <code class="language-plaintext highlighter-rouge">name</code>). Optionally, you can specify a <a href="/riak/kv/2.2.2/developing/usage/search-schemas"><code class="language-plaintext highlighter-rouge">schema</code></a> name and/or an <code class="language-plaintext highlighter-rouge">n_val</code>, i.e. the number of nodes on which the index is stored (for GET requests) or on which you wish the index to be stored (for PUT requests). An index’s <code class="language-plaintext highlighter-rouge">n_val</code> must match the associated bucket’s <code class="language-plaintext highlighter-rouge">n_val</code>.</p>
+
+<h2 id="response">Response</h2>
+
+<p>Returns a <a href="/riak/kv/2.2.2/developing/api/protocol-buffers/#message-codes">RpbPutResp</a> code with no data on success.</p>
+

@@ -1,0 +1,174 @@
+<p>This tutorial shows you how to set up a Riak Python client to
+authenticate itself when connecting to Riak.</p>
+
+<p>If you are using <a href="/riak/kv/2.2.0/using/security/managing-sources/">trust-</a> or <a href="/riak/kv/2.2.0/using/security/managing-sources/#pam-based-authentication">PAM-</a>, you can use the security
+setup described <a href="#python-client-basics">below</a>. <a href="/riak/kv/2.2.0/using/security/managing-sources/#password-based-authentication">Password</a>-based authentication is covered
+in a <a href="#password-based-authentication">later section</a>. If you are using
+<a href="/riak/kv/2.2.0/using/security/managing-sources/#certificate-based-authentication">certificate</a>-based authentication, follow
+the instructions in the <a href="#certificate-based-authentication">section below</a>.</p>
+
+<p>This tutorial does not cover certificate generation. It assumes that all
+necessary certificates have already been created and are stored in a directory
+called <code class="language-plaintext highlighter-rouge">/ssl_dir</code>. This directory name is used only for example purposes.</p>
+
+<h2 id="openssl-versions">OpenSSL Versions</h2>
+
+<p>The Riak Python client requires that you install OpenSSL 1.0.1g or
+later. If you have an earlier version installed, you will receive a
+warning along the following lines:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Found OpenSSL 0.9.8za 5 Jun 2014 version, but expected at least OpenSSL 1.0.1g.  Security may not support TLS 1.2.
+</code></pre></div></div>
+
+<h2 id="python-client-basics">Python Client Basics</h2>
+
+<p>When connecting to Riak using a Python-based client, you typically
+instantiate an object from the <code class="language-plaintext highlighter-rouge">RiakClient</code> class that then handles all
+interactions with Riak. All authentication-related information that
+needs to be used by the client object can be passed to the object upon
+instantiation by creating a <code class="language-plaintext highlighter-rouge">SecurityCreds</code> object.</p>
+
+<p>If you are using Riak Security, <em>all</em> connecting clients should have
+access to the same Certificate Authority (CA) used on the server side,
+regardless of which <a href="/riak/kv/2.2.0/using/security/managing-sources/">security source</a> you
+choose. All clients should also provide a username. The example below
+sets up a client object (we’ll simply call it <code class="language-plaintext highlighter-rouge">client</code>) that connects to
+Riak on <code class="language-plaintext highlighter-rouge">localhost</code> and on port 8087 without any security credentials:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="nn">riak</span> <span class="kn">import</span> <span class="n">RiakClient</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">RiakClient</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s">'127.0.0.1'</span><span class="p">,</span> <span class="n">pb_port</span><span class="o">=</span><span class="mi">8087</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>To provide security credentials, we’ll create an object called <code class="language-plaintext highlighter-rouge">creds</code>
+and specify <code class="language-plaintext highlighter-rouge">riakuser</code> as the username. We’ll also point the client to a
+CA stored at <code class="language-plaintext highlighter-rouge">/ssl_dir/cacertfile.pem</code>.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">creds</span> <span class="o">=</span> <span class="n">SecurityCreds</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s">'riakuser'</span><span class="p">,</span>
+                      <span class="n">cacert_file</span><span class="o">=</span><span class="s">'/ssl_dir/cacertfile.pem'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Now we can specify those credentials when we create our <code class="language-plaintext highlighter-rouge">client</code> object.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span> <span class="o">=</span> <span class="n">RiakClient</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s">'127.0.0.1'</span><span class="p">,</span> <span class="n">pb_port</span><span class="o">=</span><span class="mi">8087</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="n">creds</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>This client object is not currently set up to use any of the
+available security sources with the exception of trust-based auth,
+provided that the
+<a href="http://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing">CIDR</a> from
+which the client is connecting has been specified as trusted. More on
+specifying trusted CIDRs can be found in <a href="/riak/kv/2.2.0/using/security/managing-sources/#Trust-based-Authentication">Trust-based
+Authentication</a>.</p>
+
+<p><strong>Note</strong>: The examples in the following sections specify certs on the
+basis of their filepaths, e.g. <code class="language-plaintext highlighter-rouge">/ssl_dir/cacertfile.pem</code>. In addition to
+specifying certs by location, you can also provide OpenSSL objects
+instead. You can find out how to do so in <a href="#using-openssl-objects">Using OpenSSL Objects</a> below.</p>
+
+<h2 id="password-based-authentication">Password-based Authentication</h2>
+
+<p>To enable our client to use password-based auth, we can use most of the
+information from the above, with the exception that we’ll also specify a
+password for the client in the <code class="language-plaintext highlighter-rouge">creds</code> object from above. We’ll use the
+password <code class="language-plaintext highlighter-rouge">rosebud</code> here and in the rest of the examples.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">creds</span> <span class="o">=</span> <span class="n">SecurityCreds</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s">'riakuser'</span><span class="p">,</span>
+                      <span class="n">cacert_file</span><span class="o">=</span><span class="s">'/ssl_dir/cacertfile.pem'</span><span class="p">,</span>
+                      <span class="n">password</span><span class="o">=</span><span class="s">'rosebud'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="pam-based-authentication">PAM-based Authentication</h2>
+
+<p>If you have specified that a specific client be authenticated using
+<a href="/riak/kv/2.2.0/using/security/managing-sources/#pam-based-authentication">PAM</a>, you will
+need to provide a CA as well as the username and password that you
+specified when creating the user in Riak. For more, see our
+documentation on <a href="/riak/kv/2.2.0/using/security/basics/#user-management">User Management</a>.</p>
+
+<h2 id="certificate-based-authentication">Certificate-based Authentication</h2>
+
+<p>Using certificated-based authentication requires us to specify the
+location of a general CA (as with all security sources), a username, a
+CA-generated cert, and a private key. We’ll assume that all certs are
+stored in <code class="language-plaintext highlighter-rouge">/ssl_dir</code>, as in the previous examples.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">creds</span> <span class="o">=</span> <span class="n">SecurityCreds</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s">'riakuser'</span><span class="p">,</span>
+                      <span class="n">cacert_file</span><span class="o">=</span><span class="s">'/ssl_dir/cacertfile.pem'</span><span class="p">,</span>
+                      <span class="n">cert_file</span><span class="o">=</span><span class="s">'/ssl_dir/cert.pem'</span><span class="p">,</span>
+                      <span class="n">pkey_file</span><span class="o">=</span><span class="s">'/ssl_dir/key.pem'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="specifying-a-certificate-revocation-list">Specifying a Certificate Revocation List</h2>
+
+<p>If you are using a CA-generated Certificate Revocation List (CRL), you
+can specify its filepath using the <code class="language-plaintext highlighter-rouge">crl_file</code> parameter.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">creds</span> <span class="o">=</span> <span class="n">SecurityCreds</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s">'riakuser'</span><span class="p">,</span>
+                      <span class="c1"># Using the cert information from above
+</span>                      <span class="n">crl_file</span><span class="o">=</span><span class="s">'/ssl_dir/revocation.crl'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="specifying-ciphers">Specifying Ciphers</h2>
+
+<p>To specify a list of preferred <a href="/riak/kv/2.2.0/using/security/basics/#security-ciphers">security ciphers</a>, you can pass in a colon-delimited
+string to the <code class="language-plaintext highlighter-rouge">ciphers</code> parameter:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">creds</span> <span class="o">=</span> <span class="n">SecurityCreds</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s">'riakuser'</span><span class="p">,</span>
+                      <span class="c1"># Using the cert information from above
+</span>                      <span class="n">ciphers</span><span class="o">=</span><span class="s">'X-CIPHER-1:X-CIPHER-2:X-CIPHER-3:ETC'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h2 id="using-openssl-objects">Using OpenSSL Objects</h2>
+
+<p>Whenever you specify certs, you have the option of either passing in
+file paths as strings (as in the examples above) or properly created
+OpenSSL objects, e.g. objects created using the
+<a href="https://pyopenssl.readthedocs.org/en/latest/">pyOpenSSL</a> library. If
+you generate OpenSSL objects this way, you should note that they must
+be specified differently when creating a <code class="language-plaintext highlighter-rouge">SecurityCreds</code> object. The
+table below lists the appropriate parameter names for each method, as
+well as the pyOpenSSL class to which each cert must belong if you create
+OpenSSL objects.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Cert</th>
+      <th style="text-align: left">File path</th>
+      <th style="text-align: left">OpenSSL object</th>
+      <th style="text-align: left">Class</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Certificate Authority (CA)</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cacert_file</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cacert</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">OpenSSL.crypto.X509</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Private key</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">key_file</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">key</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">OpenSSL.crypto.PKey</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">CA-generated cert</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cert</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">cert_file</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">OpenSSL.crypto.X509</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">CRL</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">crl</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">crl_file</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">OpenSSL.crypto.CRL</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>If you specify filepaths, the appropriate certs will be loaded and
+converted into the appropriate OpenSSL object. The functions used for
+this are <code class="language-plaintext highlighter-rouge">OpenSSL.crypto.load_privatekey()</code> for the private key and
+<code class="language-plaintext highlighter-rouge">OpenSSL.crypto.load_certificate</code> for the cert and CA cert.</p>

@@ -1,0 +1,62 @@
+<p>Deletes an object from the specified bucket / key.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>DELETE /types/type/buckets/bucket/keys/key
+DELETE /buckets/bucket/keys/key
+</code></pre></div></div>
+
+<p>Optional query parameters:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">rw</code> - quorum for both operations (get and put) involved in deleting an
+object (default is set at the bucket level)</li>
+  <li><code class="language-plaintext highlighter-rouge">r</code> - (read quorum) how many replicas need to agree when retrieving the object</li>
+  <li><code class="language-plaintext highlighter-rouge">pr</code> - (primary read quorum) works like <code class="language-plaintext highlighter-rouge">r</code> but requires that the nodes
+read from are not fallback nodes</li>
+  <li><code class="language-plaintext highlighter-rouge">w</code> - (write quorum) how many replicas must confirm receiving writes before returning a successful response</li>
+  <li><code class="language-plaintext highlighter-rouge">dw</code> - (durable write quorum) how many replicas to commit to durable storage
+before returning a successful response</li>
+  <li><code class="language-plaintext highlighter-rouge">pw</code> - (primary write quorum) how many replicas to commit to primary nodes
+before returning a successful response</li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>Normal response codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">204 No Content</code></li>
+  <li><code class="language-plaintext highlighter-rouge">404 Not Found</code></li>
+</ul>
+
+<p>Typical error codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">400 Bad Request</code> - e.g. when rw parameter is invalid (&gt; N)</li>
+</ul>
+
+<p><code class="language-plaintext highlighter-rouge">404</code> responses are “normal” in the sense that DELETE operations are idempotent
+and not finding the resource has the same effect as deleting it.</p>
+
+<h2 id="example">Example</h2>
+
+<pre><code class="language-curl">$ curl -v -X DELETE http://127.0.0.1:8098/buckets/test/keys/test2
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; DELETE /buckets/test/keys/test2 HTTP/1.1
+&gt; User-Agent: curl/7.19.4 (universal-apple-darwin10.0) libcurl/7.19.4 OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt;
+&lt; HTTP/1.1 204 No Content
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 0
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+</code></pre>

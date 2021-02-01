@@ -1,0 +1,107 @@
+<p>Riak supports the use of Erlang named functions in compiled modules for
+<a href="/riak/kv/2.2.3/developing/usage/commit-hooks">pre/post-commit hooks</a>, and MapReduce operations. This
+doc contains installation steps with simple examples for each use case.</p>
+
+<p>Your developers can compile <a href="/riak/kv/2.2.3/developing/usage/commit-hooks">custom erlang code</a>, which
+they can send to you as a <em>beam</em> file. You should note that in Erlang, a file
+name must have the same name the module. So if you are given a file named
+<code class="language-plaintext highlighter-rouge">validate_json.beam</code>, do not rename it.</p>
+
+<blockquote>
+  <p><em>Note: The <a href="#configure">Configure</a> step (<code class="language-plaintext highlighter-rouge">add_paths</code>) also applies to installing JavaScript files.</em></p>
+</blockquote>
+
+<h3 id="compiling">Compiling</h3>
+
+<p>If you have been given Erlang code and are expected to compile it for
+your developers, keep the following notes in mind.</p>
+
+<p>You must use the Erlang compiler (<code class="language-plaintext highlighter-rouge">erlc</code>) associated with the Riak
+installation or the version of Erlang used when compiling Riak from source.
+For packaged Riak installations, you can consult Table 1 below for the default
+location of Riak’s <code class="language-plaintext highlighter-rouge">erlc</code> for each supported platform. If you compiled from
+source, use the <code class="language-plaintext highlighter-rouge">erlc</code> from the Erlang version you used to compile Riak.</p>
+
+<table style="width: 100%; border-spacing: 0px;">
+<tbody>
+<tr align="left" valign="top">
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;"><strong>CentOS &amp; RHEL Linux</strong></td>
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;">
+<p><tt>/usr/lib64/riak/erts-5.9.1/bin/erlc</tt></p>
+</td>
+</tr>
+<tr align="left" valign="top">
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;"><strong>Debian &amp; Ubuntu Linux</strong></td>
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;">
+<p><tt>/usr/lib/riak/erts-5.9.1/bin/erlc</tt></p>
+</td>
+</tr>
+<tr align="left" valign="top">
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;"><strong>FreeBSD</strong></td>
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;">
+<p><tt>/usr/local/lib/riak/erts-5.9.1/bin/erlc</tt></p>
+</td>
+</tr>
+<tr align="left" valign="top">
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;"><strong>SmartOS</strong></td>
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;">
+<p><tt>/opt/local/lib/riak/erts-5.9.1/bin/erlc</tt></p>
+</td>
+</tr>
+<tr align="left" valign="top">
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;"><strong>Solaris 10</strong></td>
+<td style="padding: 15px; margin: 15px; border-width: 1px 0 1px 0; border-style: solid;">
+<p><tt>/opt/riak/lib/erts-5.9.1/bin/erlc</tt></p>
+</td>
+</tr>
+</tbody>
+</table>
+
+<p>Table 1: Erlang compiler executable location for packaged Riak installations
+         on supported platforms</p>
+
+<p>Compiling the module is a straightforward process.</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>erlc validate_json.erl
+</code></pre></div></div>
+
+<p>Next, you’ll need to define a path from which compiled modules can be stored
+and loaded. For our example, we’ll use a temporary directory <code class="language-plaintext highlighter-rouge">/tmp/beams</code>,
+but you should choose a directory for production functions based on your
+own requirements such that they will be available where and when needed.</p>
+
+<p>Ensure that the directory chosen above can be read by the <code class="language-plaintext highlighter-rouge">riak</code> user.</p>
+
+<p>Successful compilation will result in a new <code class="language-plaintext highlighter-rouge">.beam</code> file,
+<code class="language-plaintext highlighter-rouge">validate_json.beam</code>.</p>
+
+<h3 id="configure">Configure</h3>
+
+<p>Take the <code class="language-plaintext highlighter-rouge">validate_json.beam</code> and copy this file to the <code class="language-plaintext highlighter-rouge">/tmp/beams</code> directory.</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cp validate_json.beam /tmp/beams/
+</code></pre></div></div>
+
+<p>After copying the compiled module into <code class="language-plaintext highlighter-rouge">/tmp/beams/</code>, you must update
+<code class="language-plaintext highlighter-rouge">app.config</code> and configure Riak to allow loading of compiled modules from
+the directory where they’re stored (again in our example case, <code class="language-plaintext highlighter-rouge">/tmp/beams</code>).</p>
+
+<p>Edit <code class="language-plaintext highlighter-rouge">app.config</code> and insert an <code class="language-plaintext highlighter-rouge">add_paths</code> setting into the <code class="language-plaintext highlighter-rouge">riak_kv</code>
+section as shown:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">riak_kv</span><span class="p">,</span> <span class="p">[</span>
+  <span class="c">%% ...
+</span>  <span class="p">{</span><span class="n">add_paths</span><span class="p">,</span> <span class="p">[</span><span class="s">"/tmp/beams/"</span><span class="p">]},</span>
+  <span class="c">%% ...
+</span></code></pre></div></div>
+
+<p>After updating <code class="language-plaintext highlighter-rouge">app.config</code>, Riak must be restarted. In production cases, you
+should ensure that if you are adding configuration changes to multiple nodes,
+that you do so in a rolling fashion, taking time to ensure that the Riak key
+value store has fully initialized and become available for use.</p>
+
+<p>This is done with the <code class="language-plaintext highlighter-rouge">riak-admin wait-for-service</code> command as detailed
+in the <a href="/riak/kv/2.2.3/using/admin/riak-admin/#wait-for-service">Commands documentation</a>.</p>
+
+<p>It is important that you ensure riak_kv is active before restarting the next
+node.</p>

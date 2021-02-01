@@ -1,0 +1,1594 @@
+<p>Although <a href="/riak/kv/2.1.1/developing/data-types">Riak Data Types</a> function differently from other
+Riak objects in some respects, when you’re using Search you can think of
+them as normal Riak objects with special metadata attached (metadata
+that you don’t need to worry about as a user). Riak’s <a href="/riak/kv/2.1.1/developing/data-types/counters">counters</a>, <a href="/riak/kv/2.1.1/developing/data-types/sets">sets</a>, and <a href="/riak/kv/2.1.1/developing/data-types/maps">maps</a>
+can be indexed and have their contents searched just like other Riak
+objects.</p>
+
+<h2 id="data-type-mime-types">Data Type MIME Types</h2>
+
+<p>Like all objects stored in Riak, Riak Data Types are assigned content
+types. Unlike other Riak objects, this happens automatically. When you
+store, say, a counter in Riak, it will automatically be assigned the
+type <code class="language-plaintext highlighter-rouge">application/riak_counter</code>. The table below provides the full list
+of content types:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Data Type</th>
+      <th style="text-align: left">Content Type</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Counters</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">application/riak_counter</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Sets</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">application/riak_set</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Maps</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">application/riak_map</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>When using Search, you won’t need to worry about this, as Riak Data
+Types are automatically indexed on the basis of these content types.</p>
+
+<h2 id="data-type-schemas">Data Type Schemas</h2>
+
+<p>There are two types of schemas related to Riak Data Types:</p>
+
+<ul>
+  <li><strong>Top-level schemas</strong> relate to Data Types that are stored at the key
+  level (counters and sets)</li>
+  <li><strong>Embedded schemas</strong> relate to Data Types nested inside of maps
+  (flags, counters, registers, and sets)</li>
+</ul>
+
+<p>As you can see from the <a href="https://github.com/basho/yokozuna/blob/develop/priv/default_schema.xml#L96">default Search
+schema</a>,
+each of the Data Types has its own default schema, with the exception of
+maps, which means that the <code class="language-plaintext highlighter-rouge">_yz_default</code> schema will automatically index
+Data Types on the basis of their assigned content type. This means that
+there is no extra work involved in indexing Riak Data Types. You can
+simply store them and begin querying, provided that they are properly
+indexed, which is covered in the <a href="#riak-data-types-and-search">examples</a> section below.</p>
+
+<p>As mentioned above, there are no default schemas available for maps.
+This is because maps are essentially carriers for the other Data Types.
+Even when maps are embedded within other maps, all of the data that you
+might wish to index and search is contained in counters, sets,
+registers, and flags.</p>
+
+<p>The sections immediately below provide the default schemas for each Riak
+Data Type. Because you will not need to manipulate these default schemas
+to search Data Types, they are provided only for reference.</p>
+
+<h3 id="top-level-schemas">Top-level Schemas</h3>
+
+<p>The default schema for <a href="/riak/kv/2.1.1/developing/data-types/counters">counters</a> indexes each
+counter as an integer.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"counter"</span> <span class="na">type=</span><span class="s">"int"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"false"</span> <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>Constructing queries for counters involves prefacing the query with
+<code class="language-plaintext highlighter-rouge">counter</code>. Below are some examples:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Query</th>
+      <th style="text-align: left">Syntax</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Counters with a value over 10</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">counter:[10 TO *]</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Counters with a value below 10 and above 50</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">counter:[* TO 10] AND counter:[50 TO *]</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Counters with a value of 15</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">counter:15</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">All counters within the index</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">counter:*</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The schema for <a href="/riak/kv/2.1.1/developing/data-types/sets">sets</a> indexes each element of a set as
+a string and indexes the set itself as multi-valued.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;field</span> <span class="na">name=</span><span class="s">"set"</span> <span class="na">type=</span><span class="s">"string"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"false"</span> <span class="na">multiValued=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>To query sets, preface the query with <code class="language-plaintext highlighter-rouge">set</code>. The table below shows some
+examples:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Query</th>
+      <th style="text-align: left">Syntax</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Sets that contain the value <code class="language-plaintext highlighter-rouge">apple</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">set:apple</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Sets that contain an item beginning with <code class="language-plaintext highlighter-rouge">level</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">set:level*</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Sets that contain both <code class="language-plaintext highlighter-rouge">apple</code> and <code class="language-plaintext highlighter-rouge">orange</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">set:apple AND set:orange</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">All sets within the index</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">set:*</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="embedded-schemas">Embedded Schemas</h3>
+
+<p>For searching within <a href="/riak/kv/2.1.1/developing/data-types/maps">maps</a>, there are four schemas
+for embedded, aka dynamic, fields. Flags are indexed as booleans:</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;dynamicField</span> <span class="na">name=</span><span class="s">"*_flag"</span> <span class="na">type=</span><span class="s">"boolean"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"false"</span> <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>Counters, like their top-level counterparts, are indexed as integers:</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;dynamicField</span> <span class="na">name=</span><span class="s">"*_counter"</span> <span class="na">type=</span><span class="s">"int"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"false"</span> <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>Registers are indexed as strings, but unlike sets they are not
+multi-valued.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;dynamicField</span> <span class="na">name=</span><span class="s">"*_register"</span> <span class="na">type=</span><span class="s">"string"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"false"</span> <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>Finally, sets at the embedded level are indexed as multi-valued strings.</p>
+
+<div class="language-xml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;dynamicField</span> <span class="na">name=</span><span class="s">"*_set"</span> <span class="na">type=</span><span class="s">"string"</span> <span class="na">indexed=</span><span class="s">"true"</span> <span class="na">stored=</span><span class="s">"true"</span> <span class="na">multiValued=</span><span class="s">"true"</span> <span class="nt">/&gt;</span>
+</code></pre></div></div>
+
+<p>To query embedded fields, you must provide the name of the field. The
+table below provides some examples:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: left">Query</th>
+      <th style="text-align: left">Syntax</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left">Maps containing a set called <code class="language-plaintext highlighter-rouge">hobbies</code></td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">hobbies_set:*</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Maps containing a <code class="language-plaintext highlighter-rouge">score</code> counter over 50</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">score_counter:[50 TO *]</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Maps containing disabled <code class="language-plaintext highlighter-rouge">advanced</code> flags</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">advanced_flag:false</code></td>
+    </tr>
+    <tr>
+      <td style="text-align: left">Maps containing enabled <code class="language-plaintext highlighter-rouge">advanced</code> flags and <code class="language-plaintext highlighter-rouge">score</code> counters under 10</td>
+      <td style="text-align: left"><code class="language-plaintext highlighter-rouge">advanced_flag:true AND score_counter:[* TO 10]</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>You can also query maps within maps, which is covered in the <strong>Querying
+maps within maps</strong> section below.</p>
+
+<h2 id="data-types-and-search-examples">Data Types and Search Examples</h2>
+
+<p>In this section, we’ll start with two simple examples, one involving
+counters and the other involving sets. Later on, we’ll introduce a
+slightly more complex map example.</p>
+
+<h2 id="counters-example">Counters Example</h2>
+
+<p>Let’s say that we’re storing scores in a multiplayer online game in
+Riak. The game is called Boulderdash and it involves smashing digital
+boulders armed with nothing but witty retorts and arcane trivia
+knowledge. We’ll create and activate a <a href="/riak/kv/2.1.1/developing/usage/bucket-types">bucket type</a> for <a href="/riak/kv/2.1.1/developing/data-types/counters">storing counters</a> simply called
+<code class="language-plaintext highlighter-rouge">counters</code>, like so:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create counters <span class="s1">'{"props":{"datatype":"counter"}}'</span>
+riak-admin bucket-type activate counters
+</code></pre></div></div>
+
+<p>Now, we’ll create a search index called <code class="language-plaintext highlighter-rouge">scores</code> that uses the default
+schema (as in some of the examples above):</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">YokozunaIndex</span> <span class="n">scoresIndex</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">YokozunaIndex</span><span class="o">(</span><span class="s">"scores"</span><span class="o">,</span> <span class="s">"_yz_default"</span><span class="o">);</span>
+<span class="nc">StoreIndex</span> <span class="n">storeIndex</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">StoreIndex</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">scoresIndex</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeIndex</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="nf">create_search_index</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">,</span> <span class="s1">'_yz_default'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\StoreIndex</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withName</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">usingSchema</span><span class="p">(</span><span class="s1">'_yz_default'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="n">create_search_index</span><span class="p">(</span><span class="s">'scores'</span><span class="p">,</span> <span class="s">'_yz_default'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">idx</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">SearchIndex</span><span class="p">(</span><span class="s">"scores"</span><span class="p">,</span> <span class="s">"_yz_default"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">PutSearchIndex</span><span class="p">(</span><span class="n">idx</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">schemaName</span><span class="p">:</span> <span class="dl">'</span><span class="s1">_yz_default</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">indexName</span><span class="p">:</span> <span class="dl">'</span><span class="s1">scores</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeIndex</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">create_search_index</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"scores"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"_yz_default"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="p">[]).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/search/index/hobbies \
+  -H 'Content-Type: application/json' \
+  -d '{"schema":"_yz_default"}'
+</code></pre>
+
+<p>Now, we can modify our <code class="language-plaintext highlighter-rouge">counters</code> bucket type to associate that bucket
+type with our <code class="language-plaintext highlighter-rouge">scores</code> index:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type update counters <span class="s1">'{"props":{"search_index":"scores"}}'</span>
+</code></pre></div></div>
+
+<p>At this point, all of the counters that we stored in any bucket with the
+bucket type <code class="language-plaintext highlighter-rouge">counters</code> will be indexed in our <code class="language-plaintext highlighter-rouge">scores</code> index. So let’s
+start playing with some counters. All counters will be stored in the
+bucket <code class="language-plaintext highlighter-rouge">people</code>, while the key for each counter will be the username of
+each player:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Namespace</span> <span class="n">peopleBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"counters"</span><span class="o">,</span> <span class="s">"people"</span><span class="o">);</span>
+
+<span class="nc">Location</span> <span class="n">christopherHitchensCounter</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">peopleBucket</span><span class="o">,</span> <span class="s">"christ_hitchens"</span><span class="o">);</span>
+<span class="nc">CounterUpdate</span> <span class="n">cu</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">CounterUpdate</span><span class="o">(</span><span class="mi">10</span><span class="o">);</span>
+<span class="nc">UpdateCounter</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateCounter</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">christopherHitchensCounter</span><span class="o">,</span> <span class="n">cu</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+
+<span class="nc">Location</span> <span class="n">joanRiversCounter</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">peopleBucket</span><span class="o">,</span> <span class="s">"joan_rivers"</span><span class="o">);</span>
+<span class="nc">CounterUpdate</span> <span class="n">cu</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">CounterUpdate</span><span class="o">(</span><span class="mi">25</span><span class="o">);</span>
+<span class="nc">UpdateCounter</span> <span class="n">update</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateCounter</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">joanRiversCounter</span><span class="o">,</span> <span class="n">cu</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'people'</span><span class="p">)</span>
+
+<span class="n">christopher_hitchens_counter</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Counter</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'chris_hitchens'</span><span class="p">,</span> <span class="s1">'counters'</span><span class="p">)</span>
+<span class="n">christopher_hitchens_counter</span><span class="p">.</span><span class="nf">increment</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+
+<span class="n">joan_rivers_counter</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Counter</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'joan_rivers'</span><span class="p">,</span> <span class="s1">'counters'</span><span class="p">)</span>
+<span class="n">joan_rivers_counter</span><span class="p">.</span><span class="nf">increment</span><span class="p">(</span><span class="mi">25</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$builder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\IncrementCounter</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">withIncrement</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'chris_hitchens'</span><span class="p">,</span> <span class="s1">'people'</span><span class="p">,</span> <span class="s1">'counters'</span><span class="p">);</span>
+
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="n">build</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="nf">withIncrement</span><span class="p">(</span><span class="mi">25</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'joan_rivers'</span><span class="p">,</span> <span class="s1">'people'</span><span class="p">,</span> <span class="s1">'counters'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'counters'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'people'</span><span class="p">)</span>
+
+<span class="n">christopher_hitchens_counter</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'chris_hitchens'</span><span class="p">)</span>
+<span class="n">christopher_hitchens_counter</span><span class="p">.</span><span class="n">increment</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">christopher_hitchens_counter</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="n">joan_rivers_counter</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'joan_rivers'</span><span class="p">)</span>
+<span class="n">joan_rivers_counter</span><span class="p">.</span><span class="n">increment</span><span class="p">(</span><span class="mi">25</span><span class="p">)</span>
+<span class="n">joan_rivers_counter</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Search/SearchDataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateCounter</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"people"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"christ_hitchens"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithIncrement</span><span class="p">(</span><span class="m">10</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+
+<span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateCounter</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"counters"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"people"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"joan_rivers"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithIncrement</span><span class="p">(</span><span class="m">25</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+<span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">funcs</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">people</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">christ_hitchens</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">increment</span><span class="p">:</span> <span class="mi">10</span>
+        <span class="p">};</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateCounter</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">},</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">counters</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">people</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">joan_rivers</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">increment</span><span class="p">:</span> <span class="mi">25</span>
+        <span class="p">};</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateCounter</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">}</span>
+<span class="p">];</span>
+
+<span class="k">async</span><span class="p">.</span><span class="nx">parallel</span><span class="p">(</span><span class="nx">funcs</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslts</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">ChristopherHitchensCounter</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">new</span><span class="p">(),</span>
+<span class="nv">HitchensCounter1</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">increment</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="nv">ChristopherHitchensCounter</span><span class="p">),</span>
+<span class="nv">JoanRiversCounter</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">new</span><span class="p">(),</span>
+<span class="nv">RiversCounter1</span> <span class="o">=</span> <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">increment</span><span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="nv">JoanRiversCounter</span><span class="p">),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">update_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                            <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"counters"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"people"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                            <span class="o">&lt;&lt;</span><span class="s">"chris_hitchens"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                            <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">to_op</span><span class="p">(</span><span class="nv">HitchensCounter1</span><span class="p">)),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">update_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                            <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"counters"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"people"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                            <span class="o">&lt;&lt;</span><span class="s">"joan_rivers"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                            <span class="nn">riakc_counter</span><span class="p">:</span><span class="nf">to_op</span><span class="p">(</span><span class="nv">RiversCounter1</span><span class="p">)).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl"># We do not recommend working with Riak Data Types via curl. Try using
+# one of our client libraries instead.
+</code></pre>
+
+<p>So now we have two counters, one with a value of 10 and the other with a
+value of 25. Let’s query to see how many counters have a value greater
+than 20, just to be sure:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">String</span> <span class="n">index</span> <span class="o">=</span> <span class="s">"scores"</span><span class="o">;</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"counter:[20 TO *]"</span><span class="o">;</span>
+<span class="nc">SearchOperation</span> <span class="n">searchOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SearchOperation</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="n">index</span><span class="o">),</span> <span class="n">query</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">cluster</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">searchOp</span><span class="o">);</span>
+<span class="nc">SearchOperation</span><span class="o">.</span><span class="na">Response</span> <span class="n">results</span> <span class="o">=</span> <span class="n">searchOp</span><span class="o">.</span><span class="na">get</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">,</span> <span class="s1">'counter:[20 TO *]'</span><span class="p">)</span>
+<span class="c1"># This should return a Hash with fields like 'num_found' and 'docs'</span>
+
+<span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span>
+<span class="c1"># 1</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'counter:[20 TO *]'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'scores'</span><span class="p">,</span> <span class="s">'counter:[20 TO *]'</span><span class="p">)</span>
+<span class="c1"># This should return a dict with fields like 'num_found' and 'docs'
+</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span>
+<span class="c1"># 1
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"scores"</span><span class="p">,</span> <span class="s">"counter:[20 TO *]"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+<span class="n">RiakSearchResult</span> <span class="n">searchResult</span> <span class="p">=</span> <span class="n">rslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Num found: {0}"</span><span class="p">,</span> <span class="n">searchResult</span><span class="p">.</span><span class="n">NumFound</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nx">search_cb</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">counter numFound: '%d', docs: '%s'</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">rslt</span><span class="p">.</span><span class="nx">numFound</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">docs</span><span class="p">));</span>
+
+    <span class="kd">var</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">docs</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">key</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rk</span><span class="dl">'</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">bucket</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rb</span><span class="dl">'</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">bucketType</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rt</span><span class="dl">'</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">scores</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">counter:[20 TO *]</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Results</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">search</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"scores"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"counter:[20 TO *]"</span><span class="o">&gt;&gt;</span><span class="p">),</span>
+<span class="nv">NumberFound</span> <span class="o">=</span> <span class="nv">Results</span><span class="nl">#search_results.num_found</span><span class="p">.</span>
+<span class="c">%% 1
+</span></code></pre></div></div>
+
+<pre><code class="language-curl">curl "$RIAK_HOST/search/query/scores?wt=json&amp;q=counter:[20 TO *]" | jsonpp
+</code></pre>
+
+<p>And there we are: only one of our two stored sets has a value over 20.
+To find out which set that is, we can dig into our results:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the "results" object from above:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span>
+<span class="nc">Map</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">,</span> <span class="nc">List</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">&gt;&gt;</span> <span class="n">foundObject</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">getAllResults</span><span class="o">().</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span>
+<span class="nc">String</span> <span class="n">key</span> <span class="o">=</span> <span class="n">foundObject</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="s">"_yz_rk"</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span> <span class="c1">// "joan_rivers"</span>
+<span class="nc">String</span> <span class="n">bucket</span> <span class="o">=</span> <span class="n">foundObject</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="s">"_yz_rb"</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span> <span class="c1">// "people"</span>
+<span class="nc">String</span> <span class="n">bucketType</span> <span class="o">=</span> <span class="n">foundObject</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="s">"_yz_rt"</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span> <span class="c1">// "counters"</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">doc</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s1">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="c1"># The key</span>
+<span class="n">doc</span><span class="p">[</span><span class="s1">'_yz_rk'</span><span class="p">]</span> <span class="c1"># 'joan_rivers'</span>
+
+<span class="c1"># The bucket</span>
+<span class="n">doc</span><span class="p">[</span><span class="s1">'_yz_rb'</span><span class="p">]</span> <span class="c1"># 'people'</span>
+
+<span class="c1"># The bucket type</span>
+<span class="n">doc</span><span class="p">[</span><span class="s1">'_yz_rt'</span><span class="p">]</span> <span class="c1"># 'counters'</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$doc</span> <span class="o">=</span> <span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getDocs</span><span class="p">()[</span><span class="mi">0</span><span class="p">];</span>
+
+<span class="c1"># The key</span>
+<span class="nv">$doc</span><span class="p">[</span><span class="s1">'_yz_rk'</span><span class="p">]</span> <span class="c1"># 'joan_rivers'</span>
+
+<span class="c1"># The bucket</span>
+<span class="nv">$doc</span><span class="p">[</span><span class="s1">'_yz_rb'</span><span class="p">]</span> <span class="c1"># 'people'</span>
+
+<span class="c1"># The bucket type</span>
+<span class="nv">$doc</span><span class="p">[</span><span class="s1">'_yz_rt'</span><span class="p">]</span> <span class="c1"># 'counters'</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">doc</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="c1"># The key
+</span><span class="n">doc</span><span class="p">[</span><span class="s">'_yz_rk'</span><span class="p">]</span> <span class="c1"># 'joan_rivers'
+</span>
+<span class="c1"># The bucket
+</span><span class="n">doc</span><span class="p">[</span><span class="s">'_yz_rb'</span><span class="p">]</span> <span class="c1"># 'people'
+</span>
+<span class="c1"># The bucket type
+</span><span class="n">doc</span><span class="p">[</span><span class="s">'_yz_rt'</span><span class="p">]</span> <span class="c1"># 'counters'
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"scores"</span><span class="p">,</span> <span class="s">"counter:[20 TO *]"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+
+<span class="n">RiakSearchResult</span> <span class="n">searchResult</span> <span class="p">=</span> <span class="n">rslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Num found: {0}"</span><span class="p">,</span> <span class="n">searchResult</span><span class="p">.</span><span class="n">NumFound</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">firstDoc</span> <span class="p">=</span> <span class="n">searchResult</span><span class="p">.</span><span class="n">Documents</span><span class="p">.</span><span class="nf">First</span><span class="p">();</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Key: {0} Bucket: {1} Type: {2}"</span><span class="p">,</span>
+    <span class="n">firstDoc</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">firstDoc</span><span class="p">.</span><span class="n">Bucket</span><span class="p">,</span> <span class="n">firstDoc</span><span class="p">.</span><span class="n">BucketType</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">docs</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+
+<span class="kd">var</span> <span class="nx">key</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rk</span><span class="dl">'</span><span class="p">];</span>
+<span class="kd">var</span> <span class="nx">bucket</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rb</span><span class="dl">'</span><span class="p">];</span>
+<span class="kd">var</span> <span class="nx">bucketType</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rt</span><span class="dl">'</span><span class="p">];</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">Doc</span> <span class="o">=</span> <span class="nn">lists</span><span class="p">:</span><span class="nf">nth</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nv">Docs</span><span class="p">),</span>
+<span class="nv">Key</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"_yz_rk"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Doc</span><span class="p">),</span>
+<span class="nv">Bucket</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"_yz_rb"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">Doc</span><span class="p">),</span>
+<span class="nv">BucketType</span> <span class="o">=</span> <span class="nn">proplists</span><span class="p">:</span><span class="nf">get_value</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"_yz_rt"</span><span class="p">,</span> <span class="nv">Doc</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl"># Use the JSON object from above to locate bucket, key, and bucket type
+# information
+</code></pre>
+
+<p>Alternatively, we can see how many counters have values below 15:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">String</span> <span class="n">index</span> <span class="o">=</span> <span class="s">"scores"</span><span class="o">;</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"counter:[* TO 15]"</span><span class="o">;</span>
+<span class="nc">SearchOperation</span> <span class="n">searchOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SearchOperation</span>
+        <span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="nc">BinaryValue</span><span class="o">.</span><span class="na">create</span><span class="o">(</span><span class="s">"scores"</span><span class="o">),</span> <span class="s">"counter:[* TO 15]"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">build</span><span class="o">();</span>
+<span class="n">cluster</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">searchOp</span><span class="o">);</span>
+<span class="nc">SearchOperation</span><span class="o">.</span><span class="na">Response</span> <span class="n">results</span> <span class="o">=</span> <span class="n">searchOp</span><span class="o">.</span><span class="na">get</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">,</span> <span class="s1">'counter:[* TO 15]'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'counter:[* TO 15]'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'scores'</span><span class="p">,</span> <span class="s">'counter:[* TO 15]'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"scores"</span><span class="p">,</span> <span class="s">"counter:[* TO 15]"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">scores</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">counter:[* TO 15]</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Results</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">search</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"scores"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"counter:[* TO 15]"</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl "$RIAK_HOST/search/query/scores?wt=json&amp;q=counter:[* TO 15]" | jsonpp
+</code></pre>
+
+<p>Or we can see how many counters have a value of 17 exactly:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method as above, just changing the query:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"counter:17"</span><span class="o">;</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">,</span> <span class="s1">'counter:17'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'scores'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'counter:17'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'scores'</span><span class="p">,</span> <span class="s">'counter:17'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"scores"</span><span class="p">,</span> <span class="s">"counter:17"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">scores</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">counter:17</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Results</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">search</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"scores"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"counter:17"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl "$RIAK_HOST/search/query/scores?wt=json&amp;q=counter:17" | jsonpp
+</code></pre>
+
+<h2 id="sets-example">Sets Example</h2>
+
+<p>Let’s say that we’re storing information about the hobbies of a group of
+people in sets. We’ll create and activate a <a href="/riak/kv/2.1.1/developing/usage/bucket-types">bucket type</a> for <a href="/riak/kv/2.1.1/developing/data-types/sets">storing sets</a> simply called <code class="language-plaintext highlighter-rouge">sets</code>,
+like so:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create sets <span class="s1">'{"props":{"datatype":"set"}}'</span>
+riak-admin bucket-type activate sets
+</code></pre></div></div>
+
+<p>Now, we’ll create a Search index called <code class="language-plaintext highlighter-rouge">hobbies</code> that uses the default
+schema (as in some of the examples above):</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">YokozunaIndex</span> <span class="n">hobbiesIndex</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">YokozunaIndex</span><span class="o">(</span><span class="s">"hobbies"</span><span class="o">);</span>
+<span class="nc">StoreIndex</span> <span class="n">storeIndex</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nc">StoreIndex</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">hobbiesIndex</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeIndex</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="nf">create_search_index</span><span class="p">(</span><span class="s1">'hobbies'</span><span class="p">,</span> <span class="s1">'_yz_default'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\StoreIndex</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withName</span><span class="p">(</span><span class="s1">'hobbies'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">usingSchema</span><span class="p">(</span><span class="s1">'_yz_default'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="n">create_search_index</span><span class="p">(</span><span class="s">'hobbies'</span><span class="p">,</span> <span class="s">'_yz_default'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">searchIndex</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">SearchIndex</span><span class="p">(</span><span class="s">"hobbies"</span><span class="p">,</span> <span class="s">"_yz_default"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">PutSearchIndex</span><span class="p">(</span><span class="n">searchIndex</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">schemaName</span><span class="p">:</span> <span class="dl">'</span><span class="s1">_yz_default</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">indexName</span><span class="p">:</span> <span class="dl">'</span><span class="s1">hobbies</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeIndex</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">create_search_index</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"hobbies"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"_yz_default"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/search/index/hobbies \
+  -H 'Content-Type: application/json' \
+  -d '{"schema": "_yz_default"}'
+</code></pre>
+
+<p>Now, we can modify our <code class="language-plaintext highlighter-rouge">sets</code> bucket type to associate that bucket type
+with our <code class="language-plaintext highlighter-rouge">hobbies</code> index:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type update sets <span class="s1">'{"props":{"search_index":"hobbies"}}'</span>
+</code></pre></div></div>
+
+<p>Now, all of the sets that we store in any bucket with the bucket type
+<code class="language-plaintext highlighter-rouge">sets</code> will be automatically indexed as a set. So let’s say that we
+store three sets for two different people describing their respective
+hobbies, in the bucket <code class="language-plaintext highlighter-rouge">people</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Namespace</span> <span class="n">peopleBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"sets"</span><span class="o">,</span> <span class="s">"people"</span><span class="o">);</span>
+
+<span class="nc">Location</span> <span class="n">mikeDitkaSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">peopleBucket</span><span class="o">,</span> <span class="s">"ditka"</span><span class="o">);</span>
+<span class="nc">SetUpdate</span> <span class="n">su1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SetUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"football"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"winning"</span><span class="o">);</span>
+<span class="nc">UpdateSet</span> <span class="n">update1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">mikeDitkaSet</span><span class="o">,</span> <span class="n">su1</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+
+<span class="nc">Location</span> <span class="n">ronnieJamesDioSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">peopleBucket</span><span class="o">,</span> <span class="s">"dio"</span><span class="o">);</span>
+<span class="nc">SetUpdate</span> <span class="n">su2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">SetUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"wailing"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"rocking"</span><span class="o">)</span>
+        <span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="s">"winning"</span><span class="o">);</span>
+<span class="nc">UpdateSet</span> <span class="n">update2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateSet</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">ronnieJamesDioSet</span><span class="o">,</span> <span class="n">su2</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update1</span><span class="o">);</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update2</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'people'</span><span class="p">)</span>
+
+<span class="n">mike_ditka_set</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Set</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'ditka'</span><span class="p">,</span> <span class="s1">'sets'</span><span class="p">)</span>
+<span class="n">mike_ditka_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'football'</span><span class="p">)</span>
+<span class="n">mike_ditka_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'winning'</span><span class="p">)</span>
+
+<span class="n">ronnie_james_dio_set</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Set</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'dio'</span><span class="p">,</span> <span class="s1">'sets'</span><span class="p">)</span>
+<span class="n">ronnie_james_dio_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'wailing'</span><span class="p">)</span>
+<span class="n">ronnie_james_dio_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'rocking'</span><span class="p">)</span>
+<span class="n">ronnie_james_dio_set</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="s1">'winning'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$builder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'football'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'winning'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'ditka'</span><span class="p">,</span> <span class="s1">'people'</span><span class="p">,</span> <span class="s1">'counters'</span><span class="p">);</span>
+
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="n">build</span><span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$builder</span><span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'wailing'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'rocking'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="s1">'winning'</span><span class="p">)</span>
+    <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'dio'</span><span class="p">,</span> <span class="s1">'people'</span><span class="p">,</span> <span class="s1">'counters'</span><span class="p">);</span>
+    <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+    <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="nn">riak.datatypes</span> <span class="kn">import</span> <span class="n">Set</span>
+
+<span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'sets'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'people'</span><span class="p">)</span>
+
+<span class="n">mike_ditka_set</span> <span class="o">=</span> <span class="n">Set</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'ditka'</span><span class="p">)</span>
+<span class="n">mike_ditka_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'football'</span><span class="p">)</span>
+<span class="n">mike_ditka_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'winning'</span><span class="p">)</span>
+<span class="n">mike_ditka_set</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="n">ronnie_james_dio_set</span> <span class="o">=</span> <span class="n">Set</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'dio'</span><span class="p">)</span>
+<span class="n">ronnie_james_dio_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'wailing'</span><span class="p">)</span>
+<span class="n">ronnie_james_dio_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'rocking'</span><span class="p">)</span>
+<span class="n">ronnie_james_dio_set</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="s">'winning'</span><span class="p">)</span>
+<span class="n">ronnie_james_dio_set</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Search/SearchDataTypes.cs</span>
+
+<span class="kt">var</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateSet</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"sets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"people"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"ditka"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithAdditions</span><span class="p">(</span><span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="s">"football"</span><span class="p">,</span> <span class="s">"winning"</span> <span class="p">})</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+
+<span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateSet</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"sets"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"people"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"dio"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithAdditions</span><span class="p">(</span><span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="s">"wailing"</span><span class="p">,</span> <span class="s">"rocking"</span><span class="p">,</span> <span class="s">"winning"</span> <span class="p">})</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+<span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">funcs</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">people</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">ditka</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">additions</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">football</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">winning</span><span class="dl">'</span><span class="p">]</span>
+        <span class="p">};</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateSet</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">},</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">sets</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">people</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">dio</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">additions</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">wailing</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">rocking</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">winning</span><span class="dl">'</span><span class="p">]</span>
+        <span class="p">};</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateSet</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">}</span>
+<span class="p">];</span>
+
+<span class="k">async</span><span class="p">.</span><span class="nx">parallel</span><span class="p">(</span><span class="nx">funcs</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslts</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">MikeDitkaSet</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">new</span><span class="p">(),</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"football"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">MikeDitkaSet</span><span class="p">),</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"winning"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">MikeDitkaSet</span><span class="p">),</span>
+<span class="nv">RonnieJamesDioSet</span> <span class="o">=</span> <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">new</span><span class="p">(),</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"wailing"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">RonnieJamesDioSet</span><span class="p">),</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"rocking"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">RonnieJamesDioSet</span><span class="p">),</span>
+<span class="nn">riakc_set</span><span class="p">:</span><span class="nf">add_element</span><span class="p">(</span><span class="o">&lt;&lt;</span><span class="s">"winning"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="nv">RonnieJamesDioSet</span><span class="p">),</span>
+
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">update_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                            <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"sets"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"people"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                            <span class="o">&lt;&lt;</span><span class="s">"ditka"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                            <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">to_op</span><span class="p">(</span><span class="nv">MikeDitkaSet</span><span class="p">)),</span>
+<span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">update_type</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span>
+                            <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"sets"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"people"</span><span class="o">&gt;&gt;</span><span class="p">},</span>
+                            <span class="o">&lt;&lt;</span><span class="s">"dio"</span><span class="o">&gt;&gt;</span><span class="p">,</span>
+                            <span class="nn">riakc_set</span><span class="p">:</span><span class="nf">to_op</span><span class="p">(</span><span class="nv">RonnieJamesDioSet</span><span class="p">)).</span>
+</code></pre></div></div>
+
+<p>Now, we can query our <code class="language-plaintext highlighter-rouge">hobbies</code> index to see if anyone has the hobby
+<code class="language-plaintext highlighter-rouge">football</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method explained above, just changing the query:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"set:football"</span><span class="o">;</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'hobbies'</span><span class="p">,</span> <span class="s1">'set:football'</span><span class="p">)</span>
+<span class="c1"># This should return a dict with fields like 'num_found' and 'docs'</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'hobbies'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'set:football'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'hobbies'</span><span class="p">,</span> <span class="s">'set:football'</span><span class="p">)</span>
+<span class="c1"># This should return a dict with fields like 'num_found' and 'docs'
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"hobbies"</span><span class="p">,</span> <span class="s">"set:football"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+
+<span class="n">RiakSearchResult</span> <span class="n">searchResult</span> <span class="p">=</span> <span class="n">rslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Num found: {0}"</span><span class="p">,</span> <span class="n">searchResult</span><span class="p">.</span><span class="n">NumFound</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">firstDoc</span> <span class="p">=</span> <span class="n">searchResult</span><span class="p">.</span><span class="n">Documents</span><span class="p">.</span><span class="nf">First</span><span class="p">();</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Key: {0} Bucket: {1} Type: {2}"</span><span class="p">,</span>
+    <span class="n">firstDoc</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">firstDoc</span><span class="p">.</span><span class="n">Bucket</span><span class="p">,</span> <span class="n">firstDoc</span><span class="p">.</span><span class="n">BucketType</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nx">search_cb</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">sets numFound: '%d', docs: '%s'</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">rslt</span><span class="p">.</span><span class="nx">numFound</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">docs</span><span class="p">));</span>
+
+    <span class="kd">var</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">docs</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">key</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rk</span><span class="dl">'</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">bucket</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rb</span><span class="dl">'</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">bucketType</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rt</span><span class="dl">'</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">hobbies</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">set:football</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Results</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">search</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"hobbies"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"set:football"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl "$RIAK_HOST/search/query/hobbies?wt=json&amp;q=set:football" | jsonpp
+</code></pre>
+
+<p>Let’s see how many sets contain the element <code class="language-plaintext highlighter-rouge">football</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method explained above for getting search results:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span>
+<span class="c1"># 1</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span>
+<span class="c1"># 1
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">RiakSearchResult</span> <span class="n">searchResult</span> <span class="p">=</span> <span class="n">rslt</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+<span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Num found: {0}"</span><span class="p">,</span> <span class="n">searchResult</span><span class="p">.</span><span class="n">NumFound</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">rslt</span><span class="p">.</span><span class="nx">numFound</span><span class="p">;</span>
+<span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">NumberFound</span> <span class="o">=</span> <span class="nv">Results</span><span class="nl">#search_results.num_found</span><span class="p">.</span>
+<span class="c">%% 1
+</span></code></pre></div></div>
+
+<pre><code class="language-curl">
+</code></pre>
+
+<p>Success! We stored two sets, only one of which contains the element
+<code class="language-plaintext highlighter-rouge">football</code>. Now, let’s see how many sets contain the element <code class="language-plaintext highlighter-rouge">winning</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method explained above, just changing the query:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"set:winning"</span><span class="o">;</span>
+
+<span class="c1">// Again using the same method from above:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span> <span class="c1">// 2</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'hobbies'</span><span class="p">,</span> <span class="s1">'set:winning'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span>
+<span class="c1"># 2</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'hobbies'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'set:winning'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 2</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'hobbies'</span><span class="p">,</span> <span class="s">'set:winning'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span>
+<span class="c1"># 2
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"hobbies"</span><span class="p">,</span> <span class="s">"set:winning"</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">hobbies</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">set:winning</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Results</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">search</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"hobbies"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"set:winning"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+<span class="nv">NumberFound</span> <span class="o">=</span> <span class="nv">Results</span><span class="nl">#search_results.num_found</span><span class="p">.</span>
+<span class="c">%% 2
+</span></code></pre></div></div>
+
+<p>Just as expected, both sets we stored contain the element <code class="language-plaintext highlighter-rouge">winning</code>.</p>
+
+<h2 id="maps-example">Maps Example</h2>
+
+<p>This example will build on the example in the <a href="/riak/kv/2.1.1/developing/data-types">Using Data Types</a>
+tutorial. That tutorial walks you through storing CMS-style user data in
+Riak <a href="/riak/kv/2.1.1/developing/data-types/maps">maps</a>, and we’d suggest that you
+familiarize yourself with that tutorial first. More specifically, user
+data is stored in the following fields in each user’s map:</p>
+
+<ul>
+  <li>first name in a <code class="language-plaintext highlighter-rouge">first_name</code> register</li>
+  <li>last name in a <code class="language-plaintext highlighter-rouge">last_name</code> register</li>
+  <li>whether the user is an enterprise customer in an <code class="language-plaintext highlighter-rouge">enterprise_customer</code>
+flag</li>
+  <li>the number of times the user has visited the company page in a
+<code class="language-plaintext highlighter-rouge">page_visits</code> counter</li>
+  <li>a list of the user’s interests in an <code class="language-plaintext highlighter-rouge">interests</code> set</li>
+</ul>
+
+<p>First, let’s create and activate a bucket type simply called <code class="language-plaintext highlighter-rouge">maps</code> that
+is set up to store Riak maps:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create maps <span class="s1">'{"props":{"datatype":"map"}}'</span>
+riak-admin bucket-type activate maps
+</code></pre></div></div>
+
+<p>Now, let’s create a search index called <code class="language-plaintext highlighter-rouge">customers</code> using the default
+schema:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">YokozunaIndex</span> <span class="n">customersIndex</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">YokozunaIndex</span><span class="o">(</span><span class="s">"customers"</span><span class="o">,</span> <span class="s">"_yz_default"</span><span class="o">);</span>
+<span class="nc">StoreIndex</span> <span class="n">storeIndex</span> <span class="o">=</span>
+  <span class="k">new</span> <span class="nc">StoreIndex</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">customersIndex</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">storeIndex</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="nf">create_search_index</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'_yz_default'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="k">new</span> <span class="nc">Command\Builder\Search\StoreIndex</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withName</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">usingSchema</span><span class="p">(</span><span class="s1">'_yz_default'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">client</span><span class="p">.</span><span class="n">create_search_index</span><span class="p">(</span><span class="s">'customers'</span><span class="p">,</span> <span class="s">'_yz_default'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">searchIndex</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">SearchIndex</span><span class="p">(</span><span class="s">"customers"</span><span class="p">,</span> <span class="s">"_yz_default"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">PutSearchIndex</span><span class="p">(</span><span class="n">searchIndex</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">schemaName</span><span class="p">:</span> <span class="dl">'</span><span class="s1">_yz_default</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">indexName</span><span class="p">:</span> <span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span>
+<span class="p">};</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">storeIndex</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">create_search_index</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"customers"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"_yz_default"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/search/index/customers \
+  -H 'Content-Type: application/json' \
+  -d '{"schema":"_yz_default"}'
+</code></pre>
+
+<p>With our index created, we can associate our new <code class="language-plaintext highlighter-rouge">customers</code> index with
+our <code class="language-plaintext highlighter-rouge">maps</code> bucket type:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type update maps <span class="s1">'{"props":{"search_index":"customers"}}'</span>
+</code></pre></div></div>
+
+<p>Now we can create some maps along the lines suggested above:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Namespace</span> <span class="n">customersBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"maps"</span><span class="o">,</span> <span class="s">"customers"</span><span class="o">);</span>
+
+<span class="nc">Location</span> <span class="n">idrisElbaMap</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">customersBucket</span><span class="o">,</span> <span class="s">"idris_elba"</span><span class="o">);</span>
+<span class="nc">MapUpdate</span> <span class="n">mu</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MapUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"first_name"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">RegisterUpdate</span><span class="o">(</span><span class="s">"Idris"</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"last_name"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">RegisterUpdate</span><span class="o">(</span><span class="s">"Elba"</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"enterprise_customer"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">FlagUpdate</span><span class="o">(</span><span class="kc">false</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"page_visits"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">CounterUpdate</span><span class="o">(</span><span class="mi">10</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"interests"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">SetUpdate</span><span class="o">().</span><span class="na">add</span><span class="o">(</span><span class="s">"acting"</span><span class="o">,</span> <span class="s">"being Stringer Bell"</span><span class="o">));</span>
+
+<span class="nc">Location</span> <span class="n">joanJettMap</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">customersBucket</span><span class="o">,</span> <span class="s">"joan_jett"</span><span class="o">);</span>
+<span class="nc">MapUpdate</span> <span class="n">mu2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MapUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"first_name"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">RegisterUpdate</span><span class="o">(</span><span class="s">"Joan"</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"last_name"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">RegisterUpdate</span><span class="o">(</span><span class="s">"Jett"</span><span class="o">))</span>
+        <span class="c1">// Joan Jett is not an enterprise customer, so we don't need to</span>
+        <span class="c1">// explicitly disable the "enterprise_customer" flag, as all</span>
+        <span class="c1">// flags are disabled by default</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"page_visits"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">CounterUpdate</span><span class="o">(</span><span class="mi">25</span><span class="o">))</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"interests"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">SetUpdate</span><span class="o">().</span><span class="na">add</span><span class="o">(</span><span class="s">"loving rock and roll"</span><span class="o">).</span><span class="na">add</span><span class="o">(</span><span class="s">"being in the Blackhearts"</span><span class="o">));</span>
+
+<span class="nc">UpdateMap</span> <span class="n">update1</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateMap</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">idrisElbaMap</span><span class="o">,</span> <span class="n">mu1</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">UpdateMap</span> <span class="n">update2</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateMap</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">joanJettMap</span><span class="o">,</span> <span class="n">mu2</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update1</span><span class="o">);</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">update2</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">)</span>
+
+<span class="n">idris_elba</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Map</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'idris_elba'</span><span class="p">,</span> <span class="s1">'maps'</span><span class="p">)</span>
+
+<span class="n">idris_elba</span><span class="p">.</span><span class="nf">batch</span> <span class="k">do</span> <span class="o">|</span><span class="n">ie</span><span class="o">|</span>
+  <span class="n">ie</span><span class="p">.</span><span class="nf">registers</span><span class="p">[</span><span class="s1">'first_name'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Idris'</span>
+  <span class="n">ie</span><span class="p">.</span><span class="nf">registers</span><span class="p">[</span><span class="s1">'last_name'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Elba'</span>
+  <span class="n">ie</span><span class="p">.</span><span class="nf">flags</span><span class="p">[</span><span class="s1">'enterprise_customer'</span><span class="p">]</span> <span class="o">=</span> <span class="kp">true</span>
+  <span class="n">ie</span><span class="p">.</span><span class="nf">counters</span><span class="p">[</span><span class="s1">'page_visits'</span><span class="p">].</span><span class="nf">increment</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+  <span class="p">[</span><span class="s1">'acting'</span><span class="p">,</span> <span class="s1">'being Stringer Bell'</span><span class="p">].</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">interest</span><span class="o">|</span>
+    <span class="n">ie</span><span class="p">.</span><span class="nf">sets</span><span class="p">[</span><span class="s1">'interests'</span><span class="p">].</span><span class="nf">add</span><span class="p">(</span><span class="n">interest</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+<span class="n">joan_jett</span> <span class="o">=</span> <span class="no">Riak</span><span class="o">::</span><span class="no">Crdt</span><span class="o">::</span><span class="no">Map</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s1">'joan_jett'</span><span class="p">,</span> <span class="s1">'maps'</span><span class="p">)</span>
+<span class="n">joan_jett</span><span class="p">.</span><span class="nf">batch</span> <span class="k">do</span> <span class="o">|</span><span class="n">jj</span><span class="o">|</span>
+  <span class="n">jj</span><span class="p">.</span><span class="nf">registers</span><span class="p">[</span><span class="s1">'first_name'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Joan'</span>
+  <span class="n">jj</span><span class="p">.</span><span class="nf">registers</span><span class="p">[</span><span class="s1">'last_name'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Jett'</span>
+  <span class="c1">## Joan Jett is not an enterprise customers, so we don't need to</span>
+  <span class="c1">## explicitly disable this flag, as all flags are disabled by default</span>
+  <span class="n">jj</span><span class="p">.</span><span class="nf">counters</span><span class="p">[</span><span class="s1">'page_visits'</span><span class="p">].</span><span class="nf">increment</span><span class="p">(</span><span class="mi">25</span><span class="p">)</span>
+  <span class="p">[</span><span class="s1">'loving rock and roll'</span><span class="p">,</span> <span class="s1">'being in the Blackhearts'</span><span class="p">].</span><span class="nf">each</span> <span class="k">do</span> <span class="o">|</span><span class="n">interest</span><span class="o">|</span>
+    <span class="n">jj</span><span class="p">.</span><span class="nf">sets</span><span class="p">[</span><span class="s1">'interests'</span><span class="p">].</span><span class="nf">add</span><span class="p">(</span><span class="n">interest</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$counterBuilder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\IncrementCounter</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIncrement</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
+
+<span class="nv">$setBuilder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">));</span>
+  
+<span class="k">foreach</span><span class="p">([</span><span class="s1">'acting'</span><span class="p">,</span> <span class="s1">'being Stringer Bell'</span><span class="p">]</span> <span class="k">as</span> <span class="nv">$interest</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nv">$setBuilder</span><span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="nv">$interest</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">updateRegister</span><span class="p">(</span><span class="s1">'first_name'</span><span class="p">,</span> <span class="s1">'Idres'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">updateRegister</span><span class="p">(</span><span class="s1">'last_name'</span><span class="p">,</span> <span class="s1">'Elba'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">updateFlag</span><span class="p">(</span><span class="s1">'enterprise_customer'</span><span class="p">,</span> <span class="kc">true</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">updateSet</span><span class="p">(</span><span class="s1">'interests'</span><span class="p">,</span> <span class="nv">$setBuilder</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">updateCounter</span><span class="p">(</span><span class="s1">'page_visits'</span><span class="p">,</span> <span class="nv">$counterBuilder</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'idris_elba'</span><span class="p">,</span> <span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'maps'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$setBuilder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateSet</span><span class="p">(</span><span class="nv">$riak</span><span class="p">));</span>
+  
+<span class="k">foreach</span><span class="p">([</span><span class="s1">'loving rock and roll'</span><span class="p">,</span> <span class="s1">'being in the Blackhearts'</span><span class="p">]</span> <span class="k">as</span> <span class="nv">$interest</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nv">$setBuilder</span><span class="o">-&gt;</span><span class="nf">add</span><span class="p">(</span><span class="nv">$interest</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">updateRegister</span><span class="p">(</span><span class="s1">'first_name'</span><span class="p">,</span> <span class="s1">'Joan'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">updateRegister</span><span class="p">(</span><span class="s1">'last_name'</span><span class="p">,</span> <span class="s1">'Jett'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">updateSet</span><span class="p">(</span><span class="s1">'interests'</span><span class="p">,</span> <span class="nv">$setBuilder</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">updateCounter</span><span class="p">(</span><span class="s1">'page_visits'</span><span class="p">,</span> <span class="nv">$counterBuilder</span><span class="o">-&gt;</span><span class="nf">withIncrement</span><span class="p">(</span><span class="mi">25</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'joan_jett'</span><span class="p">,</span> <span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'maps'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'maps'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'customers'</span><span class="p">)</span>
+
+<span class="n">idris_elba</span> <span class="o">=</span> <span class="n">Map</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'idris_elba'</span><span class="p">)</span>
+<span class="n">idris_elba</span><span class="p">.</span><span class="n">registers</span><span class="p">[</span><span class="s">'first_name'</span><span class="p">].</span><span class="n">assign</span><span class="p">(</span><span class="s">'Idris'</span><span class="p">)</span>
+<span class="n">idris_elba</span><span class="p">.</span><span class="n">registers</span><span class="p">[</span><span class="s">'last_name'</span><span class="p">].</span><span class="n">assign</span><span class="p">(</span><span class="s">'Elba'</span><span class="p">)</span>
+<span class="n">idris_elba</span><span class="p">.</span><span class="n">flags</span><span class="p">[</span><span class="s">'enterprise_customer'</span><span class="p">].</span><span class="n">enable</span><span class="p">()</span>
+<span class="n">idris_elba</span><span class="p">.</span><span class="n">counters</span><span class="p">[</span><span class="s">'page_visits'</span><span class="p">].</span><span class="n">increment</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">interest</span> <span class="ow">in</span> <span class="p">[</span><span class="s">'acting'</span><span class="p">,</span> <span class="s">'being Stringer Bell'</span><span class="p">]:</span>
+    <span class="n">idris_elba</span><span class="p">.</span><span class="n">sets</span><span class="p">[</span><span class="s">'interests'</span><span class="p">].</span><span class="n">add</span><span class="p">(</span><span class="n">interest</span><span class="p">)</span>
+<span class="n">idris_elba</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="n">joan_jett</span> <span class="o">=</span> <span class="n">Map</span><span class="p">(</span><span class="n">bucket</span><span class="p">,</span> <span class="s">'joan_jett'</span><span class="p">)</span>
+<span class="n">joan_jett</span><span class="p">.</span><span class="n">registers</span><span class="p">[</span><span class="s">'first_name'</span><span class="p">].</span><span class="n">assign</span><span class="p">(</span><span class="s">'Joan'</span><span class="p">)</span>
+<span class="n">joan_jett</span><span class="p">.</span><span class="n">registers</span><span class="p">[</span><span class="s">'last_name'</span><span class="p">].</span><span class="n">assign</span><span class="p">(</span><span class="s">'Jett'</span><span class="p">)</span>
+<span class="c1"># Joan Jett is not an enterprise customers, so we don't need to
+# explictly disable this flag, as all flags are disabled by default
+</span><span class="n">idris_elba</span><span class="p">.</span><span class="n">counters</span><span class="p">[</span><span class="s">'page_visits'</span><span class="p">].</span><span class="n">increment</span><span class="p">(</span><span class="mi">25</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">interest</span> <span class="ow">in</span> <span class="p">[</span><span class="s">'loving rock and roll'</span><span class="p">,</span> <span class="s">'being in the Blackhearts'</span><span class="p">]:</span>
+    <span class="n">joan_jett</span><span class="p">.</span><span class="n">sets</span><span class="p">[</span><span class="s">'interests'</span><span class="p">].</span><span class="n">add</span><span class="p">(</span><span class="n">interest</span><span class="p">)</span>
+<span class="n">joan_jett</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Search/SearchDataTypes.cs</span>
+
+<span class="c1">// Note: similar code for Joan Jett</span>
+
+<span class="k">const</span> <span class="kt">string</span> <span class="n">firstNameRegister</span> <span class="p">=</span> <span class="s">"first_name"</span><span class="p">;</span>
+<span class="k">const</span> <span class="kt">string</span> <span class="n">lastNameRegister</span> <span class="p">=</span> <span class="s">"last_name"</span><span class="p">;</span>
+<span class="k">const</span> <span class="kt">string</span> <span class="n">enterpriseCustomerFlag</span> <span class="p">=</span> <span class="s">"enterprise_customer"</span><span class="p">;</span>
+<span class="k">const</span> <span class="kt">string</span> <span class="n">pageVisitsCounter</span> <span class="p">=</span> <span class="s">"page_visits"</span><span class="p">;</span>
+<span class="k">const</span> <span class="kt">string</span> <span class="n">interestsSet</span> <span class="p">=</span> <span class="s">"interests"</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">idrisAdds</span> <span class="p">=</span> <span class="k">new</span><span class="p">[]</span> <span class="p">{</span> <span class="s">"acting"</span><span class="p">,</span> <span class="s">"being Stringer Bell"</span> <span class="p">};</span>
+
+<span class="kt">var</span> <span class="n">mapOp</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateMap</span><span class="p">.</span><span class="nf">MapOperation</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">SetRegister</span><span class="p">(</span><span class="n">firstNameRegister</span><span class="p">,</span> <span class="s">"Idris"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">SetRegister</span><span class="p">(</span><span class="n">lastNameRegister</span><span class="p">,</span> <span class="s">"Elba"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">SetFlag</span><span class="p">(</span><span class="n">enterpriseCustomerFlag</span><span class="p">,</span> <span class="k">false</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">IncrementCounter</span><span class="p">(</span><span class="n">pageVisitsCounter</span><span class="p">,</span> <span class="m">10</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">AddToSet</span><span class="p">(</span><span class="n">interestsSet</span><span class="p">,</span> <span class="n">idrisAdds</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateMap</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"maps"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"customers"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"idris_elba"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithMapOperation</span><span class="p">(</span><span class="n">mapOp</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">funcs</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">maps</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">idris_elba</span><span class="dl">'</span>
+        <span class="p">};</span>
+
+        <span class="kd">var</span> <span class="nx">mapOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">CRDT</span><span class="p">.</span><span class="nx">UpdateMap</span><span class="p">.</span><span class="nx">MapOperation</span><span class="p">();</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">setRegister</span><span class="p">(</span><span class="dl">'</span><span class="s1">first_name</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Idris</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">setRegister</span><span class="p">(</span><span class="dl">'</span><span class="s1">last_name</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Elba</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">setFlag</span><span class="p">(</span><span class="dl">'</span><span class="s1">enterprise_customer</span><span class="dl">'</span><span class="p">,</span> <span class="kc">false</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">incrementCounter</span><span class="p">(</span><span class="dl">'</span><span class="s1">page_visits</span><span class="dl">'</span><span class="p">,</span> <span class="mi">10</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">addToSet</span><span class="p">(</span><span class="dl">'</span><span class="s1">interests</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">acting</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">addToSet</span><span class="p">(</span><span class="dl">'</span><span class="s1">interests</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">being Stringer Bell</span><span class="dl">'</span><span class="p">);</span>
+
+        <span class="nx">options</span><span class="p">.</span><span class="nx">op</span> <span class="o">=</span> <span class="nx">mapOp</span><span class="p">;</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateMap</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">},</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">maps</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">joan_jett</span><span class="dl">'</span>
+        <span class="p">};</span>
+
+        <span class="kd">var</span> <span class="nx">mapOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">CRDT</span><span class="p">.</span><span class="nx">UpdateMap</span><span class="p">.</span><span class="nx">MapOperation</span><span class="p">();</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">setRegister</span><span class="p">(</span><span class="dl">'</span><span class="s1">first_name</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Joan</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">setRegister</span><span class="p">(</span><span class="dl">'</span><span class="s1">last_name</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Jett</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">setFlag</span><span class="p">(</span><span class="dl">'</span><span class="s1">enterprise_customer</span><span class="dl">'</span><span class="p">,</span> <span class="kc">false</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">incrementCounter</span><span class="p">(</span><span class="dl">'</span><span class="s1">page_visits</span><span class="dl">'</span><span class="p">,</span> <span class="mi">25</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">addToSet</span><span class="p">(</span><span class="dl">'</span><span class="s1">interests</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">loving rock and roll</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">mapOp</span><span class="p">.</span><span class="nx">addToSet</span><span class="p">(</span><span class="dl">'</span><span class="s1">interests</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">being in the Blackhearts</span><span class="dl">'</span><span class="p">);</span>
+
+        <span class="nx">options</span><span class="p">.</span><span class="nx">op</span> <span class="o">=</span> <span class="nx">mapOp</span><span class="p">;</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateMap</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">}</span>
+<span class="p">];</span>
+
+<span class="k">async</span><span class="p">.</span><span class="nx">parallel</span><span class="p">(</span><span class="nx">funcs</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslts</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="searching-counters-within-maps">Searching Counters Within Maps</h3>
+
+<p>We now have two maps stored in Riak that we can query. Let’s query to
+see how many users have page visit counters above 15. Unlike the
+counters example above, we have to specify <em>which</em> counter we’re
+querying:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method explained above, just changing the query:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"page_visits_counter:[15 TO *]"</span><span class="o">;</span>
+
+<span class="c1">// Again using the same method from above:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'page_visits_counter:[15 TO *]'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span>
+<span class="c1"># 1</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'page_visits_counter:[15 TO *]'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 1</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'customers'</span><span class="p">,</span> <span class="s">'page_visits_counter:[15 TO *]'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span>
+<span class="c1"># 1
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"customers"</span><span class="p">,</span> <span class="s">"page_visits_counter:[15 TO *]"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nx">search_cb</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nx">info</span><span class="p">(</span><span class="dl">"</span><span class="s2">numFound: '%d', docs: '%s'</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">rslt</span><span class="p">.</span><span class="nx">numFound</span><span class="p">,</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">rslt</span><span class="p">.</span><span class="nx">docs</span><span class="p">));</span>
+
+    <span class="kd">var</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">rslt</span><span class="p">.</span><span class="nx">docs</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">key</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rk</span><span class="dl">'</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">bucket</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rb</span><span class="dl">'</span><span class="p">];</span>
+    <span class="kd">var</span> <span class="nx">bucketType</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">[</span><span class="dl">'</span><span class="s1">_yz_rt</span><span class="dl">'</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">page_visits_counter:[15 TO *]</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>As expected, one of our two stored maps has a <code class="language-plaintext highlighter-rouge">page_visits</code> counter
+above 15. Let’s make sure that we have the right result:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method from above:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"page_visits_counter:[15 TO *]"</span><span class="o">;</span>
+
+<span class="c1">// Again using the same method from above:</span>
+<span class="nc">String</span> <span class="n">registerValue</span> <span class="o">=</span>
+  <span class="n">results</span><span class="o">.</span><span class="na">getAllResults</span><span class="o">().</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="s">"first_name_register"</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span> <span class="c1">// Joan</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span><span class="p">[</span><span class="s1">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">'first_name_register'</span><span class="p">]</span>
+<span class="c1"># 'Joan'</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getDocs</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">first_name_register</span><span class="err">'</span><span class="p">];</span> <span class="c1">// Joan</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span><span class="p">[</span><span class="s">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s">'first_name_register'</span><span class="p">]</span>
+<span class="c1"># u'Joan'
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"customers"</span><span class="p">,</span> <span class="s">"page_visits_counter:[15 TO *]"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">firstDoc</span> <span class="p">=</span> <span class="n">searchResult</span><span class="p">.</span><span class="n">Documents</span><span class="p">.</span><span class="nf">First</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">rslts</span><span class="p">.</span><span class="nx">docs</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span>
+<span class="nx">doc</span><span class="p">.</span><span class="nx">page_visits_register</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>Success! Now we can test out searching sets.</p>
+
+<h3 id="searching-sets-within-maps">Searching Sets Within Maps</h3>
+
+<p>Each of the maps we stored thus far had an <code class="language-plaintext highlighter-rouge">interests</code> set. First, let’s
+see how many of our maps even <em>have</em> sets called <code class="language-plaintext highlighter-rouge">interests</code> using a
+wildcard query:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method from above:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"interests_set:*"</span><span class="o">;</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'interests_set:*'</span><span class="p">)</span>
+<span class="c1"># 2</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'interests_set:*'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 2</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'customers'</span><span class="p">,</span> <span class="s">'interests_set:*'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span>
+<span class="c1"># 2
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"customers"</span><span class="p">,</span> <span class="s">"interests_set:*"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">interests_set:*</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>As expected, both stored maps have an <code class="language-plaintext highlighter-rouge">interests</code> set. Now let’s see how
+many maps have items in <code class="language-plaintext highlighter-rouge">interests</code> sets that begin with <code class="language-plaintext highlighter-rouge">loving</code>:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method from above:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"interests_set:loving*"</span><span class="o">;</span>
+
+<span class="c1">// Again using the same method from above:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span> <span class="c1">// 1</span>
+<span class="nc">String</span> <span class="n">registerValue</span> <span class="o">=</span>
+  <span class="n">results</span><span class="o">.</span><span class="na">getAllResults</span><span class="o">().</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="s">"first_name_register"</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span> <span class="c1">// Joan</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'interests_set:loving*'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span> <span class="c1"># 1</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">'first_name_register'</span><span class="p">]</span> <span class="c1"># 'Joan'</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'interests_set:loving*'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getDocs</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">first_name_register</span><span class="err">'</span><span class="p">];</span> <span class="c1">// Joan</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'customers'</span><span class="p">,</span> <span class="s">'interests_set:loving*'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span> <span class="c1"># 1
+</span><span class="n">results</span><span class="p">[</span><span class="s">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s">'first_name_register'</span><span class="p">]</span> <span class="c1"># u'Joan'
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"customers"</span><span class="p">,</span> <span class="s">"interests_set:loving*"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">interests_set:loving*</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>As expected, only our Joan Jett map has one item in its <code class="language-plaintext highlighter-rouge">interests</code> set
+that starts with <code class="language-plaintext highlighter-rouge">loving</code>.</p>
+
+<h3 id="searching-maps-within-maps">Searching Maps Within Maps</h3>
+
+<p>Before we can try to search maps within maps, we need to actually store
+some. Let’s add a <code class="language-plaintext highlighter-rouge">alter_ego</code> map to both of the maps we’ve stored thus
+far. Each person’s alter ego will have a first name only.</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Location</span> <span class="n">idrisElbaMap</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Location</span><span class="o">(</span><span class="n">customersBucket</span><span class="o">,</span> <span class="s">"idris_elba"</span><span class="o">);</span>
+<span class="nc">MapUpdate</span> <span class="n">alterEgoUpdateName</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MapUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"name"</span><span class="o">,</span> <span class="k">new</span> <span class="nc">RegisterUpdate</span><span class="o">(</span><span class="s">"John Luther"</span><span class="o">));</span>
+<span class="nc">MapUpdate</span> <span class="n">alterEgoUpdate</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">MapUpdate</span><span class="o">()</span>
+        <span class="o">.</span><span class="na">update</span><span class="o">(</span><span class="s">"alter_ego"</span><span class="o">,</span> <span class="n">alterEgoUpdateName</span><span class="o">);</span>
+<span class="nc">UpdateMap</span> <span class="n">addSubMap</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">UpdateMap</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">idrisElbaMap</span><span class="o">,</span> <span class="n">alterEgoUpdate</span><span class="o">);</span>
+<span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">addSubMap</span><span class="o">);</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">idris_elba</span><span class="p">.</span><span class="nf">maps</span><span class="p">[</span><span class="s1">'alter_ego'</span><span class="p">].</span><span class="nf">registers</span><span class="p">[</span><span class="s1">'name'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'John Luther'</span>
+
+<span class="n">joan_jett</span><span class="p">.</span><span class="nf">maps</span><span class="p">[</span><span class="s1">'alter_ego'</span><span class="p">].</span><span class="nf">registers</span><span class="p">[</span><span class="s1">'name'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'Robert Plant'</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$mapBuilder</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">updateRegister</span><span class="p">(</span><span class="s1">'name'</span><span class="p">,</span> <span class="s1">'John Luther'</span><span class="p">)</span>
+
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">updateMap</span><span class="p">(</span><span class="s1">'alter_ego'</span><span class="p">,</span> <span class="nv">$mapBuilder</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'idris_elba'</span><span class="p">,</span> <span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'maps'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$mapBuilder</span><span class="o">-&gt;</span><span class="nf">updateRegister</span><span class="p">(</span><span class="s1">'name'</span><span class="p">,</span> <span class="s1">'Robert Plant'</span><span class="p">)</span>
+
+<span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\UpdateMap</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">updateMap</span><span class="p">(</span><span class="s1">'alter_ego'</span><span class="p">,</span> <span class="nv">$mapBuilder</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">buildLocation</span><span class="p">(</span><span class="s1">'joan_jett'</span><span class="p">,</span> <span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'maps'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">idris_elba</span><span class="p">.</span><span class="n">maps</span><span class="p">[</span><span class="s">'alter_ego'</span><span class="p">].</span><span class="n">registers</span><span class="p">[</span><span class="s">'name'</span><span class="p">].</span><span class="n">assign</span><span class="p">(</span><span class="s">'John Luther'</span><span class="p">)</span>
+<span class="n">idris_elba</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="n">joan_jett</span><span class="p">.</span><span class="n">maps</span><span class="p">[</span><span class="s">'alter_ego'</span><span class="p">].</span><span class="n">registers</span><span class="p">[</span><span class="s">'name'</span><span class="p">].</span><span class="n">assign</span><span class="p">(</span><span class="s">'Robert Plant'</span><span class="p">)</span>
+<span class="n">joan_jett</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// https://github.com/basho/riak-dotnet-client/blob/develop/src/RiakClientExamples/Dev/Search/SearchDataTypes.cs</span>
+
+<span class="k">const</span> <span class="kt">string</span> <span class="n">nameRegister</span> <span class="p">=</span> <span class="s">"name"</span><span class="p">;</span>
+<span class="k">const</span> <span class="kt">string</span> <span class="n">alterEgoMap</span> <span class="p">=</span> <span class="s">"alter_ego"</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">mapOp</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateMap</span><span class="p">.</span><span class="nf">MapOperation</span><span class="p">();</span>
+<span class="n">mapOp</span><span class="p">.</span><span class="nf">Map</span><span class="p">(</span><span class="n">alterEgoMap</span><span class="p">).</span><span class="nf">SetRegister</span><span class="p">(</span><span class="n">nameRegister</span><span class="p">,</span> <span class="s">"John Luther"</span><span class="p">);</span>
+
+<span class="kt">var</span> <span class="n">cmd</span> <span class="p">=</span> <span class="k">new</span> <span class="n">UpdateMap</span><span class="p">.</span><span class="nf">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nf">WithBucketType</span><span class="p">(</span><span class="s">"maps"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithBucket</span><span class="p">(</span><span class="s">"customers"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithKey</span><span class="p">(</span><span class="s">"idris_elba"</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">WithMapOperation</span><span class="p">(</span><span class="n">mapOp</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">Build</span><span class="p">();</span>
+
+<span class="n">RiakResult</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Execute</span><span class="p">(</span><span class="n">cmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">funcs</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">maps</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">idris_elba</span><span class="dl">'</span>
+        <span class="p">};</span>
+
+        <span class="kd">var</span> <span class="nx">mapOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">CRDT</span><span class="p">.</span><span class="nx">UpdateMap</span><span class="p">.</span><span class="nx">MapOperation</span><span class="p">();</span>
+        <span class="kd">var</span> <span class="nx">alterEgoMap</span> <span class="o">=</span> <span class="nx">mapOp</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="dl">'</span><span class="s1">alter_ego</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">alterEgoMap</span><span class="p">.</span><span class="nx">setRegister</span><span class="p">(</span><span class="dl">'</span><span class="s1">name</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">John Luther</span><span class="dl">'</span><span class="p">);</span>
+
+        <span class="nx">options</span><span class="p">.</span><span class="nx">op</span> <span class="o">=</span> <span class="nx">mapOp</span><span class="p">;</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateMap</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">},</span>
+    <span class="kd">function</span> <span class="p">(</span><span class="nx">async_cb</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">options</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="na">bucketType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">maps</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">bucket</span><span class="p">:</span> <span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">key</span><span class="p">:</span> <span class="dl">'</span><span class="s1">joan_jett</span><span class="dl">'</span>
+        <span class="p">};</span>
+
+        <span class="kd">var</span> <span class="nx">mapOp</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">CRDT</span><span class="p">.</span><span class="nx">UpdateMap</span><span class="p">.</span><span class="nx">MapOperation</span><span class="p">();</span>
+        <span class="kd">var</span> <span class="nx">alterEgoMap</span> <span class="o">=</span> <span class="nx">mapOp</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="dl">'</span><span class="s1">alter_ego</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">alterEgoMap</span><span class="p">.</span><span class="nx">setRegister</span><span class="p">(</span><span class="dl">'</span><span class="s1">name</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Robert Plant</span><span class="dl">'</span><span class="p">);</span>
+
+        <span class="nx">options</span><span class="p">.</span><span class="nx">op</span> <span class="o">=</span> <span class="nx">mapOp</span><span class="p">;</span>
+
+        <span class="nx">client</span><span class="p">.</span><span class="nx">updateMap</span><span class="p">(</span><span class="nx">options</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslt</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+            <span class="nx">async_cb</span><span class="p">();</span>
+        <span class="p">});</span>
+    <span class="p">}</span>
+<span class="p">];</span>
+
+<span class="k">async</span><span class="p">.</span><span class="nx">parallel</span><span class="p">(</span><span class="nx">funcs</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">rslts</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">throwIfErr</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>Querying maps within maps involves construct queries that separate the
+different levels of depth with a single dot. Here’s an example query for
+finding maps that have a <code class="language-plaintext highlighter-rouge">name</code> register embedded within an <code class="language-plaintext highlighter-rouge">alter_ego</code>
+map:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method from above:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"alter_ego_map.name_register:*"</span><span class="o">;</span>
+
+<span class="c1">// Again using the same method from above:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span> <span class="c1">// 2</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'alter_ego_map.name_register:*'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span> <span class="c1"># 2</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'alter_ego_map.name_register:*'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 2</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'customers'</span><span class="p">,</span> <span class="s">'alter_ego_map.name_register:*'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span> <span class="c1"># 2
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"customers"</span><span class="p">,</span> <span class="s">"alter_ego_map.name_register:*"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">alter_ego_map.name_register:*</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>Once we know how to query embedded fields like this, we can query those
+just like any other. Let’s find out which maps have an <code class="language-plaintext highlighter-rouge">alter_ego</code>
+sub-map that contains a <code class="language-plaintext highlighter-rouge">name</code> register that ends with <code class="language-plaintext highlighter-rouge">PLant</code>, and
+display that customer’s first name:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Using the same method from above:</span>
+<span class="nc">String</span> <span class="n">query</span> <span class="o">=</span> <span class="s">"alter_ego_map.name_register:*Plant"</span><span class="o">;</span>
+
+<span class="c1">// Again using the same method from above:</span>
+<span class="kt">int</span> <span class="n">numberFound</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="na">numResults</span><span class="o">();</span> <span class="c1">// 1</span>
+<span class="nc">String</span> <span class="n">registerValue</span> <span class="o">=</span>
+  <span class="n">results</span><span class="o">.</span><span class="na">getAllResults</span><span class="o">().</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="s">"first_name_register"</span><span class="o">).</span><span class="na">get</span><span class="o">(</span><span class="mi">0</span><span class="o">);</span> <span class="c1">// Joan</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">,</span> <span class="s1">'alter_ego_map.name_register:*Plant'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'num_found'</span><span class="p">]</span> <span class="c1"># 1</span>
+<span class="n">results</span><span class="p">[</span><span class="s1">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">'first_name_register'</span><span class="p">]</span> <span class="c1"># 'Joan'</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$response</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\Search\FetchObjects</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">withIndexName</span><span class="p">(</span><span class="s1">'customers'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">withQuery</span><span class="p">(</span><span class="s1">'alter_ego_map.name_register:*Plant'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">();</span>
+
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getNumFound</span><span class="p">();</span> <span class="c1">// 1</span>
+<span class="nv">$response</span><span class="o">-&gt;</span><span class="nf">getDocs</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">first_name_register</span><span class="err">'</span><span class="p">];</span> <span class="c1">// Joan</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">results</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">fulltext_search</span><span class="p">(</span><span class="s">'customers'</span><span class="p">,</span> <span class="s">'alter_ego_map.name_register:*Plant'</span><span class="p">)</span>
+<span class="n">results</span><span class="p">[</span><span class="s">'num_found'</span><span class="p">]</span> <span class="c1"># 1
+</span><span class="n">results</span><span class="p">[</span><span class="s">'docs'</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s">'first_name_register'</span><span class="p">]</span> <span class="c1"># u'Joan
+</span></code></pre></div></div>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">search</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakSearchRequest</span><span class="p">(</span><span class="s">"customers"</span><span class="p">,</span> <span class="s">"alter_ego_map.name_register:*Plant"</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">rslt</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Search</span><span class="p">(</span><span class="n">search</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">searchCmd</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Riak</span><span class="p">.</span><span class="nx">Commands</span><span class="p">.</span><span class="nx">YZ</span><span class="p">.</span><span class="nx">Search</span><span class="p">.</span><span class="nx">Builder</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">withIndexName</span><span class="p">(</span><span class="dl">'</span><span class="s1">customers</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withQuery</span><span class="p">(</span><span class="dl">'</span><span class="s1">alter_ego_map.name_register:*Plant</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">withCallback</span><span class="p">(</span><span class="nx">search_cb</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">build</span><span class="p">();</span>
+
+<span class="nx">client</span><span class="p">.</span><span class="nx">execute</span><span class="p">(</span><span class="nx">searchCmd</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>Success! We’ve now queried not just maps but also maps within maps.</p>

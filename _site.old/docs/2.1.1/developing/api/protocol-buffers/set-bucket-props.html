@@ -1,0 +1,48 @@
+<p>Sets the properties for a bucket.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-protobuf highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">message</span> <span class="nc">RpbSetBucketReq</span> <span class="p">{</span>
+    <span class="k">required</span> <span class="kt">bytes</span> <span class="na">bucket</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">required</span> <span class="n">RpbBucketProps</span> <span class="na">props</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="k">optional</span> <span class="kt">bytes</span> <span class="na">type</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>You must specify the name of the bucket (<code class="language-plaintext highlighter-rouge">bucket</code>) and include an
+<code class="language-plaintext highlighter-rouge">RpbBucketProps</code> message. More on that message type can be found in the
+<a href="/riak/kv/2.1.1/developing/api/protocol-buffers/get-bucket-props">PBC Get Bucket Properties</a> documentation.</p>
+
+<p>You can also specify a <a href="/riak/kv/2.1.1/developing/usage/bucket-types">bucket type</a> using the
+<code class="language-plaintext highlighter-rouge">type</code> value. If you do not specify a bucket type, the <code class="language-plaintext highlighter-rouge">default</code> bucket
+type will be used by Riak.</p>
+
+<h2 id="response">Response</h2>
+
+<p>Only the message code is returned.</p>
+
+<h2 id="example">Example</h2>
+
+<p>Change <code class="language-plaintext highlighter-rouge">allow_mult</code> to true for the bucket <code class="language-plaintext highlighter-rouge">friends</code>:</p>
+
+<h4 id="request-1">Request</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 0E 15 0A 07 66 72 69 65 6E 64 73 12 02
+         10 01
+Erlang <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,14,21,10,7,102,114,105,101,110,100,115,18,2,16,1&gt;&gt;
+
+RpbSetBucketReq protoc decode:
+bucket: "friends"
+props {
+  allow_mult: true
+}
+
+</span></code></pre></div></div>
+
+<h4 id="response-1">Response</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Hex      00 00 00 01 16
+Erlang <span class="o">&lt;&lt;</span><span class="no">0</span><span class="sh">,0,0,1,22&gt;&gt;
+
+RpbSetBucketResp - only message code defined
+</span></code></pre></div></div>

@@ -1,0 +1,39 @@
+<p>Buckets are essentially a flat namespace in Riak. They allow the same
+key name to exist in multiple buckets and enable you to apply
+configurations across keys.</p>
+
+<p>Buckets come with virtually no cost <em>except for when you modify the default
+bucket properties</em>. Modified bucket properties are gossiped around the cluster
+and therefore add to the amount of data sent around the network. In other
+words, buckets using the <code class="language-plaintext highlighter-rouge">default</code> bucket type are free. More on that in the
+next section.</p>
+
+<p>In Riak versions 2.0 and later, Basho suggests that you <a href="/riak/kv/2.2.3/developing/usage/bucket-types">use bucket types</a> to namespace and configure all buckets you use. Bucket types have a lower overhead within the cluster than the
+default bucket namespace but require an additional setup step on the
+command line.</p>
+
+<h2 id="creating-a-bucket-type">Creating a Bucket Type</h2>
+
+<p>When creating a new bucket type, you can create a bucket type without
+any properties and set individual buckets to be indexed. The step below
+creates and activates the bucket type:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create animals <span class="s1">'{"props":{}}'</span>
+riak-admin bucket-type activate animals
+</code></pre></div></div>
+
+<p>And this step applies the index to the <code class="language-plaintext highlighter-rouge">cats</code> bucket, which bears the
+<code class="language-plaintext highlighter-rouge">animals</code> bucket type we just created and activated:</p>
+
+<pre><code class="language-curl">curl -XPUT $RIAK_HOST/types/animals/buckets/cats/props \
+     -H 'Content-Type: application/json' \
+     -d '{"props":{"search_index":"famous"}}'
+</code></pre>
+
+<p>Another possibility is to set the <code class="language-plaintext highlighter-rouge">search_index</code> as a default property
+of the bucket type. This means <em>any</em> bucket under that type will
+inherit that setting and have its values indexed.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin bucket-type create animals <span class="s1">'{"props":{"search_index":"famous"}}'</span>
+riak-admin bucket-type activate animals
+</code></pre></div></div>

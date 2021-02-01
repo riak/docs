@@ -1,0 +1,404 @@
+
+<p>So you’ve decided to build an application using Riak as a data store. We
+think that this is a wise choice for a broad variety of use cases. But
+using Riak isn’t always straightforward, especially if you’re used to
+developing with relational databases like like MySQL or PostgreSQL or
+non-persistent key/value stores like Redis. So in this guide, we’ll walk
+you through a set of questions that should be asked about your use case
+before getting started. The answer to those questions may inform
+decisions about which Riak features you should use, what kind of
+replication and conflict resolution strategies you should employ, and
+perhaps even how parts of your application should be built.</p>
+
+<h2 id="what-kind-of-data-are-you-storing">What Kind of Data Are You Storing?</h2>
+
+<p>This is an important initial question for two reasons:</p>
+
+<ol>
+  <li>Not all data is a good fit for Riak. If your data isn’t a good fit,
+we would advise that you seek out a storage system that better suits
+your needs.</li>
+  <li>The kinds of data that you’re storing should guide your decision both
+about <em>how</em> to store and access your data in Riak and about which Riak
+features would be helpful (and which ones might even be harmful).</li>
+</ol>
+
+<h3 id="good-fits-for-riak">Good Fits for Riak</h3>
+
+<p>Riak tends to be an excellent choice if you’re dealing with any of the
+following:</p>
+
+<ul>
+  <li><strong>Immutable data</strong> — While Riak provides several means of
+<a href="/riak/kv/2.2.3/developing/usage/conflict-resolution">resolving conflicts</a> between different replicas
+of objects, those processes can lead to slower performance in some
+cases. Storing immutable data means that you can avoid those processes
+altogether and get the most out of Riak.</li>
+  <li><strong>Small objects</strong> — Riak was not built as a store for large objects
+like video files or other
+<a href="http://en.wikipedia.org/wiki/Binary_large_object">BLOB</a>s. We built
+<a href="http://basho.com/riak-cloud-storage/">Riak CS</a> for that. Riak is
+great, however, for JSON, <a href="/riak/kv/2.2.3/developing/data-modeling/#log-data">log files</a>, <a href="/riak/kv/2.2.3/developing/data-modeling/#sensor-data">sensor data</a>, HTML files, and other objects that tend
+to run smaller than 1 MB.</li>
+  <li><strong>Independent objects</strong> — Objects that do not have interdependencies
+on other objects are a good fit for Riak’s <a href="/riak/kv/2.2.3/learn/concepts/eventual-consistency">eventually consistent</a> nature.</li>
+  <li><strong>Objects with “natural” keys</strong> — It is almost always advisable to
+build keys for objects out of timestamps, <a href="/riak/kv/2.2.3/developing/data-modeling/#user-data">usernames</a>,
+or other <a href="/riak/kv/2.2.3/developing/key-value-modeling">“natural” markers</a> that distinguish
+that object from other objects. Data that can be modeled this way fits
+nicely with Riak because Riak emphasizes extremely fast object lookup.</li>
+  <li><strong>Data compatible with <a href="/riak/kv/2.2.3/developing/data-types">Riak Data Types</a></strong> — If
+you’re working with mutable data, one option is to run basic CRUD
+operations on that data in a standard key/value fashion and either
+manage conflict resolution yourself or allow Riak to do so. But if
+your data can be modeled as a <a href="/riak/kv/2.2.3/developing/data-types/#counters">counter</a>,
+<a href="/riak/kv/2.2.3/developing/data-types/#sets">set</a>, or <a href="/riak/kv/2.2.3/developing/data-types/#maps">map</a>, you
+should seriously consider using <a href="/riak/kv/2.2.3/developing/data-types">Riak Data Types</a>,
+which can speed application development and transfer a great deal of
+complexity away from the application and to Riak itself.</li>
+</ul>
+
+<h3 id="not-so-good-fits-for-riak">Not-so-good Fits for Riak</h3>
+
+<p>Riak may not such be a good choice if you use it to store:</p>
+
+<ul>
+  <li><strong>Objects that exceed 1-2MB in size</strong> — If you will be
+storing a lot of objects over that size, we would recommend checking
+out <a href="http://docs.basho.com/riakcs/latest/">Riak CS</a> instead, as Riak
+CS was built to solve this problem. Storing large objects in Riak will
+typically lead to substandard performance.</li>
+  <li><strong>Objects with complex interdependencies</strong> — If your data cannot be
+easily denormalized or if it requires that objects can be easily
+assembled into and accessible as larger wholes—think columns or
+tables—then you might want to consider a relational database
+instead.</li>
+</ul>
+
+<h3 id="conclusion">Conclusion</h3>
+
+<p>If it sounds like Riak is a good choice for some or all of your
+application’s data needs, move on to the next sections, where you can
+find out more about which Riak features are recommendable for your use
+case, how you should model your data, and what kinds of data modeling
+and development strategies we recommend.</p>
+
+<h2 id="which-features-should-you-consider">Which Features Should You Consider?</h2>
+
+<p>Basic CRUD key/value operations are almost always the most performant
+operations when using Riak. If your needs can be served using CRUD
+operations, we recommend checking out our tutorial on <a href="/riak/kv/2.2.3/developing/key-value-modeling">key/value modeling</a> for some basic guidelines. But if basic CRUD key/value
+operations don’t quite suffice for your use case, Riak offers a variety
+of features that may be just what you’re looking for. In the sections
+immediately below, you can find brief descriptions of those features as
+well as relevant links to Basho documentation.</p>
+
+<h2 id="search">Search</h2>
+
+<p>Riak Search provides you with <a href="http://lucene.apache.org/solr/">Apache
+Solr</a>-powered full-text indexing and
+querying on top of the scalability, fault tolerance, and operational
+simplicity of Riak. Our motto for Riak Search: <strong>Write it like Riak.
+Query it like Solr</strong>. That is, you can store objects in Riak <a href="/riak/kv/2.2.3/developing/usage/creating-objects">like normal</a> and run full-text queries on those objects later on
+using the Solr API.</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/developing/usage/search">Using Search</a> — Getting started with Riak Search</li>
+  <li><a href="/riak/kv/2.2.3/using/reference/search">Search Details</a> — A detailed overview of the concepts and design
+consideration behind Riak Search</li>
+  <li>[Search Schema][usage search schema] — How to create custom schemas for extracting data
+from Riak Search</li>
+</ul>
+
+<h3 id="when-to-use-search">When to Use Search</h3>
+
+<ul>
+  <li><strong>When you need a rich querying API</strong> — Riak Search gives you access
+to the entirety of <a href="http://lucene.apache.org/solr/">Solr</a>’s extremely
+broad API, which enables you to query on the basis of wildcards,
+strings, booleans, geolocation, ranges, language-specific fulltext,
+and far more. You can even use Search in conjunction with <a href="/riak/kv/2.2.3/developing/data-types">Riak Data Types</a> (documentation coming soon).</li>
+</ul>
+
+<blockquote>
+  <p><strong>Search is preferred for querying</strong></p>
+
+  <p>In general, you should consider Search to be the default choice for
+nearly all querying needs that go beyond basic CRUD/KV operations. If
+your use case demands some sort of querying mechanism and you’re in
+doubt about what to use, you should assume that Search is the right tool
+for you.</p>
+</blockquote>
+
+<h3 id="when-not-to-use-search">When Not to Use Search</h3>
+
+<ul>
+  <li><strong>When deep pagination is needed</strong> — At the moment, you should
+  consider <a href="/riak/kv/2.2.3/developing/usage/secondary-indexes">secondary indexes</a> instead of
+  Search if your use case requires deep pagination. This will be
+  changed, however, in a future release of Riak, at which point you
+  should consider Search the default choice for <em>all</em> querying needs.</li>
+  <li><strong>In large clusters</strong> — In clusters larger than 8-10 nodes, you may
+  experience slower performance when using Search. In clusters of that
+  size, we would recommend using Search in a limited fashion, setting
+  up a separate, dedicated cluster for Search data, or finding another
+  solution.</li>
+</ul>
+
+<h2 id="riak-data-types">Riak Data Types</h2>
+
+<p>When performing basic K/V operations, Riak is agnostic toward the actual
+data stored within objects. Beginning with Riak 2.0, however, you now
+have access to operations-based objects based on academic research on
+<a href="http://hal.upmc.fr/docs/00/55/55/88/PDF/techreport.pdf">CRDTs</a>. Riak
+Data Types enable you to update and read <a href="/riak/kv/2.2.3/developing/data-types/#counters">counters</a>,
+<a href="/riak/kv/2.2.3/developing/data-types/#sets">sets</a>, and <a href="/riak/kv/2.2.3/developing/data-types/#maps">maps</a> directly in Riak, as well as <a href="/riak/kv/2.2.3/developing/data-types/#maps">registers</a> and <a href="/riak/kv/2.2.3/developing/data-types/#maps">flags</a> inside of Riak maps.</p>
+
+<p>The beauty of Riak Data Types is that all convergence logic is handled
+by Riak itself according to deterministic, Data Type-specific rules,
+which means that your application doesn’t need to reason about
+<a href="/riak/kv/2.2.3/developing/usage/conflict-resolution">siblings</a>. In many cases, this can
+unburden applications of the need to handle object convergence on their
+own.</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/developing/data-types">Using Data Types</a> — A guide to setting up Riak to use Data Types,
+including a variety of code samples for all of the Basho’s official
+<a href="/riak/kv/2.2.3/developing/client-libraries">client libraries</a></li>
+  <li><a href="/riak/kv/2.2.3/learn/concepts/crdts">Data Types</a> — A theoretical treatment of Riak Data Types, along
+with implementation details</li>
+  <li><a href="/riak/kv/2.2.3/developing/data-modeling">Data Modeling with Riak Data Types</a> — An object modeling example that relies on Riak Data Types.</li>
+</ul>
+
+<blockquote>
+  <p><strong>Note</strong>:</p>
+
+  <p>Riak Data Types can be used in conjunction with Riak Search,
+meaning that the data stored in counters, sets, and maps can be indexed
+and searched just like any other data in Riak. Documentation on Data
+Types and Search is coming soon.</p>
+</blockquote>
+
+<h3 id="when-to-use-riak-data-types">When to Use Riak Data Types</h3>
+
+<ul>
+  <li><strong>When your data fits</strong> — If the data that you’re storing can be
+modeled as one of the five available types, Riak Data Types could be a
+very good option. Please note that in many cases there may not be a
+1:1 correspondence between the five available types and the data that
+you’d like to store, but there may be workarounds to close the gap.
+Most things that can be stored as JSON, for example, can be stored as
+maps (though with modifications).</li>
+  <li><strong>When you don’t need to reason about siblings</strong> — If your use case
+doesn’t require that your application have access to siblings and
+allows for sibling convergence logic to take place at the Riak level
+rather than at the application level, then Riak Data Types are well
+worth exploring.</li>
+</ul>
+
+<h3 id="when-not-to-use-riak-data-types">When Not to Use Riak Data Types</h3>
+
+<ul>
+  <li><strong>When you need to provide your own convergence logic</strong> — If your
+application needs to have access to all sibling values, then Riak Data
+Types are not a good choice because they by definition do not produce
+siblings.</li>
+  <li><strong>When your data just doesn’t fit</strong> — While the five existing Data
+Types allow for a great deal of flexibility and a wide range of use
+cases, they don’t cover all use cases. If you have data that requires
+a modeling solution that can’t be covered, you should stick to
+standard K/V operations.</li>
+  <li><strong>When object size is of significant concern</strong> — Riak Data Types
+behave much like other Riak objects, but they tend to carry more
+metadata than normal Riak objects, especially maps. In most cases the
+metadata payload will be a small percentage of the object’s total
+size, but if you want to keep objects as lean as possible, it may be
+better to stick to normal K/V operations.</li>
+</ul>
+
+<h2 id="mapreduce">MapReduce</h2>
+
+<p>Riak’s MapReduce feature enables you to perform batch processing jobs in
+a way that leverages Riak’s distributed nature. When a MapReduce job is
+sent to Riak, Riak automatically distributes the processing work to
+where the target data lives, which can reduce network bandwidth. Riak
+comes equipped with a set of default MapReduce jobs that you can employ,
+or you can write and run your own MapReduce jobs in
+<a href="http://www.erlang.org/">Erlang</a>.</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/developing/usage/mapreduce">Using MapReduce</a> — A general guide to using MapReduce</li>
+  <li><a href="/riak/kv/2.2.3/developing/app-guide/advanced-mapreduce">Advanced MapReduce</a> — A more in-depth guide to MapReduce,
+including code samples and implementation details</li>
+</ul>
+
+<h3 id="when-to-use-mapreduce">When to Use MapReduce</h3>
+
+<ul>
+  <li><strong>Batch processing only</strong> — You should use MapReduce only when truly
+truly necessary. MapReduce jobs are very computationally expensive and
+can degrade performance in production clusters. You should restrict
+MapReduce usage to infrequent batch processing operations, preferably
+carried out at times when your cluster is experiencing load that is
+well below average.</li>
+</ul>
+
+<h3 id="when-not-to-use-mapreduce">When Not to Use MapReduce</h3>
+
+<ul>
+  <li><strong>When another Riak feature will do</strong> — Before even considering
+using MapReduce, you should thoroughly investigate <a href="/riak/kv/2.2.3/developing/usage/search">Riak Search</a> or <a href="/riak/kv/2.2.3/developing/usage/secondary-indexes">secondary indexes</a> as possible
+solutions to your needs.</li>
+</ul>
+
+<p>In general, you should not think of MapReduce as, for example, Hadoop
+within Riak. While it can be useful for certain types of
+non-primary-key-based queries, it is neither a “Big Data” processing
+tool nor an indexing mechanism nor a replacement for <a href="/riak/kv/2.2.3/developing/usage/search">Riak Search</a>. If you do need a tool like Hadoop or Apache Spark, you should
+consider using Riak in conjunction with a more suitable data processing
+tool.</p>
+
+<h2 id="secondary-indexes-2i">Secondary Indexes (2i)</h2>
+
+<p>Using basic key/value operations in Riak sometimes leads to the
+following problem: how do I know which keys I should look for? Secondary
+indexes (2i) provide a solution to this problem, enabling you to tag
+objects with either binary or integer metadata and then query Riak for
+all of the keys that share specific tags. 2i is especially useful if
+you’re storing binary data that is opaque to features like <a href="/riak/kv/2.2.3/developing/usage/search">Riak Search</a>.</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/developing/usage/secondary-indexes">Using Secondary Indexes</a> — A general guide to using 2i, along
+with code samples and information on 2i features like pagination,
+streaming, and sorting</li>
+  <li><a href="/riak/kv/2.2.3/using/reference/secondary-indexes">Advanced Secondary Indexes</a> — Implementation details behind 2i</li>
+</ul>
+
+<h3 id="when-to-use-secondary-indexes">When to Use Secondary Indexes</h3>
+
+<ul>
+  <li><strong>When you require deep pagination</strong> — At the moment, 2i’s
+  deep pagination capabilities are more performant than those offered
+  by Search if you require pagination of more than 3-5 pages. This
+  will change, however, in the future, at which point we will
+  recommend using Search instead.</li>
+</ul>
+
+<h3 id="when-not-to-use-secondary-indexes">When Not to Use Secondary Indexes</h3>
+
+<ul>
+  <li><strong>For most querying purposes</strong> — If your use case does not
+  involve deep pagination, we recommend Search over 2i for <em>all</em>
+  querying purposes.</li>
+  <li><strong>If you’re using Bitcask</strong> — 2i is available only in the
+  <a href="/riak/kv/2.2.3/setup/planning/backend/leveldb">LevelDB</a> backend. If you’d like to use <a href="/riak/kv/2.2.3/setup/planning/backend/bitcask">Bitcask</a> or the <a href="/riak/kv/2.2.3/setup/planning/backend/memory">Memory</a> backend, you will not be able to use 2i.</li>
+</ul>
+
+<h2 id="mixed-approach">Mixed Approach</h2>
+
+<p>One thing to always bear in mind is that Riak enables you to mix and
+match a wide variety of approaches in a single cluster. You can use
+basic CRUD operations for some of your data, index some of your data to
+be queried by Riak Search, use Riak Data Types for another subset, etc.
+You are always free to use a wide array of Riak features—or you can
+use none at all and stick to key/value operations.</p>
+
+<h2 id="how-should-you-model-your-data">How Should You Model Your Data?</h2>
+
+<p>It’s difficult to offer universally applicable data modeling guidelines
+because data models differ so markedly from use case to use case. What
+works when storing <a href="/riak/kv/2.2.3/developing/data-modeling/#user-data">user data</a>, for example, might
+be a poor fit when working with <a href="/riak/kv/2.2.3/developing/data-modeling/#sensor-data">sensor data</a>.
+Nonetheless, there’s a variety of material in our documentation that
+might be helpful when thinking about data modeling:</p>
+
+<ul>
+  <li>Object Modeling in Riak KV:
+    <ul>
+      <li><a href="/riak/kv/2.2.3/developing/getting-started/java/object-modeling">Java</a></li>
+      <li><a href="/riak/kv/2.2.3/developing/getting-started/ruby/object-modeling">Ruby</a></li>
+      <li><a href="/riak/kv/2.2.3/developing/getting-started/python/object-modeling">Python</a></li>
+      <li><a href="/riak/kv/2.2.3/developing/getting-started/csharp/object-modeling">C#</a></li>
+      <li><a href="/riak/kv/2.2.3/developing/getting-started/nodejs/object-modeling">NodeJS</a></li>
+      <li><a href="/riak/kv/2.2.3/developing/getting-started/erlang/object-modeling">Erlang</a></li>
+      <li><a href="/riak/kv/2.2.3/developing/getting-started/golang/object-modeling">Go</a></li>
+    </ul>
+  </li>
+  <li><a href="/riak/kv/2.2.3/developing/key-value-modeling">Key/Value Modeling</a></li>
+</ul>
+
+<h3 id="data-types">Data Types</h3>
+
+<p>One feature to always bear in mind when using Riak is <a href="/riak/kv/2.2.3/developing/data-types">Riak Data Types</a>. If some or all of your data can be modeled in
+accordance with one of the available Data Types—flags (similar to
+Booleans), registers (good for storing small binaries or text snippets),
+<a href="/riak/kv/2.2.3/developing/data-types/#counters">counters</a>, <a href="/riak/kv/2.2.3/developing/data-types/#sets">sets</a>,
+or <a href="/riak/kv/2.2.3/developing/data-types/#maps">maps</a>—you might be able to streamline
+application development by using them as an alternative to key/value
+operations. In some cases, it might even be worthwhile to transform your
+data modeling strategy in accordance with To see if this feature might
+be a good fit for your application, we recommend checking out the
+following documentation:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/learn/concepts/crdts">Data Types</a></li>
+  <li><a href="/riak/kv/2.2.3/developing/data-types">Using Data Types</a></li>
+  <li><a href="/riak/kv/2.2.3/developing/data-modeling">Data Modeling with Riak Data Types</a></li>
+</ul>
+
+<h2 id="what-are-your-consistency-requirements">What are Your Consistency Requirements?</h2>
+
+<p>Riak has traditionally been thought of as an <a href="/riak/kv/2.2.3/learn/concepts/eventual-consistency">eventually consistent</a>, AP system, i.e. as a system that
+favors availability and partition tolerance over data consistency. In
+Riak versions 2.0 and later, the option of applying strong consistency
+guarantees is available to developers that want to use Riak as a strict
+CP system. One of the advantages of Riak’s approach to strong
+consistency is that you don’t need to store all of your data in a
+strongly consistent fashion if you use this feature. Instead, you can
+mix and match a CP approach with an AP approach in a single cluster in
+any way you wish.</p>
+
+<p>If you need some or all of your data to be subject to strong consistency
+requirements, we recommend checking out the following documentation:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/using/reference/strong-consistency">Strong Consistency</a></li>
+  <li><a href="/riak/kv/2.2.3/developing/app-guide/strong-consistency">Using Strong Consistency</a></li>
+  <li><a href="/riak/kv/2.2.3/using/cluster-operations/strong-consistency">Managing Strong Consistency</a></li>
+</ul>
+
+<h2 id="are-your-objects-mutable">Are Your Objects Mutable?</h2>
+
+<p>Although Riak always performs best when storing and retrieving immutable
+data, Riak also handles mutable objects very ably using a variety of
+eventual consistency principles. Storing mutable data in Riak, however,
+can get tricky because it requires you to choose and implement a
+conflict resolution strategy for when object conflicts arise, which is a
+normal occurrence in Riak. For more implementation details, we recommend
+checking out the following docs:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/developing/usage/conflict-resolution">Conflict Resolution</a></li>
+  <li><a href="/riak/kv/2.2.3/developing/usage/updating-objects">Object Updates</a></li>
+  <li><a href="/riak/kv/2.2.3/developing/app-guide/replication-properties">Replication Properties</a></li>
+</ul>
+
+<h2 id="getting-started">Getting Started</h2>
+
+<p>If you have a good sense of how you will be using Riak for your
+application (or if you just want to experiment), the following guides
+will help you get up and running:</p>
+
+<ul>
+  <li><a href="/riak/kv/2.2.3/setup/installing">Installing Riak KV</a> — Install Riak KV and start up a 5-node Riak
+cluster</li>
+  <li><a href="/riak/kv/2.2.3/developing/client-libraries">Client Libraries</a> — A listing of official and non-official client
+libraries for building applications with Riak</li>
+  <li><a href="/riak/kv/2.2.3/developing/getting-started">Getting Started with Client Libraries</a> — How to
+get up and going with one of Basho’s official client libraries (Java,
+Ruby, Python, and Erlang)</li>
+  <li><a href="/riak/kv/2.2.3/developing/usage">Developing with Riak KV: Usage</a> — A guide to basic key/value operations and other common tasks in Riak KV.</li>
+  <li><a href="/riak/kv/2.2.3/learn/glossary">Riak KV Glossary</a> — A listing of frequently used terms in Riak’s
+documentation</li>
+</ul>
+

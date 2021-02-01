@@ -1,0 +1,563 @@
+
+<h2 id="general">General</h2>
+
+<p><strong>Q: How can I automatically expire a key from Riak? I want to regularly purge items from Riak that are older than a certain timestamp, but MapReduce times out on large numbers of items. Can I expire data automatically?</strong></p>
+
+<p><strong>A:</strong>
+  If you’re using <a href="/riak/kv/2.2.1/setup/planning/backend/bitcask">Bitcask</a>, the default storage backend, and you want items to expire at a consistent interval (assuming that they are not updated), set the <code class="language-plaintext highlighter-rouge">expiry_secs</code> option in <code class="language-plaintext highlighter-rouge">app.config</code>. Items that persist past this threshold will not be returned on get/fetch operations and will eventually be removed from disk by Bitcask’s merging process. For example:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="p">{</span><span class="n">bitcask</span><span class="p">,</span> <span class="p">[</span>
+      <span class="p">{</span><span class="n">data_root</span><span class="p">,</span> <span class="s">"data/bitcask"</span><span class="p">},</span>
+      <span class="p">{</span><span class="n">expiry_secs</span><span class="p">,</span> <span class="mi">86400</span><span class="p">}</span> <span class="c">%% Expire after a day
+</span>  <span class="p">]},</span>
+</code></pre></div></div>
+
+<p>There is no limit on how large or small the <code class="language-plaintext highlighter-rouge">expiry_secs</code> setting can be as long as it is greater than 0.</p>
+
+<p>You can also set auto-expire using the <a href="/riak/kv/2.2.1/setup/planning/backend/memory">Memory</a> storage backend, but it will be limited by RAM.</p>
+
+<hr />
+
+<p><strong>Q: Is there better performance for a few objects in many buckets, or many objects in a few buckets?</strong></p>
+
+<p><strong>A:</strong>
+  Generally speaking, it does not matter if you have many buckets with a small number of objects or a small number of buckets with a large number of objects. Buckets that use the cluster’s default bucket properties (which can be set in your <code class="language-plaintext highlighter-rouge">app.config</code> file) are essentially free.</p>
+
+<p>If the buckets require different bucket properties, however, those custom properties incur some cost because changes in bucket properties must be gossiped around the cluster. If you create many, many buckets with custom properties, the cost can indeed have an impact.</p>
+
+<hr />
+
+<p><strong>Q: Can I list buckets or keys in production?</strong></p>
+
+<p><strong>A:</strong>
+  It is <em>not</em> recommended that you list the buckets in production because it is a costly operation irrespective of the bucket’s size.</p>
+
+<p>Buckets are not like directories on a file system or tables in a database; rather, they are logical properties applied to objects, i.e. there is no <em>actual</em> separation of objects by bucket.</p>
+
+<p>A filter must be applied to all of the objects in the system in order to find those residing in a particular bucket. Buckets are intended for configuration purposes (e.g. replication properties) rather than for general queries.</p>
+
+<p>To keep track of groups of objects there are several options with various trade-offs: secondary indexes, search, or a list using links.</p>
+
+<hr />
+
+<p><strong>Q: Why do secondary indexes (2i) return inconsistent results after using <code class="language-plaintext highlighter-rouge">force-remove</code> to drop a node from the cluster?</strong></p>
+
+<p><strong>A:</strong>
+  The Riak key/value store distributes values across all of the partitions in the ring. In order to minimize synchronization issues with secondary indexes, Riak stores index information in the same partition as the data values.</p>
+
+<p>When a node fails or is taken out of the cluster without using riak-admin leave, all of the data held by that node is lost to the cluster. This leaves N - 1 consistent replicas of the data. If <code class="language-plaintext highlighter-rouge">riak-admin force-remove</code> is used to remove the downed node, the remaining clusters will claim the partitions the failed node previously held. The data in the newly claimed vnodes will be made consistent one key at a time through the read-repair mechanism as each key is accessed, or through Active Anti-entropy (AAE) if enabled.</p>
+
+<p>As a simplistic example, consider this hypothetical cluster:</p>
+
+<ul>
+  <li>5 nodes (nodes A-E)</li>
+  <li>ring size = 16</li>
+  <li><code class="language-plaintext highlighter-rouge">n_val</code> = 3.</li>
+</ul>
+
+<p>For this example, I am using simple small integers instead of the actual 160-bit partition index values for the sake of simplicity. The partitions are assigned to the nodes as follows:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>A: 0-5-10-15
+B: 1-6-11
+C: 2-7-12
+D: 3-8-12
+E: 4-9-14
+</code></pre></div></div>
+<p>When a value is stored in Riak, the <code class="language-plaintext highlighter-rouge">{bucket, key}</code> is hashed to determine its first primary partition, and the value is stored in that partition and the next <code class="language-plaintext highlighter-rouge">n_val</code> - 1 partitions in the ring.
+  A preflist consists of the vnode which owns the key, and the next <code class="language-plaintext highlighter-rouge">n_val</code> vnodes in the ring, in order. In this scenario there are 16 preflists:</p>
+
+<table border="1">
+  <tr><td>0-1-2</td><td>1-2-3</td><td>2-3-4</td><td>3-4-5</td></tr>
+  <tr><td>4-5-6</td><td>5-6-7</td><td>6-7-8</td><td>7-8-9</td></tr>
+  <tr><td>8-9-10</td><td>9-10-11</td><td>10-11-12</td><td>11-12-13</td></tr>
+  <tr><td>12-13-14</td><td>13-14-15</td><td>14-15-0</td><td>15-0-1</td></tr>
+  </table>
+
+<p>Index information for each partition is co-located with the value data.  In order to get a full result set for a secondary index query, Riak will need to consult a “covering set” of vnodes that includes at least one member of each preflist. This will require a minimum of 1/<code class="language-plaintext highlighter-rouge">n_val</code> of the vnodes, rounded up, in this case 6. There are 56 possible covering sets consisting of 6 vnodes:</p>
+
+<table border="1">
+  <tr><td>0-1-4-7-10-13</td><td>0-2-4-7-10-13</td><td>0-2-5-7-10-13</td><td>0-2-5-8-10-13</td></tr>
+  <tr><td>0-2-5-8-11-13</td><td>0-2-5-8-11-14</td><td>0-3-4-7-10-13</td><td>0-3-5-7-10-13</td></tr>
+  <tr><td>0-3-5-8-10-13</td><td>0-3-5-8-11-13</td><td>0-3-5-8-11-14</td><td>0-3-6-7-10-13</td></tr>
+  <tr><td>0-3-6-8-10-13</td><td>0-3-6-8-11-13</td><td>0-3-6-8-11-14</td><td>0-3-6-9-10-13</td></tr>
+  <tr><td>0-3-6-9-11-13</td><td>0-3-6-9-11-14</td><td>0-3-6-9-12-13</td><td>0-3-6-9-12-14</td></tr>
+  <tr><td>0-3-6-9-12-15</td><td>1-2-5-8-11-14</td><td>1-3-5-8-11-14</td><td>1-3-6-8-11-14</td></tr>
+  <tr><td>1-3-6-9-11-14</td><td>1-3-6-9-12-14</td><td>1-3-6-9-12-15</td><td>1-4-5-8-11-14</td></tr>
+  <tr><td>1-4-6-8-11-14</td><td>1-4-6-9-11-14</td><td>1-4-6-9-12-14</td><td>1-4-6-9-12-15</td></tr>
+  <tr><td>1-4-7-8-11-14</td><td>1-4-7-9-11-14</td><td>1-4-7-9-12-14</td><td>1-4-7-9-12-15</td></tr>
+  <tr><td>1-4-7-10-11-14</td><td>1-4-7-10-12-14</td><td>1-4-7-10-12-15</td><td>1-4-7-10-13-14</td></tr>
+  <tr><td>1-4-7-10-13-15</td><td>2-3-6-9-12-15</td><td>2-4-6-9-12-15</td><td>2-4-7-9-12-15</td></tr>
+  <tr><td>2-4-7-10-12-15</td><td>2-4-7-10-13-15</td><td>2-5-6-9-12-15</td><td>2-5-7-9-12-15</td></tr>
+  <tr><td>2-5-7-10-12-15</td><td>2-5-7-10-13-15</td><td>2-5-8-9-12-15</td><td>2-5-8-10-12-15</td></tr>
+  <tr><td>2-5-8-10-13-15</td><td>2-5-8-11-12-15</td><td>2-5-8-11-13-15</td><td>2-5-8-11-14-15</td></tr>
+  </table>
+
+<p>When a node fails or is marked down, its vnodes will not be considered for coverage queries. Fallback vnodes will be created on other nodes so that PUT and GET operations can be handled, but only primary vnodes are considered for secondary index coverage queries. If a covering set cannot be found, <code class="language-plaintext highlighter-rouge">{error, insufficient_vnodes}</code> will be returned. Thus, the reply will either be complete or an error.</p>
+
+<p>When a node is <code class="language-plaintext highlighter-rouge">force-remove</code>d, it is dropped from the cluster without transferring its data to other nodes, and the remaining nodes then claim the unowned partitions, designating new primary replicas to comply with <code class="language-plaintext highlighter-rouge">n_val</code>, but they do not immediately populate the data or indexes.</p>
+
+<p>Read repair, triggered by GETs or PUTs on the individual keys, and/or Active Anti-Entropy, will eventually repopulate the data, restoring consistency.<br />
+  A GET operation for a key will request the data from all of the vnodes in its preflist, by default waiting for over half of them to respond. This results in consistent responses to get even when one of the vnodes in the preflist has been compromised.</p>
+
+<p>Secondary index queries, however, consult a covering set which may include only 1 member of the preflist.  If that vnode is empty due to the <code class="language-plaintext highlighter-rouge">force-remove</code> operation, none of the keys from that preflist will be returned.</p>
+
+<p>Continuing with the above example, consider if node C is force removed. 
+  This is one possible configuration after rebalancing:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>A: 0-5-10-15
+B: 1-6-11-2*
+D: 3-8-12-7*
+E: 4-9-14-12*
+</code></pre></div></div>
+
+<p>Vnodes 2,7, and 12 (marked with <code class="language-plaintext highlighter-rouge">*</code>) are newly created primary partitions that do not contain any values or index information.</p>
+
+<p>In this new 4-node configuration any coverage set that includes vnodes 2,7, or 12 will return incomplete results until consistency is restored via read-repair or AAE, because not all vnodes will contain the data that would otherwise be present.</p>
+
+<p>So making a couple of assumptions for demonstration purposes:</p>
+
+<ol>
+  <li>
+    <p>The keys <code class="language-plaintext highlighter-rouge">a</code>, <code class="language-plaintext highlighter-rouge">b</code>, and <code class="language-plaintext highlighter-rouge">c</code> are stored in the following preflists:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  a - 0-1-2
+  b - 6-7-8
+  c - 10-11-12
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>The cluster is not loaded, so no GET/PUT or other coverage queries are being performed</p>
+  </li>
+  <li>
+    <p>AAE is not enabled</p>
+  </li>
+</ol>
+
+<p>The coordinating node (the one that receives the request from the client) will attempt to spread the load by not using the same partitions for successive coverage queries.</p>
+
+<p>The results from secondary index queries that should return all 3 keys will vary depending on the nodes chosen for the coverage set. Of the 56 possible covering sets …</p>
+
+<ul>
+  <li>20 sets (35.7% of sets) will return all 3 keys <code class="language-plaintext highlighter-rouge">{a,b,c}</code>:
+    <table border="1">
+<tr><td>0-2-5-8-10-13</td><td>0-2-5-8-11-13</td><td>0-2-5-8-11-14</td><td>0-3-5-8-10-13</td></tr>
+<tr><td>0-3-5-8-11-13</td><td>0-3-5-8-11-14</td><td>0-3-6-8-10-13</td><td>0-3-6-8-11-13</td></tr>
+<tr><td>0-3-6-8-11-14</td><td>0-3-6-9-10-13</td><td>0-3-6-9-11-13</td><td>0-3-6-9-11-14</td></tr>
+<tr><td>1-2-5-8-11-14</td><td>1-3-5-8-11-14</td><td>1-3-6-8-11-14</td><td>1-3-6-9-11-14</td></tr>
+<tr><td>1-4-5-8-11-14</td><td>1-4-6-8-11-14</td><td>1-4-6-9-11-14</td><td>1-4-7-8-11-14</td></tr>
+</table>
+  </li>
+  <li>24 sets (42.9%) will return 2 of the 3 keys:
+    <table border="1">
+<tr><td colspan="4">`{a,b}` (7 sets)</td></tr>
+<tr><td>0-3-6-9-12-13</td><td>0-3-6-9-12-14</td><td>0-3-6-9-12-15</td><td>1-3-6-9-12-14</td></tr>
+<tr><td>1-3-6-9-12-15</td><td>1-4-6-9-12-14</td><td>1-4-6-9-12-15</td><td>&nbsp;</td></tr>
+<tr><td colspan="4">`{a,c}` (12 sets)</td></tr>
+<tr><td>0-1-4-7-10-13</td><td>0-2-4-7-10-13</td><td>0-2-5-7-10-13</td><td>0-3-4-7-10-13</td></tr>
+<tr><td>0-3-5-7-10-13</td><td>0-3-6-7-10-13</td><td>1-4-7-10-11-14</td><td>1-4-7-10-12-14</td></tr>
+<tr><td>1-4-7-10-12-15</td><td>1-4-7-10-13-14</td><td>1-4-7-10-13-15</td><td>1-4-7-9-11-14</td></tr>
+<tr><td colspan="4">`{b,c}` (5 sets)</td></tr>
+<tr><td>2-5-8-10-12-15</td><td>2-5-8-10-13-15</td><td>2-5-8-11-12-15</td><td>2-5-8-11-14-15</td></tr>
+<tr><td>2-5-8-11-13-15</td><td colspan="3">&nbsp;</td></tr>
+</table>
+  </li>
+  <li>10 sets (17.8%) will return only one of the 3 keys:
+    <table border="1">
+<tr><td colspan="4">`{a}` (2 sets)</td></tr>
+<tr><td>1-4-7-9-12-14</td><td>1-4-7-9-12-15</td><td colspan="2">&nbsp;</td></tr>
+<tr><td colspan="4">`{b}` (4 sets)</td></tr>
+<tr><td>2-3-6-9-12-15</td><td>2-4-6-9-12-15</td><td>2-5-6-9-12-15</td><td>2-5-8-9-12-15</td></tr>
+<tr><td colspan="4">`{c}` (4 sets)</td></tr>
+<tr><td>2-4-7-10-12-15</td><td>2-4-7-10-13-15</td><td>2-5-7-10-12-15</td><td>2-5-7-10-13-15</td></tr>
+</table>
+  </li>
+  <li>2 sets (3.6%) will not return any of the 3 keys
+    <table border="1">
+<tr><td>2-4-7-9-12-15</td><td>2-5-7-9-12-15</td></tr>
+</table>
+  </li>
+</ul>
+
+<hr />
+
+<p><strong>Q: How do I load 3rd-party Javascript libraries for use in MapReduce functions?</strong>
+  Is it possible to load third-party javascript libraries (like Underscore.js) to be available in MapReduce functions?</p>
+
+<p><strong>A:</strong>
+  Yes. For JavaScript, this can be done in <code class="language-plaintext highlighter-rouge">app.config</code> in <code class="language-plaintext highlighter-rouge">js_source_dir</code> in the <code class="language-plaintext highlighter-rouge">riak_kv</code> settings:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="p">{</span><span class="n">js_source_dir</span><span class="p">,</span> <span class="s">"/etc/riak/javascript"</span><span class="p">},</span>
+</code></pre></div></div>
+
+<p>For Erlang code (please note that you need compiled modules in this dir), set <code class="language-plaintext highlighter-rouge">add_paths</code> in the <code class="language-plaintext highlighter-rouge">riak_kv</code> section:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="p">{</span><span class="n">add_paths</span><span class="p">,</span> <span class="s">"/etc/riak/erlang"</span><span class="p">},</span>
+</code></pre></div></div>
+
+<p>You can find more details in the <a href="/riak/kv/2.2.1/configuring/reference">Configuration Files</a> document.</p>
+
+<hr />
+
+<p><strong>Q: Is it possible to use key filtering to just return a list of keys that match a particular pattern without performing a MapReduce on it?</strong>
+  When running a MapReduce query, a map phase results in Riak pulling an object off of disk. Some queries are only interested in the keys of an object and not the value. Is it possible to run a MapReduce query that does not have to pull objects off of disk?</p>
+
+<p><strong>A:</strong>
+  Yes. Specifying a MapReduce query with just a reduce phase will avoid any need to pull data off of disk. To return the results of a key filtering query you can do the following:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="w">  </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"inputs"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"bucket"</span><span class="p">:</span><span class="w"> </span><span class="s2">"test"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"key_filters"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+        </span><span class="p">[</span><span class="s2">"ends_with"</span><span class="p">,</span><span class="s2">"1"</span><span class="p">]</span><span class="w">
+      </span><span class="p">]</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="nl">"query"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+      </span><span class="p">{</span><span class="w">
+        </span><span class="nl">"reduce"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"language"</span><span class="p">:</span><span class="w"> </span><span class="s2">"erlang"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"module"</span><span class="p">:</span><span class="w"> </span><span class="s2">"riak_kv_mapreduce"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"function"</span><span class="p">:</span><span class="w"> </span><span class="s2">"reduce_identity"</span><span class="w">
+        </span><span class="p">}</span><span class="w">
+      </span><span class="p">}</span><span class="w">
+    </span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>There is also a reduce function for counting inputs. This function can be used to count keys in a bucket without reading objects from disk:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="w">  </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"inputs"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"bucket"</span><span class="p">:</span><span class="w"> </span><span class="s2">"test"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"key_filters"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+        </span><span class="p">[</span><span class="w">
+          </span><span class="s2">"ends_with"</span><span class="p">,</span><span class="s2">"1"</span><span class="w">
+        </span><span class="p">]</span><span class="w">
+      </span><span class="p">]</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="nl">"query"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+      </span><span class="p">{</span><span class="w">
+        </span><span class="nl">"reduce"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> 
+          </span><span class="nl">"language"</span><span class="p">:</span><span class="w"> </span><span class="s2">"erlang"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"module"</span><span class="p">:</span><span class="w"> </span><span class="s2">"riak_kv_mapreduce"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"function"</span><span class="p">:</span><span class="w"> </span><span class="s2">"reduce_count_inputs"</span><span class="w">
+        </span><span class="p">}</span><span class="w">
+      </span><span class="p">}</span><span class="w">
+    </span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<hr />
+
+<p><strong>Q: How can I observe object sizes and sibling counts?</strong></p>
+
+<p><strong>A:</strong>
+  <code class="language-plaintext highlighter-rouge">riak-admin status</code> will return the following stats, which give the mean and median along with the 95th, 99th, and 100th percentile object size and sibling counts.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  node_get_fsm_siblings_mean : 0
+  node_get_fsm_siblings_median : 0
+  node_get_fsm_siblings_95 : 0
+  node_get_fsm_siblings_99 : 0
+  node_get_fsm_siblings_100 : 0
+  node_get_fsm_objsize_mean : 0
+  node_get_fsm_objsize_median : 0
+  node_get_fsm_objsize_95 : 0
+  node_get_fsm_objsize_99 : 0
+  node_get_fsm_objsize_100 : 0
+</code></pre></div></div>
+
+<hr />
+
+<p><strong>Q: A node left the cluster before handing off all data. How can I resolve this?</strong></p>
+
+<p><strong>A:</strong>
+  In versions of Riak earlier than Riak 1.0, there are cases in which a node that is leaving the cluster will shut down before handing off all of its data. This has been resolved in Riak 1.0.</p>
+
+<p>If you encounter this issue, you can rely upon the <code class="language-plaintext highlighter-rouge">read-repair</code> command to restore your lost replicas. Simply send a <code class="language-plaintext highlighter-rouge">HEAD</code> request for each key in your data set and Riak will restore replicas as needed.</p>
+
+<p>Alternatively, if the node that left prematurely is still installed/available, you can manually re-initiate handoff using the following sequence. This approach requires entering code directly into the Erlang console of a running Riak node, and is therefore most appropriate for users with a support contract with Basho that can ask for help if anything goes wrong.</p>
+
+<p><strong>Manual approach</strong>: Restart the node that prematurely left by using <code class="language-plaintext highlighter-rouge">riak console</code>. Then copy/paste the following sequence, changing the first line to point to a node still in your cluster. Handoff should then restart, but there may be no visual indicator. Simply leave the node running for awhile. It should eventually hand off all data and then shut down. Verify handoff by once again checking the size of your data directories.</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nv">ClusterNode</span> <span class="o">=</span> <span class="n">'riak@127.0.0.1'</span><span class="p">.</span>
+
+  <span class="nn">application</span><span class="p">:</span><span class="nf">set_env</span><span class="p">(</span><span class="n">riak_core</span><span class="p">,</span> <span class="n">wants_claim_fun</span><span class="p">,</span> <span class="p">{</span><span class="n">riak_core_claim</span><span class="p">,</span> <span class="n">never_wants_claim</span><span class="p">}).</span>
+  <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Ring</span><span class="p">}</span> <span class="o">=</span> <span class="nn">rpc</span><span class="p">:</span><span class="nf">call</span><span class="p">(</span><span class="nv">ClusterNode</span><span class="p">,</span> <span class="n">riak_core_ring_manager</span><span class="p">,</span> <span class="n">get_my_ring</span><span class="p">,</span> <span class="p">[]).</span>
+  <span class="nv">Ring2</span> <span class="o">=</span> <span class="nb">setelement</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nv">Ring</span><span class="p">,</span> <span class="nb">node</span><span class="p">()).</span>
+  <span class="nn">riak_core_ring_manager</span><span class="p">:</span><span class="nf">set_my_ring</span><span class="p">(</span><span class="nv">Ring2</span><span class="p">).</span>
+  <span class="nn">riak_core_ring_manager</span><span class="p">:</span><span class="nf">write_ringfile</span><span class="p">().</span>
+  <span class="p">[</span><span class="nn">gen_server</span><span class="p">:</span><span class="nf">cast</span><span class="p">(</span><span class="n">riak_core_node_watcher</span><span class="p">,</span> <span class="p">{</span><span class="n">up</span><span class="p">,</span> <span class="nv">Node</span><span class="p">,</span> <span class="p">[</span><span class="n">riak_kv</span><span class="p">]})</span> <span class="p">||</span> <span class="nv">Node</span>
+</code></pre></div></div>
+
+<hr />
+
+<p><strong>Q: Is there a limit on the size of files that can be stored on Riak?</strong></p>
+
+<p><strong>A:</strong>
+  There isn’t a limit on object size, but we suggest you keep it to no more than 1-2MB for performance reasons. Variables such as network speed can directly affect the maximum usable object size for a given cluster. You should use a tool like [Basho Bench] to determine the performance of your cluster with a given object size before moving to production use. Or if your use case demands storing many large objects, you may want to consider the <a href="/riak/cs/2.1.1">Riak CS</a> object storage system, which is designed for precisely that purpose.</p>
+
+<hr />
+
+<p><strong>Q: Does the bucket name impact key storage size?</strong></p>
+
+<p><strong>A:</strong>
+  The storage per key is 40 bytes plus the key size and bucket name size.</p>
+
+<p>Example:</p>
+
+<p>Key size: 15 bytes.
+  Bucket Name size: 10 bytes.</p>
+
+<p>Total size = 40 + 15 + 10 = <strong>65 bytes</strong>.</p>
+
+<hr />
+
+<p><strong>Q: Are Riak-generated keys unique within a bucket?</strong></p>
+
+<p><strong>A:</strong>
+  It’s not guaranteed, but you are extremely unlikely to get collisions. Riak generates keys using an Erlang-generated unique ID and a timestamp hashed with SHA-1 and base-62 encoded for URL safety.</p>
+
+<hr />
+
+<p><strong>Q: Where are bucket properties stored?</strong></p>
+
+<p><strong>A:</strong>
+  The bucket properties for the default bucket type are stored in the <em>ring</em> (metadata stored in each node about the cluster).  Rings are gossipped as a single unit, so if possible you should limit your creation of custom buckets under the default bucket type.
+  Bucket properties for non-default bucket types are stored in the cluster metadata system.  The cluster metadata system is a more efficient way of replicating this information around a Riak cluster.</p>
+
+<p>The bucket properties stay in the ring and cluster metadata even if the bucket is empty.</p>
+
+<hr />
+
+<p><strong>Q: Are Riak keys / buckets case sensitive?</strong></p>
+
+<p><strong>A:</strong>
+  Yes, they are case sensitive and treated as binaries (byte buffers). Thus, <code class="language-plaintext highlighter-rouge">mykey</code> is not equal to <code class="language-plaintext highlighter-rouge">MyKey</code>.</p>
+
+<hr />
+
+<p><strong>Q: Can I run my own Erlang applications in the same VM as Riak?</strong></p>
+
+<p><strong>A:</strong>
+  We do not recommend running your application inside the same virtual machine as Riak for several reasons. If they are kept separate, the following will hold:</p>
+
+<ol>
+  <li>Your application and Riak will not compete for the same resources and are thus less likely to affect each other’s performance and availability.</li>
+  <li>You will be able to upgrade Riak and your application independently of one another.</li>
+  <li>When your application or Riak need more capacity, you can scale them separately to meet your production needs.</li>
+</ol>
+
+<hr />
+
+<p><strong>Q: Is there a simple way to reload an Erlang module for MapReduce across a cluster?</strong></p>
+
+<p><strong>A:</strong>
+  Assuming that the module is in your code path, you can run <code class="language-plaintext highlighter-rouge">c:nl(ModName)</code> from the Erlang console .</p>
+
+<hr />
+
+<p><strong>Q: How do I spread requests across—i.e. load balance—a Riak cluster?</strong></p>
+
+<p><strong>A:</strong>
+  There are at least two acceptable strategies for load balancing requests across your Riak cluster: <strong>virtual IPs</strong> and <strong>reverse-proxy</strong>.</p>
+
+<p>For further information see <a href="/riak/kv/2.2.1/setup/planning/start/#network-configuration-load-balancing">System Planning</a>.</p>
+
+<hr />
+
+<p><a name="restart-merges"></a>
+<strong>Q: Why does it seem that Bitcask merging is only triggered when a Riak node is restarted?</strong>
+  There have been situations where the data directory for a Riak node (e.g. <code class="language-plaintext highlighter-rouge">data/bitcask</code>) grows continually and does not seem to merge. After restarting the node a series of merges are kicked off and the total size of the data directory shrinks. Why does this happen?</p>
+
+<p><strong>A:</strong>
+  Riak and Bitcask are operating normally. Bitcask’s merge behavior is as follows:</p>
+
+<ol>
+  <li>List all of the data files in the Bitcask directory; it should be noted that a Bitcask directory exists for every vnode (e.g. <code class="language-plaintext highlighter-rouge">data/bitcask/0</code>)</li>
+  <li>Remove the currently active file from the list; the active file is the one being actively written</li>
+  <li>Lookup file stats for each data file; this includes percent fragmentation and number of dead bytes</li>
+  <li>If any of the stats exceed the defined triggers, the Bitcask directory is merged</li>
+</ol>
+
+<p>The default triggers for a Bitcask directory:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">{frag_merge_trigger, 60}, % &gt;= 60% fragmentation</code></li>
+  <li><code class="language-plaintext highlighter-rouge">{dead_bytes_merge_trigger, 536870912}, % Dead bytes &gt; 512 MB</code></li>
+</ul>
+
+<p>In the described scenario, merging has not occurred because none of the data files have triggered the merge. After restarting the node, however, the previously active file is now included in the merge trigger analysis and triggers a merge on the Bitcask directory.</p>
+
+<p>If Riak was never restarted, the merge would eventually happen when writes roll over to a new data file. Bitcask rolls writes over to a new data file once the currently active file has exceeded a certain size (2 GB by default).</p>
+
+<hr />
+
+<p><strong>Q: When retrieving a list of siblings I am getting the same vtag multiple times.</strong>
+  When retrieving a list of siblings via the REST interface, I am seeing the same vtag appear multiple times. Is this normal? I thought vtags were unique. Are they referring to the same sibling?</p>
+
+<p><strong>A:</strong>
+  The vtag is calculated on a <code class="language-plaintext highlighter-rouge">PUT</code> based on the vclock and is stored as part of the object’s metadata.</p>
+
+<p>It is possible to get siblings with the same vtag during vector clock pruning and read/repair.</p>
+
+<p>See <a href="/riak/kv/2.2.1/learn/concepts/causal-context#vector-clocks">vector clocks</a> for more information.</p>
+
+<hr />
+
+<p><strong>Q: How should I structure larger data objects?</strong>
+  I have a data object that is denormalized, with multiple child data objects, and stored as a nested JSON hash. However, retrieving and storing this object becomes increasingly costly as my application modifies and adds pieces to the object. Would breaking the object into smaller pieces improve performance? What are the tradeoffs?</p>
+
+<p><strong>A:</strong>
+  The factors involved in deciding whether or not to break this large object into multiple pieces are more concerned with conceptual structure than performance, although performance will be affected. Those factors include:</p>
+
+<ol>
+  <li>How tightly coupled are the child objects to the parent? That is, are they frequently updated at the same time?</li>
+  <li>How likely are the objects to be updated at the same time by multiple processes?</li>
+</ol>
+
+<p>If the parent and child objects are not too tightly coupled (or the children are updated much more frequently), then splitting them along conceptual boundaries will improve performance in your application by decreasing payload size and reducing update conflicts. Generally, you will want to add links to connect the objects for easy fetching and traversal.</p>
+
+<hr />
+
+<p><strong>Q: Is there any way in Riak to limit access to a user or a group of users?</strong></p>
+
+<p><strong>A:</strong>
+  Allowing multiple users, also known as multitenancy, is not built into Riak (though it is built into <a href="/riak/cs/2.1.1">Riak CS</a>). Riak has no built-in authentication.</p>
+
+<p>If you need to restrict access, consider putting an authenticating reverse-proxy server in front of it.</p>
+
+<hr />
+
+<p><strong>Q: Is there a way to enforce a schema on data in a given bucket?</strong>
+  Suppose I’d like to set up a bucket to store data adhering to a particular schema. Is there any way to set this up with Riak? This way, when my application attempts to store data in a particular bucket, it will check with this schema first before storing it. Otherwise, it will produce an error.</p>
+
+<p><strong>A:</strong>
+  Riak does not implement any form of schema validation. A pre-commit hook can be used in this scenario but would need to be written by your development team. You can read more about <a href="/riak/kv/2.2.1/developing/usage/commit-hooks">commit hooks</a> in the docs. This document provides two pre-commit hook examples, one in Erlang that restricts objects that are too large and one in Javascript that restricts non-JSON content.</p>
+
+<hr />
+
+<p><strong>Q: How does the Erlang Riak Client manage node failures?</strong>
+  Does the Erlang Riak Client manage its own reconnect logic? What should a client do to maintain the connection or reconnect in case of nodes going down?</p>
+
+<p><strong>A:</strong>
+  The <a href="/riak/kv/2.2.1/developing/client-libraries">Erlang Riak Client</a> gives you several options for how to manage connections. You can set these when starting a <code class="language-plaintext highlighter-rouge">riakc_pb_socket</code> process or by using the <code class="language-plaintext highlighter-rouge">set_options</code> function.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">queue_if_disconnected</code> (default: <code class="language-plaintext highlighter-rouge">false</code>) — requests will be queued when the connection to the server is lost.</li>
+  <li><code class="language-plaintext highlighter-rouge">auto_reconnect</code> (default: <code class="language-plaintext highlighter-rouge">false</code>) — if the connection is lost, <code class="language-plaintext highlighter-rouge">riakc_pb_socket</code> will attempt to reconnect automatically. This is set to <code class="language-plaintext highlighter-rouge">true</code> if <code class="language-plaintext highlighter-rouge">queue_if_disconnected</code> is set to <code class="language-plaintext highlighter-rouge">true</code>.</li>
+</ul>
+
+<p>If these options are both false, connection errors will be returned to the process-making requests as <code class="language-plaintext highlighter-rouge">{error, Reason}</code> tuples.</p>
+
+<hr />
+
+<p><strong>Q: Is there a limiting factor for the number of buckets in a cluster?</strong></p>
+
+<p><strong>A:</strong>
+  As long as you use the default bucket properties, buckets consume no resources. Each bucket with non-default bucket properties is stored in the gossiped ring state, so the more buckets with custom properties, the more ring data must be handed off to every node.</p>
+
+<p>More on <a href="/riak/kv/2.2.1/developing/usage">Bucket Properties</a>.</p>
+
+<hr />
+
+<p><strong>Q: Is it possible to configure a single bucket’s properties in <code class="language-plaintext highlighter-rouge">app.config</code>?</strong></p>
+
+<p><strong>A:</strong>
+  Not a specific bucket, only the defaults. However, you should only need to change them once, since after that the settings will be reflected in the ring state.</p>
+
+<p>You can read more on <code class="language-plaintext highlighter-rouge">app.config</code> in <a href="/riak/kv/2.2.1/configuring/reference">Configuration Files</a>.</p>
+
+<hr />
+
+<p><strong>Q: Is there a simple command to delete a bucket?</strong></p>
+
+<p><strong>A:</strong>
+  There is no straightforward command to delete an entire bucket. You must delete all of the key/value objects individually. Thus, the following will not work:</p>
+
+<pre><code class="language-curl">  curl -X DELETE http://your-host:8098/riak/your-bucket
+</code></pre>
+
+<hr />
+
+<p><strong>Q: Can Riak be configured to fail an update instead of generating a conflict?</strong></p>
+
+<p><strong>A:</strong>
+  No. The closest thing would be to use the <code class="language-plaintext highlighter-rouge">If-None-Match</code> header, but that is only supported in the HTTP interface and probably won’t accomplish what you’re trying to do.</p>
+
+<hr />
+
+<p><strong>Q: How can I limit the number of keys retrieved?</strong></p>
+
+<p><strong>A:</strong>
+  You’ll need to use a <a href="/riak/kv/2.2.1/developing/usage/mapreduce">MapReduce</a> job for this.</p>
+
+<p>You could also run <code class="language-plaintext highlighter-rouge">keys=stream</code> and close the connection when you have the designated number. This will not, however, reduce load on the Riak cluster. It will only reduce load on your client.</p>
+
+<hr />
+
+<p><strong>Q: How is the real hash value for replicas calculated based on the preflist?</strong></p>
+
+<p><strong>A:</strong>
+  The hash is calculated first and then the next subsequent <em>N</em> partitions are chosen for the preflist.</p>
+
+<hr />
+
+<p><strong>Q: Do client libraries support load balancing/round robin?</strong></p>
+
+<p><strong>A:</strong></p>
+
+<ul>
+  <li>The Riak Ruby client has failure-aware load balancing. It will round-robin unless there are network errors, in which case other nodes will be preferred.</li>
+  <li>The Java client is strictly round robin, but with retries built in.</li>
+  <li>The Python client also follows round robin without retries.</li>
+  <li>The Erlang client does not support any load balancing.</li>
+</ul>
+
+<h2 id="mapreduce">MapReduce</h2>
+
+<p><strong>Q: Does the number of keys in a bucket affect the performance of MapReduce?</strong></p>
+
+<p><strong>A:</strong>
+  Yes. In general, the smaller the number of keys a bucket holds, the faster MapReduce operations will run.</p>
+
+<hr />
+
+<p><strong>Q: How do I filter out <code class="language-plaintext highlighter-rouge">not_found</code> from MapReduce results?</strong>
+  If I want to filter out the <code class="language-plaintext highlighter-rouge">not_found</code> in my MapReduce, should I do it in the reduce phase? I have a MapReduce job that returns what I’m looking for, but I want to filter out the <code class="language-plaintext highlighter-rouge">not_found</code> entries so that I only get a list back with the keys.</p>
+
+<p><strong>A:</strong>
+  There is a built-in function for this that ships with Riak. Check out <code class="language-plaintext highlighter-rouge">Riak.filterNotFound</code> from the <a href="https://github.com/basho/riak_kv/blob/master/priv/mapred_builtins.js">built-in functions list</a>.</p>
+
+<hr />
+
+<p><strong>Q: Is it possible to call a reduce function at specific intervals during a map function?</strong>
+  When doing the map step on a whole bucket, can I choose how many keys to map before calling the reduce? I am generating a lot of data in memory and it could be reduced if I could call the following reduce step more often.</p>
+
+<p><strong>A:</strong>
+  Not currently. The reduce function is run occasionally as the bucket is processed and MapReduce doesn’t wait for the whole map process to finish before running the reduce.</p>
+
+<hr />
+
+<p><strong>Q: When searching over a bucket using MapReduce, is it recommended to perform the search during the map phase or the reduce phase?</strong></p>
+
+<p><strong>A:</strong>
+  Aside from the performance considerations of doing a full-bucket <a href="/riak/kv/2.2.1/developing/usage/mapreduce">MapReduce</a>, searching is a form of filtering, which should be done in the map phase.</p>
+
+<hr />
+
+<p><strong>Q: Is it possible to delete data from Riak with a JavaScript MapReduce job?</strong></p>
+
+<p><strong>A:</strong>
+  This is not currently possible. If you want to delete objects from MapReduce, use an Erlang reduce phase like the one on <a href="https://github.com/basho/riak_function_contrib">contrib.basho.com</a>.</p>
+
+<hr />
+
+<p><strong>Q: Why does MapReduce return a JSON object on occasion instead of an array?</strong></p>
+
+<p><strong>A:</strong>
+  <code class="language-plaintext highlighter-rouge">mochijson2</code> assumes that anything that looks like a proplist—a list of 2-tuples—is turned into a hash:</p>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nb">list_to_binary</span><span class="p">(</span><span class="nn">mochijson2</span><span class="p">:</span><span class="nf">encode</span><span class="p">([{</span><span class="n">a</span> <span class="p">,</span> <span class="n">b</span><span class="p">},</span> <span class="p">{</span><span class="n">foo</span><span class="p">,</span> <span class="n">bar</span><span class="p">}])).</span>
+  <span class="o">&lt;&lt;</span><span class="s">"{</span><span class="se">\"</span><span class="s">a</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">b</span><span class="se">\"</span><span class="s">,</span><span class="se">\"</span><span class="s">foo</span><span class="se">\"</span><span class="s">:</span><span class="se">\"</span><span class="s">bar</span><span class="se">\"</span><span class="s">}"</span><span class="o">&gt;&gt;</span>
+</code></pre></div></div>
+
+<p>JSON has no “tuple” notion. For the time being, a recommended workaround would be to use a list of length-2 lists.</p>

@@ -1,0 +1,162 @@
+
+<p>Buckets are used to define a virtual keyspace for storing Riak objects.
+They enable you to define non-default configurations over that keyspace
+concerning <a href="/riak/kv/2.1.1/learn/concepts/replication">replication properties</a> and <a href="/riak/kv/2.1.1/configuring/basic">other
+parameters</a>.</p>
+
+<p>In certain respects, buckets can be compared to tables in relational
+databases or folders in filesystems, respectively. From the standpoint
+of performance, buckets with default configurations are essentially
+“free,” while non-default configurations, defined <a href="/riak/kv/2.1.1/using/cluster-operations/bucket-types">using bucket
+types</a>, will be gossiped around [the ring][glossary read rep] using Riak’s <a href="/riak/kv/2.1.1/developing/app-guide/cluster-metadata">cluster metadata</a> subsystem.</p>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>Bucket configurations are defined <a href="/riak/kv/2.1.1/using/cluster-operations/bucket-types">using bucket types</a>, which enables
+you to create and modify sets of configurations and apply them to as
+many buckets as you wish. With bucket types, you can configure the
+following bucket-level parameters, overriding the default values if you
+wish.</p>
+
+<h4 id="allow_mult">allow_mult</h4>
+
+<p>Determines whether sibling values can be created. See <a href="/riak/kv/2.1.1/learn/concepts/causal-context/#siblings">siblings</a>. The default can be <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> depending on
+the context. See the documentation on <a href="/riak/kv/2.1.1/developing/usage/bucket-types"><code class="language-plaintext highlighter-rouge">allow_mult</code></a> for more
+information.</p>
+
+<h4 id="n_val">n_val</h4>
+
+<p>Specifies the number of copies of each object to be stored in the
+cluster. See the documentation on <a href="/riak/kv/2.1.1/developing/usage/replication">replication properties</a>. Default:
+<code class="language-plaintext highlighter-rouge">3</code>.</p>
+
+<h4 id="last_write_wins">last_write_wins</h4>
+
+<p>Indicates if an object’s timestamp will be used to decide the canonical
+write in the case of a conflict. See the documentation on <a href="/riak/kv/2.1.1/learn/concepts/causal-context">vector
+clocks</a> and on <a href="/riak/kv/2.1.1/developing/usage/conflict-resolution">conflict resolution</a> for more information. Default:
+<code class="language-plaintext highlighter-rouge">false</code>.</p>
+
+<h4 id="r-pr-w-dw-pw-rw-notfound_ok-basic_quorum">r, pr, w, dw, pw, rw, notfound_ok, basic_quorum</h4>
+
+<p>See the documentation on <a href="/riak/kv/2.1.1/developing/usage/replication">replication properties</a> for more information
+on all of these properties.</p>
+
+<h4 id="precommit">precommit</h4>
+
+<p>A list of Erlang functions to be executed before writing an object. See
+our documentation on <a href="/riak/kv/2.1.1/developing/usage/commit-hooks">pre-commit hooks</a> for more information. Default: no pre-commit
+hooks, i.e. an empty list.</p>
+
+<h4 id="postcommit">postcommit</h4>
+
+<p>A list of Erlang functions to be executed after writing an object. See
+our documentation on <a href="/riak/kv/2.1.1/developing/usage/commit-hooks">pre-commit hooks</a> for more information. Default: no post-commit
+hooks, i.e. an empty list.</p>
+
+<h4 id="old_vclock-young_vclock-small_vclock-big_vclock">old_vclock, young_vclock, small_vclock, big_vclock</h4>
+
+<p>These settings enable you to manage <a href="/riak/kv/2.1.1/learn/concepts/causal-context">vector clock pruning</a>.</p>
+
+<h4 id="backend">backend</h4>
+
+<p>If you are using the <a href="/riak/kv/2.1.1/setup/planning/backend/multi">Multi</a> backend, this property enables you to
+determine which of Riak’s available backends—<a href="/riak/kv/2.1.1/setup/planning/backend/bitcask">Bitcask</a>, <a href="/riak/kv/2.1.1/setup/planning/backend/leveldb">LevelDB</a>, or <a href="/riak/kv/2.1.1/setup/planning/backend/memory">Memory</a>—will be used in buckets of this type. If you are using
+LevelDB, Bitcask, or the Memory backend at a cluster-wide level, <em>all</em>
+buckets of all types will use the assigned backend.</p>
+
+<h4 id="consistent">consistent</h4>
+
+<p>If you are using Riak’s experimental <a href="/riak/kv/2.1.1/using/reference/strong-consistency">strong consistency</a> feature for buckets
+bearing a type, this setting must be set to <code class="language-plaintext highlighter-rouge">true</code>. The default is
+<code class="language-plaintext highlighter-rouge">false</code>. More information can be found in our documentation on <a href="/riak/kv/2.1.1/using/cluster-operations/strong-consistency">using
+strong consistency</a>.</p>
+
+<h4 id="datatype">datatype</h4>
+
+<p>If you are using <a href="/riak/kv/2.1.1/developing/data-types">Riak data types</a>, this setting
+determines which data type will be used in
+buckets of this bucket type. Possible values: <code class="language-plaintext highlighter-rouge">counter</code>, <code class="language-plaintext highlighter-rouge">set</code>, or
+<code class="language-plaintext highlighter-rouge">map</code>.</p>
+
+<h4 id="dvv_enabled">dvv_enabled</h4>
+
+<p>Whether <a href="/riak/kv/2.1.1/learn/concepts/causal-context">dotted version vectors</a>
+will be used instead of traditional vector clocks for <a href="/riak/kv/2.1.1/developing/usage/conflict-resolution">conflict resolution</a>. Default: <code class="language-plaintext highlighter-rouge">false</code>.</p>
+
+<h4 id="chash_keyfun-linkfun">chash_keyfun, linkfun</h4>
+
+<p>These settings involve features that have been deprecated. You will not
+need to adjust these values.</p>
+
+<h2 id="fetching-bucket-properties">Fetching Bucket Properties</h2>
+
+<p>If you’d like to see how a particular bucket has been configured, you
+can do so using our official client libraries or through Riak’s <a href="/riak/kv/2.1.1/developing/api/http">HTTP
+API</a>. The following would fetch the properties for the bucket
+<code class="language-plaintext highlighter-rouge">animals</code> if that bucket had a default configuration, i.e. the <code class="language-plaintext highlighter-rouge">default</code>
+bucket type:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Namespace</span> <span class="n">animalsBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"animals"</span><span class="o">);</span>
+<span class="nc">FetchBucketProperties</span> <span class="n">fetchProps</span> <span class="o">=</span>
+    <span class="k">new</span> <span class="nc">FetchBucketProperties</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">animalsBucket</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchBucketProperties</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetchProps</span><span class="o">);</span>
+<span class="nc">BucketProperties</span> <span class="n">props</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getProperties</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'animals'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="nf">properties</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$bucketProperties</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchBucketProperties</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildBucket</span><span class="p">(</span><span class="s1">'animals'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">getBucket</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">getProperties</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'animals'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="n">get_properties</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Props</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">get_bucket</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"animals"</span><span class="o">&gt;&gt;</span><span class="p">).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl"># Assuming that Riak is running on "localhost" and port 8087:
+
+curl http://localhost:8087/types/default/buckets/animals/props
+</code></pre>
+
+<p>If the bucket <code class="language-plaintext highlighter-rouge">animals</code> had a different type that you had created and
+activated, e.g. <code class="language-plaintext highlighter-rouge">my_custom_type</code>, you could fetch the bucket properties
+like so:</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nc">Namespace</span> <span class="n">customTypedBucket</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Namespace</span><span class="o">(</span><span class="s">"my_custom_type"</span><span class="o">,</span> <span class="s">"animals"</span><span class="o">);</span>
+<span class="nc">FetchBucketProperties</span> <span class="n">fetchProps</span> <span class="o">=</span>
+    <span class="k">new</span> <span class="nc">FetchBucketProperties</span><span class="o">.</span><span class="na">Builder</span><span class="o">(</span><span class="n">customTypedBucket</span><span class="o">).</span><span class="na">build</span><span class="o">();</span>
+<span class="nc">FetchBucketProperties</span><span class="o">.</span><span class="na">Response</span> <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="na">execute</span><span class="o">(</span><span class="n">fetchProps</span><span class="o">);</span>
+<span class="nc">BucketProperties</span> <span class="n">props</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="na">getProperties</span><span class="o">();</span>
+</code></pre></div></div>
+
+<div class="language-ruby highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">bucket_type</span><span class="p">(</span><span class="s1">'my_custom_type'</span><span class="p">).</span><span class="nf">bucket</span><span class="p">(</span><span class="s1">'animals'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="nf">properties</span>
+</code></pre></div></div>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$bucketProperties</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="err">\</span><span class="nf">Basho\Riak\Command\Builder\FetchBucketProperties</span><span class="p">(</span><span class="nv">$riak</span><span class="p">))</span>
+  <span class="o">-&gt;</span><span class="nf">buildBucket</span><span class="p">(</span><span class="s1">'animals'</span><span class="p">,</span> <span class="s1">'my_custom_type'</span><span class="p">)</span>
+  <span class="o">-&gt;</span><span class="nf">build</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">execute</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">getBucket</span><span class="p">()</span>
+  <span class="o">-&gt;</span><span class="nf">getProperties</span><span class="p">();</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket_type</span><span class="p">(</span><span class="s">'my_custom_type'</span><span class="p">).</span><span class="n">bucket</span><span class="p">(</span><span class="s">'animals'</span><span class="p">)</span>
+<span class="n">bucket</span><span class="p">.</span><span class="n">get_properties</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">Props</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riakc_pb_socket</span><span class="p">:</span><span class="nf">get_bucket</span><span class="p">(</span><span class="nv">Pid</span><span class="p">,</span> <span class="p">{</span><span class="o">&lt;&lt;</span><span class="s">"my_custom_type"</span><span class="o">&gt;&gt;</span><span class="p">,</span> <span class="o">&lt;&lt;</span><span class="s">"animals"</span><span class="o">&gt;&gt;</span><span class="p">}).</span>
+</code></pre></div></div>
+
+<pre><code class="language-curl">curl http://localhost:8087/types/my_custom_type/buckets/animals/props
+</code></pre>

@@ -1,0 +1,56 @@
+<p>If you haven’t set up a Riak Node and started it, please visit <a href="/riak/kv/2.1.3/using/running-a-cluster">Running A Cluster</a> first.</p>
+
+<p>To try this flavor of Riak, a working installation of PHP is required, and <a href="https://getcomposer.org/">Composer</a> is required to be installed to fetch the client library package.</p>
+
+<h2 id="client-setup">Client Setup</h2>
+<p>Download and unzip, or clone the Taste of Riak Sample Code Repository from GitHub (<a href="https://github.com/basho/taste-of-riak/archive/master.zip">zip</a>, <a href="https://github.com/basho/taste-of-riak">github repository</a>).</p>
+
+<p>From the <code class="language-plaintext highlighter-rouge">taste-of-riak</code> directory, use composer to install the Riak PHP 2.0 Client`.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>php path/to/your/composer.phar <span class="nb">install</span>
+
+<span class="c"># If you did a global install of composer, run this instead:</span>
+composer <span class="nb">install</span>
+</code></pre></div></div>
+
+<p>If you set up a local Riak cluster using the [[five minute install]] method, change line 11 from <code class="language-plaintext highlighter-rouge">-&gt;onPort(8098)</code> to <code class="language-plaintext highlighter-rouge">-&gt;onPort(10018)</code>.</p>
+
+<p>Next, run <code class="language-plaintext highlighter-rouge">php Ch01-CRUD/taste-of-riak.php</code> to run this chapter’s example code. It should output:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="err">Reading</span><span class="w"> </span><span class="err">Objects</span><span class="w"> </span><span class="err">From</span><span class="w"> </span><span class="err">Riak...</span><span class="w">
+</span><span class="err">Updating</span><span class="w"> </span><span class="err">Objects</span><span class="w"> </span><span class="err">In</span><span class="w"> </span><span class="err">Riak...</span><span class="w">
+</span><span class="err">Deleting</span><span class="w"> </span><span class="err">Objects</span><span class="w"> </span><span class="err">From</span><span class="w"> </span><span class="err">Riak...</span><span class="w">
+</span><span class="err">Working</span><span class="w"> </span><span class="err">With</span><span class="w"> </span><span class="err">Complex</span><span class="w"> </span><span class="err">Objects...</span><span class="w">
+</span><span class="err">Serialized</span><span class="w"> </span><span class="err">Object:</span><span class="w">
+</span><span class="p">{</span><span class="nl">"title"</span><span class="p">:</span><span class="s2">"Moby Dick"</span><span class="p">,</span><span class="nl">"author"</span><span class="p">:</span><span class="s2">"Herman Melville"</span><span class="p">,</span><span class="nl">"body"</span><span class="p">:</span><span class="s2">"Call me Ishmael. Some years ago..."</span><span class="p">,</span><span class="nl">"isbn"</span><span class="p">:</span><span class="s2">"1111979723"</span><span class="p">,</span><span class="nl">"copiesOwned"</span><span class="p">:</span><span class="mi">3</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Yay, success!</p>
+
+<p>Since we didn’t use PHP’s REPL environment, let’s walk through the code
+to see what it actually did at each step.</p>
+
+<h2 id="setting-up-the-php-client-and-connections">Setting up the PHP Client and connections</h2>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">include_once</span> <span class="s1">'vendor/autoload.php'</span><span class="p">;</span>
+
+<span class="kn">use</span> <span class="nc">Basho\Riak</span><span class="p">;</span>
+<span class="kn">use</span> <span class="nc">Basho\Riak\Node</span><span class="p">;</span>
+<span class="kn">use</span> <span class="nc">Basho\Riak\Command</span><span class="p">;</span>
+
+<span class="nv">$node</span> <span class="o">=</span> <span class="p">(</span><span class="k">new</span> <span class="nc">Node\Builder</span><span class="p">)</span>
+        <span class="o">-&gt;</span><span class="nf">atHost</span><span class="p">(</span><span class="s1">'127.0.0.1'</span><span class="p">)</span>
+        <span class="o">-&gt;</span><span class="nf">onPort</span><span class="p">(</span><span class="mi">8098</span><span class="p">)</span>
+        <span class="o">-&gt;</span><span class="nf">build</span><span class="p">();</span>
+
+<span class="nv">$riak</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Riak</span><span class="p">([</span><span class="nv">$node</span><span class="p">]);</span>
+</code></pre></div></div>
+
+<p>This code will load the library, declare the necessary <code class="language-plaintext highlighter-rouge">use</code> statements for our code, and then initialize and configure a <a href="http://basho.github.io/riak-php-client/class-Basho.Riak.Node.Builder.html">Node Builder</a>.
+Once we call <code class="language-plaintext highlighter-rouge">build()</code> on the builder, it will return to us a <a href="http://basho.github.io/riak-php-client/class-Basho.Riak.Node.html">Node</a> object, which we use when building our Riak commands.</p>
+
+<p>We are now ready to start interacting with Riak.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p><a href="/riak/kv/2.1.3/developing/getting-started/php/crud-operations">CRUD Operations</a></p>

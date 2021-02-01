@@ -1,0 +1,63 @@
+<p>Reads the bucket properties.</p>
+
+<h2 id="request">Request</h2>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GET /buckets/bucket/props
+</code></pre></div></div>
+
+<p>Optional query parameters (only valid for the old format):</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">props</code> - whether to return the bucket properties (<code class="language-plaintext highlighter-rouge">true</code> is the default)</li>
+  <li><code class="language-plaintext highlighter-rouge">keys</code> - whether to return the keys stored in the bucket. (<code class="language-plaintext highlighter-rouge">false</code> is the
+default). See also <a href="/riak/kv/2.1.1/developing/api/http/list-keys">HTTP List Keys</a>.</li>
+</ul>
+
+<h2 id="response">Response</h2>
+
+<p>Normal status codes:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">200 OK</code></li>
+</ul>
+
+<p>Important headers:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Content-Type</code> - <code class="language-plaintext highlighter-rouge">application/json</code></li>
+</ul>
+
+<p>The JSON object in the response will contain up to two entries, <code class="language-plaintext highlighter-rouge">"props"</code> and
+<code class="language-plaintext highlighter-rouge">"keys"</code>, which are present or missing, according to the optional query
+parameters.  The default is for only <code class="language-plaintext highlighter-rouge">"props"</code> to be present.</p>
+
+<p>See <a href="/riak/kv/2.1.1/developing/api/http/set-bucket-props">HTTP Set Bucket Properties</a> for more information about the available
+bucket properties.</p>
+
+<h2 id="example">Example</h2>
+
+<pre><code class="language-curl">$ curl -v http://127.0.0.1:8098/buckets/test/props
+* About to connect() to 127.0.0.1 port 8098 (#0)
+*   Trying 127.0.0.1... connected
+* Connected to 127.0.0.1 (127.0.0.1) port 8098 (#0)
+&gt; GET /buckets/test/props HTTP/1.1
+&gt; User-Agent: curl/7.19.7 (universal-apple-darwin10.0) libcurl/7.19.7
+OpenSSL/0.9.8l zlib/1.2.3
+&gt; Host: 127.0.0.1:8098
+&gt; Accept: */*
+&gt;
+&lt; HTTP/1.1 200 OK
+&lt; Vary: Accept-Encoding
+&lt; Server: MochiWeb/1.1 WebMachine/1.9.0 (participate in the frantic)
+&lt; Date: Fri, 30 Sep 2011 15:24:35 GMT
+&lt; Content-Type: application/json
+&lt; Content-Length: 368
+&lt;
+* Connection #0 to host 127.0.0.1 left intact
+* Closing connection #0
+{"props":{"name":"test","n_val":3,"allow_mult":false,"last_write_wins":false,"
+precommit":[],"postcommit":[],"chash_keyfun":{"mod":"riak_core_util","fun":"
+chash_std_keyfun"},"linkfun":{"mod":"riak_kv_wm_link_walker","fun":"
+mapreduce_linkfun"},"old_vclock":86400,"young_vclock":20,"big_vclock":50,"
+small_vclock":10,"r":"quorum","w":"quorum","dw":"quorum","rw":"quorum"}}
+</code></pre>

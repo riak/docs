@@ -1,0 +1,122 @@
+<h3 id="creating-objects-in-riak">Creating Objects In Riak</h3>
+
+<p>Pinging a Riak cluster sounds like a lot of fun, but eventually someone is going to want us to do productive work. Let’s create a class to represent some data and save some objects into Riak.</p>
+
+<p>The Riak .NET Client makes use of a <code class="language-plaintext highlighter-rouge">RiakObject</code> class to encapsulate Riak key/value objects. At the most basic, a <code class="language-plaintext highlighter-rouge">RiakObject</code> is responsible for identifying your object and for translating it into a format that can be easily saved to Riak.</p>
+
+<p>Add the <code class="language-plaintext highlighter-rouge">RiakClient.Models</code> namespace to your using directive. Your usings should look like this:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+<span class="k">using</span> <span class="nn">System.Collections.Generic</span><span class="p">;</span>
+<span class="k">using</span> <span class="nn">RiakClient</span><span class="p">;</span>
+<span class="k">using</span> <span class="nn">RiakClient.Models</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>Add the <code class="language-plaintext highlighter-rouge">Person</code> class to the <code class="language-plaintext highlighter-rouge">TasteOfRiak</code> namespace:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">class</span> <span class="nc">Person</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="kt">string</span> <span class="n">EmailAddress</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+    <span class="k">public</span> <span class="kt">string</span> <span class="n">FirstName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+    <span class="k">public</span> <span class="kt">string</span> <span class="n">LastName</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Now let’s create some people!</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">people</span> <span class="p">=</span> <span class="k">new</span><span class="p">[]</span>
+<span class="p">{</span>
+    <span class="k">new</span> <span class="n">Person</span> <span class="p">{</span>
+        <span class="n">EmailAddress</span> <span class="p">=</span> <span class="s">"bashoman@basho.com"</span><span class="p">,</span>
+        <span class="n">FirstName</span> <span class="p">=</span> <span class="s">"Basho"</span><span class="p">,</span>
+        <span class="n">LastName</span> <span class="p">=</span> <span class="s">"Man"</span>
+    <span class="p">},</span>
+    <span class="k">new</span> <span class="n">Person</span> <span class="p">{</span>
+        <span class="n">EmailAddress</span> <span class="p">=</span> <span class="s">"johndoe@gmail.com"</span><span class="p">,</span>
+        <span class="n">FirstName</span> <span class="p">=</span> <span class="s">"John"</span><span class="p">,</span>
+        <span class="n">LastName</span> <span class="p">=</span> <span class="s">"Doe"</span>
+    <span class="p">}</span>
+<span class="p">};</span>
+
+<span class="k">foreach</span> <span class="p">(</span><span class="kt">var</span> <span class="n">person</span> <span class="k">in</span> <span class="n">people</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">o</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">contributors</span><span class="p">,</span> <span class="n">person</span><span class="p">.</span><span class="n">EmailAddress</span><span class="p">,</span> <span class="n">person</span><span class="p">);</span>
+    <span class="kt">var</span> <span class="n">putResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">o</span><span class="p">);</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">putResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Successfully saved {1} to bucket {0}"</span><span class="p">,</span> <span class="n">o</span><span class="p">.</span><span class="n">Key</span><span class="p">,</span> <span class="n">o</span><span class="p">.</span><span class="n">Bucket</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">else</span>
+    <span class="p">{</span>
+        <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Are you *really* sure Riak is running?"</span><span class="p">);</span>
+        <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"{0}: {1}"</span><span class="p">,</span> <span class="n">putResult</span><span class="p">.</span><span class="n">ResultCode</span><span class="p">,</span> <span class="n">putResult</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>In this sample, we create a collection of <code class="language-plaintext highlighter-rouge">Person</code> objects and then save each <code class="language-plaintext highlighter-rouge">Person</code> to Riak.</p>
+
+<p>Before saving, we need to create a <code class="language-plaintext highlighter-rouge">RiakObject</code> that encapsulates the bucket, key, and object to be saved. Once we’ve created a <code class="language-plaintext highlighter-rouge">RiakObject</code> from our <code class="language-plaintext highlighter-rouge">Person</code> object, we can save it to Riak using <code class="language-plaintext highlighter-rouge">Client.Put()</code>.</p>
+
+<p>Once again, we check the response from Riak. If things are successful, you’ll see a helpful message letting you know that your object has been saved to Riak. If things didn’t go as planned, there will be an error message displaying the result code and a helpful error message.</p>
+
+<h3 id="reading-from-riak">Reading from Riak</h3>
+
+<p>Let’s find a person!</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">contributors</span><span class="p">,</span> <span class="s">"bashoman@basho.com"</span><span class="p">);</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">result</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">bashoman</span> <span class="p">=</span> <span class="n">result</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">GetObject</span><span class="p">&lt;</span><span class="n">Person</span><span class="p">&gt;();</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"I found {0} in {1}"</span><span class="p">,</span> <span class="n">bashoman</span><span class="p">.</span><span class="n">EmailAddress</span><span class="p">,</span> <span class="n">contributors</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">else</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Something went wrong!"</span><span class="p">);</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"{0}: {1}"</span><span class="p">,</span> <span class="n">result</span><span class="p">.</span><span class="n">ResultCode</span><span class="p">,</span> <span class="n">result</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>We use <code class="language-plaintext highlighter-rouge">RiakClient.Get</code> to retrieve an object from Riak. This returns a <code class="language-plaintext highlighter-rouge">RiakResult&lt;RiakObject&gt;</code> which, like other RiakResults, helpfully encapsulates the communication with Riak.</p>
+
+<p>After verifying that we’ve been able to communicate with Riak <em>and</em> that we have a successful result, we use <code class="language-plaintext highlighter-rouge">GetObject&lt;T&gt;</code> to deserialize our object.</p>
+
+<h3 id="modifying-existing-data">Modifying Existing Data</h3>
+
+<p>Let’s say that Basho Man has decided to be known as Riak Man:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bashoman</span><span class="p">.</span><span class="n">FirstName</span> <span class="p">=</span> <span class="s">"Riak"</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">o</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">RiakObject</span><span class="p">(</span><span class="n">contributors</span><span class="p">,</span> <span class="n">bashoman</span><span class="p">.</span><span class="n">EmailAddress</span><span class="p">,</span> <span class="n">bashoman</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">updateResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Put</span><span class="p">(</span><span class="n">o</span><span class="p">);</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">updateResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Successfully updated {0} in {1}"</span><span class="p">,</span> <span class="n">bashoman</span><span class="p">.</span><span class="n">EmailAddress</span><span class="p">,</span> <span class="n">contributors</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">else</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Something went wrong!"</span><span class="p">);</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"{0}: {1}"</span><span class="p">,</span> <span class="n">updateResult</span><span class="p">.</span><span class="n">ResultCode</span><span class="p">,</span> <span class="n">updateResult</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Updating an object involves creating a new <code class="language-plaintext highlighter-rouge">RiakObject</code> then using <code class="language-plaintext highlighter-rouge">RiakClient.Put</code> to save the existing object.</p>
+
+<h3 id="deleting-data">Deleting Data</h3>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">deleteResult</span> <span class="p">=</span> <span class="n">client</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="n">contributors</span><span class="p">,</span> <span class="s">"johndoe@gmail.com"</span><span class="p">);</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">deleteResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Successfully got rid of John Doe"</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">else</span>
+<span class="p">{</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"Something went wrong!"</span><span class="p">);</span>
+    <span class="n">Console</span><span class="p">.</span><span class="nf">WriteLine</span><span class="p">(</span><span class="s">"{0}: {1}"</span><span class="p">,</span> <span class="n">deleteResult</span><span class="p">.</span><span class="n">ResultCode</span><span class="p">,</span> <span class="n">deleteResult</span><span class="p">.</span><span class="n">ErrorMessage</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Just like other operations, we check the results that have come back from Riak to make sure the object was successfully deleted.</p>
+
+<p>The Riak .NET Client has a lot of additional functionality that makes it easy to build rich, complex applications with Riak. Check out the <a href="https://github.com/basho/riak-dotnet-client/wiki">documentation</a> to learn more about working with the Riak .NET Client and Riak.</p>

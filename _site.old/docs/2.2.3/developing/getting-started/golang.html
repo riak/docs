@@ -1,0 +1,58 @@
+<p>If you haven’t set up a Riak Node and started it, please visit <a href="/riak/kv/2.2.3/using/running-a-cluster">Running A Cluster</a> first and ensure you have
+<a href="http://golang.org/doc/install">a working installation of Go</a>.</p>
+
+<h2 id="client-setup">Client Setup</h2>
+
+<p>First install the <a href="https://github.com/basho/riak-go-client">Riak Go client</a>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>go get github.com/basho/riak-go-client
+</code></pre></div></div>
+
+<p>Next download the <a href="https://github.com/basho/taste-of-riak/tree/master/go">Taste of Riak - Go</a> utilities:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>go get github.com/basho/taste-of-riak/go/util
+</code></pre></div></div>
+
+<p>If you are using a single local Riak node, use the following to create a
+new client instance:</p>
+
+<div class="language-golang highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">package</span> <span class="n">main</span>
+
+<span class="k">import</span> <span class="p">(</span>
+  <span class="s">"encoding/binary"</span>
+  <span class="s">"encoding/json"</span>
+  <span class="s">"sync"</span>
+
+  <span class="n">riak</span> <span class="s">"github.com/basho/riak-go-client"</span>
+  <span class="n">util</span> <span class="s">"github.com/basho/taste-of-riak/go/util"</span>
+<span class="p">)</span>
+
+<span class="k">func</span> <span class="n">main</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">var</span> <span class="n">err</span> <span class="kt">error</span>
+
+  <span class="c">// un-comment-out to enable debug logging</span>
+  <span class="c">// riak.EnableDebugLogging = true</span>
+
+  <span class="n">o</span> <span class="o">:=</span> <span class="o">&amp;</span><span class="n">riak</span><span class="o">.</span><span class="n">NewClientOptions</span><span class="p">{</span>
+    <span class="n">RemoteAddresses</span><span class="o">:</span> <span class="p">[]</span><span class="kt">string</span><span class="p">{</span><span class="n">util</span><span class="o">.</span><span class="n">GetRiakAddress</span><span class="p">()},</span>
+  <span class="p">}</span>
+
+  <span class="k">var</span> <span class="n">c</span> <span class="o">*</span><span class="n">riak</span><span class="o">.</span><span class="n">Client</span>
+  <span class="n">c</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">riak</span><span class="o">.</span><span class="n">NewClient</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+    <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+  <span class="p">}</span>
+
+  <span class="k">defer</span> <span class="k">func</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="n">err</span> <span class="o">:=</span> <span class="n">c</span><span class="o">.</span><span class="n">Stop</span><span class="p">();</span> <span class="n">err</span> <span class="o">!=</span> <span class="no">nil</span> <span class="p">{</span>
+      <span class="n">util</span><span class="o">.</span><span class="n">ErrExit</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="p">}</span>
+  <span class="p">}()</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>We are now ready to start interacting with Riak.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p><a href="/riak/kv/2.2.3/developing/getting-started/golang/crud-operations">CRUD Operations</a></p>

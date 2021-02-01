@@ -1,0 +1,308 @@
+<p>Configuring a Riak cluster involves instructing each node to listen on a
+non-local interface, i.e. not <code class="language-plaintext highlighter-rouge">127.0.0.1</code>, and then joining all of the
+nodes together to participate in the cluster.</p>
+
+<p>Most configuration changes will be applied to the <a href="/riak/kv/2.1.1/configuring/reference/">configuration file</a> located in your <code class="language-plaintext highlighter-rouge">rel/riak/etc</code> directory (if
+you compiled from source) or <code class="language-plaintext highlighter-rouge">/etc</code> (if you used a binary install of
+Riak).</p>
+
+<p>The commands below presume that you are running from a source install,
+but if you have installed Riak with a binary install, you can substitute
+the usage of <code class="language-plaintext highlighter-rouge">bin/riak</code> with <code class="language-plaintext highlighter-rouge">sudo /usr/sbin/riak</code> and <code class="language-plaintext highlighter-rouge">bin/riak-admin</code>
+with <code class="language-plaintext highlighter-rouge">sudo /usr/sbin/riak-admin</code>. The <code class="language-plaintext highlighter-rouge">riak</code> and <code class="language-plaintext highlighter-rouge">riak-admin</code> scripts
+are located in the <code class="language-plaintext highlighter-rouge">/bin</code> directory of your installation.</p>
+
+<blockquote>
+  <p><strong>Note on changing the <code class="language-plaintext highlighter-rouge">name</code> value</strong></p>
+
+  <p>If possible, you should avoid starting Riak prior to editing the name of
+a node. This setting corresponds to the <code class="language-plaintext highlighter-rouge">nodename</code> parameter in the
+<code class="language-plaintext highlighter-rouge">riak.conf</code> file if you are using the newer configuration system, and to
+the <code class="language-plaintext highlighter-rouge">-name</code> parameter in <code class="language-plaintext highlighter-rouge">vm.args</code> (as described below) if you are using
+the older configuration system. If you have already started Riak with
+the default settings, you cannot change the <code class="language-plaintext highlighter-rouge">-name</code> setting and then
+successfully restart the node.</p>
+
+  <p>If you cannot restart after changing the <code class="language-plaintext highlighter-rouge">-name</code> value you have two
+options:</p>
+
+  <ul>
+    <li>Discard the existing ring metadata by removing the contents of the
+<code class="language-plaintext highlighter-rouge">ring</code> directory. This will require rejoining all nodes into a
+cluster again.</li>
+  </ul>
+
+  <p>*Rename the node using the <a href="/riak/kv/2.1.1/using/admin/riak-admin/#cluster-replace"><code class="language-plaintext highlighter-rouge">riak-admin cluster replace</code></a> command. This will not work if you have previously only started Riak with a single node.</p>
+</blockquote>
+
+<h2 id="configure-the-first-node">Configure the First Node</h2>
+
+<p>First, stop your Riak node if it is currently running:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak stop
+</code></pre></div></div>
+
+<h4 id="select-an-ip-address-and-port">Select an IP address and port</h4>
+
+<p>Let’s say that the IP address for your cluster is 192.168.1.10 and that
+you’ll be using the default port (8087). If you’re using the <a href="/riak/kv/2.1.1/developing/api/protocol-buffers/">Protocol Buffers interface</a> to Riak (which we recommend over the HTTP
+interface due to performance gains), you should change your
+configuration file:</p>
+
+<pre><code class="language-riakconf">listener.protobuf.internal = 127.0.0.1:8087
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the pb section of riak_core:
+
+{"127.0.0.1", 8087 },
+</code></pre>
+
+<p>becomes</p>
+
+<pre><code class="language-riakconf">listener.protobuf.internal = 192.168.1.10:8087
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the pb section of riak_core:
+
+{"192.168.1.10", 8087 },
+</code></pre>
+
+<p>If you are upgrading to Riak version 2.0 or later from an pre-2.0
+release, you can use either your old <code class="language-plaintext highlighter-rouge">app.config</code>/ <code class="language-plaintext highlighter-rouge">vm.args</code>
+configuration files or the newer <code class="language-plaintext highlighter-rouge">riak.conf</code> if you wish. If you have
+installed Riak 2.0 directly, you should use only <code class="language-plaintext highlighter-rouge">riak.conf</code>.</p>
+
+<p>Below, examples will be provided for both the old and new configuration
+systems. Bear in mind that you need to use either the older or the newer
+but never both simultaneously.</p>
+
+<p>More on configuring Riak can be found in the <a href="../../configuring/reference">Configuration documentation</a>.</p>
+
+<p>If you’re using the HTTP interface, you will need to alter your
+configuration in an analogous way:</p>
+
+<pre><code class="language-riakconf">listener.http.internal = 127.0.0.1:8098
+</code></pre>
+
+<pre><code class="language-appconfig">%% In the riak_core section:
+
+{http, [ {"127.0.0.1", 8098 } ]},
+</code></pre>
+
+<p>becomes</p>
+
+<pre><code class="language-riakconf">listener.http.internal = 192.168.1.10:8098
+</code></pre>
+
+<pre><code class="language-appconfig">{http, [ {"192.168.1.10", 8098 } ]},
+</code></pre>
+
+<h4 id="name-your-node">Name your node</h4>
+
+<p>Every node in Riak has a name associated with it. The default name is
+<code class="language-plaintext highlighter-rouge">riak@127.0.0.1</code>. Let’s say that you want to change the name to
+<code class="language-plaintext highlighter-rouge">riak@192.168.1.10</code>:</p>
+
+<pre><code class="language-riakconf">nodename = riak@127.0.0.1
+</code></pre>
+
+<pre><code class="language-vmargs">-name riak@127.0.0.1
+</code></pre>
+
+<p>becomes</p>
+
+<pre><code class="language-riakconf">nodename = riak@192.168.1.10
+</code></pre>
+
+<pre><code class="language-vmargs">-name riak@192.168.1.10
+</code></pre>
+
+<blockquote>
+  <p><strong>Node Names</strong></p>
+
+  <p>Use fully qualified domain names (<a href="http://en.wikipedia.org/wiki/Fully_qualified_domain_name">FQDNs</a>) rather than IP addresses for the cluster member node names. For example, <code class="language-plaintext highlighter-rouge">riak@cluster.example.com</code> and <code class="language-plaintext highlighter-rouge">riak@192.168.1.10</code>
+are both acceptable node naming schemes, but using the FQDN style is
+preferred.</p>
+
+  <p>Once a node has been started, in order to change the name you must
+either remove ring files from the <code class="language-plaintext highlighter-rouge">/data/ring</code> directory or
+<a href="/riak/kv/2.1.1/using/admin/riak-admin/#cluster-force-replace"><code class="language-plaintext highlighter-rouge">riak-admin cluster force-replace</code></a> the node.</p>
+</blockquote>
+
+<h4 id="start-the-node">Start the node</h4>
+
+<p>Now that your node is properly configured, you can start it:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak start
+</code></pre></div></div>
+
+<p>If the Riak node has been previously started, you must use the
+<code class="language-plaintext highlighter-rouge">riak-admin cluster replace</code> command to change the node name and update
+the node’s ring file.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster replace riak@127.0.0.1 riak@192.168.1.10
+</code></pre></div></div>
+
+<p>If a node is started singly using default settings, as you might do when you
+are building your first test environment, you will need to remove the ring
+files from the data directory after you edit your configuration files.
+<code class="language-plaintext highlighter-rouge">riak-admin cluster replace</code> will not work since the node has not been joined
+to a cluster.</p>
+
+<p>As with all cluster changes, you need to view the planned changes by
+running <code class="language-plaintext highlighter-rouge">riak-admin cluster plan</code> and then running <code class="language-plaintext highlighter-rouge">riak-admin cluster
+commit</code> to finalize those changes.</p>
+
+<p>The node is now properly set up to join other nodes for cluster
+participation. You can proceed to adding a second node to the cluster.</p>
+
+<h2 id="add-a-second-node-to-your-cluster">Add a Second Node to Your Cluster</h2>
+
+<p>Repeat the above steps for a second host on the same network, providing
+the second node with a host/port and node name. Once the second node has
+started, use <code class="language-plaintext highlighter-rouge">riak-admin cluster join</code> to join the second node to the
+first node, thereby creating an initial Riak cluster. Let’s say that
+we’ve named our second node <code class="language-plaintext highlighter-rouge">riak@192.168.1.11</code>. From the new node’s
+<code class="language-plaintext highlighter-rouge">/bin</code> directory:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster <span class="nb">join </span>riak@192.168.1.10
+</code></pre></div></div>
+
+<p>Output from the above should resemble:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Success: staged join request for `riak@192.168.1.11` to `riak@192.168.1.10`
+</code></pre></div></div>
+
+<p>Next, plan and commit the changes:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>riak-admin cluster plan
+riak-admin cluster commit
+</code></pre></div></div>
+
+<p>After the last command, you should see:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Cluster changes committed
+</code></pre></div></div>
+
+<p>If your output was similar, then the second Riak node is now part of the
+cluster and has begun syncing with the first node. Riak provides several
+ways to determine the cluster’s ring status. Here are two ways to
+examine your Riak cluster’s ring:</p>
+
+<ol>
+  <li>
+    <p>Using the <code class="language-plaintext highlighter-rouge">riak-admin</code> command:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> bin/riak-admin status | <span class="nb">grep </span>ring_members
+</code></pre></div>    </div>
+
+    <p>With output resembling the following:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code> ring_members : <span class="o">[</span><span class="s1">'riak@192.168.1.10'</span>,<span class="s1">'riak@192.168.1.11'</span><span class="o">]</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Running the <code class="language-plaintext highlighter-rouge">riak attach</code> command. This will open up an Erlang shell,
+into which you can type the following command:</p>
+
+    <div class="language-erlang highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="mi">1</span><span class="o">&gt;</span> <span class="p">{</span><span class="n">ok</span><span class="p">,</span> <span class="nv">R</span><span class="p">}</span> <span class="o">=</span> <span class="nn">riak_core_ring_manager</span><span class="p">:</span><span class="nf">get_my_ring</span><span class="p">().</span>
+
+ <span class="c">%% Response:
+</span>
+ <span class="p">{</span><span class="n">ok</span><span class="p">,{</span><span class="n">chstate</span><span class="p">,</span><span class="n">'riak@192.168.1.10'</span><span class="p">,.........</span>
+ <span class="p">(</span><span class="n">riak</span><span class="p">@</span><span class="mi">192</span><span class="p">.</span><span class="mi">168</span><span class="p">.</span><span class="mi">52</span><span class="p">.</span><span class="mi">129</span><span class="p">)</span><span class="mi">2</span><span class="o">&gt;</span> <span class="nn">riak_core_ring</span><span class="p">:</span><span class="nf">all_members</span><span class="p">(</span><span class="nv">R</span><span class="p">).</span>
+ <span class="p">[</span><span class="n">'riak@192.168.1.10'</span><span class="p">,</span><span class="n">'riak@192.168.1.11'</span><span class="p">]</span>
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>To join additional nodes to your cluster, repeat the above steps.  You
+can also find more detailed instructions about <a href="/riak/kv/2.1.1/using/cluster-operations/adding-removing-nodes">adding and removing nodes</a> from a cluster.</p>
+
+<blockquote>
+  <p><strong>Ring Creation Size</strong></p>
+
+  <p>All nodes in the cluster
+must have the same initial ring size setting in order to join, and
+participate in cluster activity. This setting can be adjusted in your
+configuration file using the <code class="language-plaintext highlighter-rouge">ring_creation_size</code> parameter if you’re
+using the older configuration system or <code class="language-plaintext highlighter-rouge">ring_size</code> in the new system.</p>
+
+  <p>Check the value of all nodes if you receive a message like this:
+<code class="language-plaintext highlighter-rouge">Failed: riak@10.0.1.156 has a different ring_creation_size</code></p>
+</blockquote>
+
+<h2 id="running-multiple-nodes-on-one-host">Running Multiple Nodes on One Host</h2>
+
+<p>If you built Riak from source code, or if you are using the Mac OS X
+pre-built package, then you can easily run multiple Riak nodes on the
+same machine. The most common scenario for doing this is to experiment
+with running a Riak cluster.</p>
+
+<p><strong>Note</strong>: If you have installed the <code class="language-plaintext highlighter-rouge">.deb</code> or <code class="language-plaintext highlighter-rouge">.rpm</code> package, then you
+will need to download and build Riak from source to follow the
+directions below.</p>
+
+<p>To run multiple nodes, make copies of the <code class="language-plaintext highlighter-rouge">riak</code> directory.</p>
+
+<ul>
+  <li>If you ran <code class="language-plaintext highlighter-rouge">make all rel</code>, then this can be found in <code class="language-plaintext highlighter-rouge">./rel/riak</code>
+under the Riak source root directory.</li>
+  <li>If you are running Mac OS X, then this is the directory where you
+unzipped the <code class="language-plaintext highlighter-rouge">.tar.gz</code> file.</li>
+</ul>
+
+<p>Presuming that you copied <code class="language-plaintext highlighter-rouge">./rel/riak</code> into <code class="language-plaintext highlighter-rouge">./rel/riak1</code>, <code class="language-plaintext highlighter-rouge">./rel/riak2</code>,
+<code class="language-plaintext highlighter-rouge">./rel/riak3</code>, and so on, you need to make two changes:</p>
+
+<ol>
+  <li>
+    <p>Set your handoff port and your Protocol Buffers or HTTP port
+(depending on which interface you are using) to different values on each
+node. For example:</p>
+
+    <pre><code class="language-riakconf"> # For Protocol Buffers:
+ listener.protobuf.internal = 127.0.0.1:8187
+
+ # For HTTP:
+ listener.http.internal = 127.0.0.1:8198
+
+ # For either interface:
+ handoff.port = 8199
+</code></pre>
+
+    <pre><code class="language-appconfig"> %% In the pb section of riak_core:
+ {"127.0.0.1", 8187 }
+
+ %% In the http section of riak_core:
+ {"127.0.0.1", 8198}
+</code></pre>
+  </li>
+  <li>
+    <p>Change the name of each node to a unique name. Now, start the nodes,
+changing path names and nodes as appropriate:</p>
+  </li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./rel/riak1/bin/riak start
+./rel/riak2/bin/riak start
+./rel/riak3/bin/riak start
+
+<span class="c"># etc</span>
+</code></pre></div></div>
+
+<p>Next, join the nodes into a cluster:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./rel/riak2/bin/riak-admin cluster <span class="nb">join </span>riak1@127.0.0.1
+./rel/riak3/bin/riak-admin cluster <span class="nb">join </span>riak1@127.0.0.1
+./rel/riak2/bin/riak-admin cluster plan
+./rel/riak2/bin/riak-admin cluster commit
+</code></pre></div></div>
+
+<h2 id="multiple-clusters-on-one-host">Multiple Clusters on One Host</h2>
+
+<p>Using the above technique, it is possible to run multiple clusters on
+one computer. If a node hasn’t joined an existing cluster, it will
+behave just as a cluster would. Running multiple clusters on one
+computer is simply a matter of having two or more distinct nodes or
+groups of clustered nodes.</p>

@@ -1,0 +1,76 @@
+<p>If you haven’t set up a Riak Node and started it, please visit <a href="/riak/kv/2.2.3/using/running-a-cluster">Running A Cluster</a> first.</p>
+
+<p>To try this flavor of Riak, a working installation of Python is
+required, with Python 2.7 preferred. One of the Python package managers,
+e.g. <code class="language-plaintext highlighter-rouge">setuptools</code> or <code class="language-plaintext highlighter-rouge">pip</code>, is also required to install the client
+package.</p>
+
+<p>You may install <code class="language-plaintext highlighter-rouge">setuptools</code> on OS X through MacPorts by running <code class="language-plaintext highlighter-rouge">sudo
+port install py-distribute</code>. <code class="language-plaintext highlighter-rouge">setuptools</code> and <code class="language-plaintext highlighter-rouge">pip</code> are included in the
+Homebrew formula for Python on OS X as well. Just run <code class="language-plaintext highlighter-rouge">brew install
+python</code>.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>First, you must install some packages needed by the Riak Python client:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">python-dev</code> — Header files and a static library for Python</li>
+  <li><code class="language-plaintext highlighter-rouge">libffi-dev</code> — Foreign function interface library</li>
+  <li><code class="language-plaintext highlighter-rouge">libssl-dev</code> — libssl and libcrypto development libraries</li>
+</ul>
+
+<h3 id="ubuntu-1204--1404">Ubuntu (12.04 &amp; 14.04)</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get <span class="nb">install </span>python-dev libffi-dev libssl-dev
+</code></pre></div></div>
+
+<h2 id="client-setup">Client Setup</h2>
+
+<p>The easiest way to install the client is with <code class="language-plaintext highlighter-rouge">easy_install</code> or <code class="language-plaintext highlighter-rouge">pip</code>.
+Either of the commands below will ensure that the client and all its
+dependencies are installed and on the load path. Depending on where your
+Python libraries are held, these may require <code class="language-plaintext highlighter-rouge">sudo</code>.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>easy_install riak
+pip <span class="nb">install </span>riak
+</code></pre></div></div>
+
+<p>To install from source, download the latest Python client from GitHub
+(<a href="https://github.com/basho/riak-python-client/archive/master.zip">zip</a>,
+<a href="https://github.com/basho/riak-python-client">GitHub repository</a>), and
+extract it to your working directory.</p>
+
+<p>Now, let’s build the client.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python setup.py <span class="nb">install</span>
+</code></pre></div></div>
+
+<h2 id="connecting-to-riak">Connecting to Riak</h2>
+
+<p>Now, let’s start the Python REPL and get set up. Enter the following
+into the Python REPL:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">riak</span>
+</code></pre></div></div>
+<p>If you are using a single local Riak node, use the following to create a
+new client instance:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">myClient</span> <span class="o">=</span> <span class="n">riak</span><span class="p">.</span><span class="n">RiakClient</span><span class="p">(</span><span class="n">pb_port</span><span class="o">=</span><span class="mi">8087</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s">'pbc'</span><span class="p">)</span>
+
+<span class="c1"># Because the Python client uses the Protocol Buffers interface by
+# default, the following will work the same:
+</span><span class="n">myClient</span> <span class="o">=</span> <span class="n">riak</span><span class="p">.</span><span class="n">RiakClient</span><span class="p">(</span><span class="n">pb_port</span><span class="o">=</span><span class="mi">8087</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>If you set up a local Riak cluster using the [[five-minute install]]
+method, use this code snippet instead:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">myClient</span> <span class="o">=</span> <span class="n">riak</span><span class="p">.</span><span class="n">RiakClient</span><span class="p">(</span><span class="n">pb_port</span><span class="o">=</span><span class="mi">10017</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s">'pbc'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>We are now ready to start interacting with Riak.</p>
+
+<h2 id="next-steps">Next Steps</h2>
+
+<p><a href="/riak/kv/2.2.3/developing/getting-started/python/crud-operations">CRUD Operations</a></p>

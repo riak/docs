@@ -1,0 +1,211 @@
+<h4 id="a-quick-note-on-querying-and-schemas">A Quick Note on Querying and Schemas</h4>
+<p><em>Schemas</em>? Yes we said that correctly, S-C-H-E-M-A-S. It’s not a dirty word.<br />
+Even with a Key/Value store, you will still have a logical database schema of how all the data relates to one another. This can be as simple as using the same key across multiple buckets for different types of data, to having fields in your data that are related by name.  These querying methods will introduce you to some ways of laying out your data in Riak, along with how to query it back.</p>
+
+<h3 id="denormalization">Denormalization</h3>
+
+<p>If you’re coming from a relational database, the easiest way to get your application’s feet wet with NoSQL is to denormalize your data into related chunks.  For example with a customer database, you might have separate tables for Customers, Addresses, Preferences, etc.  In Riak, you can denormalize all that associated data into a single object and store it into a <code class="language-plaintext highlighter-rouge">Customer</code> bucket.  You can keep pulling in associated data until you hit one of the big denormalization walls:</p>
+
+<ul>
+  <li>Size Limits (objects greater than 1MB)</li>
+  <li>Shared/Referential Data (data that the object doesn’t “own”)</li>
+  <li>Differences in Access Patterns (objects that get read/written once vs. often)</li>
+</ul>
+
+<p>At one of these points we will have to split the model.</p>
+
+<h3 id="same-keys---different-buckets">Same Keys - Different Buckets</h3>
+
+<p>The simplest way to split up data would be to use the same identity key across different buckets. A good example of this would be a <code class="language-plaintext highlighter-rouge">Customer</code> object, an <code class="language-plaintext highlighter-rouge">Order</code> object, and an <code class="language-plaintext highlighter-rouge">OrderSummaries</code> object that keeps rolled up info about orders such as Total, etc. Let’s put some data into Riak so we can play with it.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">riak</span>
+
+<span class="c1"># Creating Data
+</span>
+<span class="n">customer</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">'customer_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s">'name'</span><span class="p">:</span> <span class="s">"John Smith"</span><span class="p">,</span>
+    <span class="s">'address'</span><span class="p">:</span> <span class="s">"123 Main Street"</span><span class="p">,</span>
+    <span class="s">'city'</span><span class="p">:</span> <span class="s">"Columbus"</span><span class="p">,</span>
+    <span class="s">'state'</span><span class="p">:</span> <span class="s">"Ohio"</span><span class="p">,</span>
+    <span class="s">'zip'</span><span class="p">:</span> <span class="s">"43210"</span><span class="p">,</span>
+    <span class="s">'phone'</span><span class="p">:</span> <span class="s">"+1-614-555-5555"</span><span class="p">,</span>
+    <span class="s">'created_date'</span><span class="p">:</span> <span class="s">"2013-10-01 14:30:26"</span>
+<span class="p">}</span>
+
+<span class="n">orders</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span>
+        <span class="s">'order_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s">'customer_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s">'salesperson_id'</span><span class="p">:</span> <span class="mi">9000</span><span class="p">,</span>
+        <span class="s">'items'</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s">'item_id'</span><span class="p">:</span> <span class="s">"TCV37GIT4NJ"</span><span class="p">,</span>
+                <span class="s">'title'</span><span class="p">:</span> <span class="s">"USB 3.0 Coffee Warmer"</span><span class="p">,</span>
+                <span class="s">'price'</span><span class="p">:</span> <span class="mf">15.99</span>
+            <span class="p">},</span>
+            <span class="p">{</span>
+                <span class="s">'item_id'</span><span class="p">:</span> <span class="s">"PEG10BBF2PP"</span><span class="p">,</span>
+                <span class="s">'title'</span><span class="p">:</span> <span class="s">"eTablet Pro, 24GB, Grey"</span><span class="p">,</span>
+                <span class="s">'price'</span><span class="p">:</span> <span class="mf">399.99</span>
+            <span class="p">}</span>
+        <span class="p">],</span>
+        <span class="s">'total'</span><span class="p">:</span> <span class="mf">415.98</span><span class="p">,</span>
+        <span class="s">'order_date'</span><span class="p">:</span> <span class="s">"2013-10-01 14:42:26"</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s">'order_id'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s">'customer_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s">'salesperson_id'</span><span class="p">:</span> <span class="mi">9001</span><span class="p">,</span>
+        <span class="s">'items'</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s">'item_id'</span><span class="p">:</span> <span class="s">"OAX19XWN0QP"</span><span class="p">,</span>
+                <span class="s">'title'</span><span class="p">:</span> <span class="s">"GoSlo Digital Camera"</span><span class="p">,</span>
+                <span class="s">'price'</span><span class="p">:</span> <span class="mf">359.99</span>
+            <span class="p">}</span>
+        <span class="p">],</span>
+        <span class="s">'total'</span><span class="p">:</span> <span class="mf">359.99</span><span class="p">,</span>
+        <span class="s">'order_date'</span><span class="p">:</span> <span class="s">"2013-10-15 16:43:16"</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="s">'order_id'</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s">'customer_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s">'salesperson_id'</span><span class="p">:</span> <span class="mi">9000</span><span class="p">,</span>
+        <span class="s">'items'</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s">'item_id'</span><span class="p">:</span> <span class="s">"WYK12EPU5EZ"</span><span class="p">,</span>
+                <span class="s">'title'</span><span class="p">:</span> <span class="s">"Call of Battle: Goats - Gamesphere 4"</span><span class="p">,</span>
+                <span class="s">'price'</span><span class="p">:</span> <span class="mf">69.99</span>
+            <span class="p">},</span>
+            <span class="p">{</span>
+                <span class="s">'item_id'</span><span class="p">:</span> <span class="s">"TJB84HAA8OA"</span><span class="p">,</span>
+                <span class="s">'title'</span><span class="p">:</span> <span class="s">"Bricko Building Blocks"</span><span class="p">,</span>
+                <span class="s">'price'</span><span class="p">:</span> <span class="mf">4.99</span>
+            <span class="p">}</span>
+        <span class="p">],</span>
+        <span class="s">'total'</span><span class="p">:</span> <span class="mf">74.98</span><span class="p">,</span>
+        <span class="s">'order_date'</span><span class="p">:</span> <span class="s">"2013-11-03 17:45:28"</span>
+    <span class="p">}]</span>
+
+<span class="n">order_summary</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">'customer_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s">'summaries'</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s">'order_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s">'total'</span><span class="p">:</span> <span class="mf">415.98</span><span class="p">,</span>
+            <span class="s">'order_date'</span><span class="p">:</span> <span class="s">"2013-10-01 14:42:26"</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="s">'order_id'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="s">'total'</span><span class="p">:</span> <span class="mf">359.99</span><span class="p">,</span>
+            <span class="s">'order_date'</span><span class="p">:</span> <span class="s">"2013-10-15 16:43:16"</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="s">'order_id'</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+            <span class="s">'total'</span><span class="p">:</span> <span class="mf">74.98</span><span class="p">,</span>
+            <span class="s">'order_date'</span><span class="p">:</span> <span class="s">"2013-11-03 17:45:28"</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">}</span>
+
+
+<span class="c1"># Starting Client
+</span><span class="n">client</span> <span class="o">=</span> <span class="n">riak</span><span class="p">.</span><span class="n">RiakClient</span><span class="p">(</span><span class="n">pb_port</span><span class="o">=</span><span class="mi">10017</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="s">'pbc'</span><span class="p">)</span>
+
+<span class="c1"># Creating Buckets
+</span><span class="n">customer_bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'Customers'</span><span class="p">)</span>
+<span class="n">order_bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'Orders'</span><span class="p">)</span>
+<span class="n">order_summary_bucket</span> <span class="o">=</span> <span class="n">client</span><span class="p">.</span><span class="n">bucket</span><span class="p">(</span><span class="s">'OrderSummaries'</span><span class="p">)</span>
+
+
+<span class="c1"># Storing Data
+</span><span class="n">cr</span> <span class="o">=</span> <span class="n">customer_bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">customer</span><span class="p">[</span><span class="s">'customer_id'</span><span class="p">]),</span>
+                         <span class="n">data</span><span class="o">=</span><span class="n">customer</span><span class="p">)</span>
+<span class="n">cr</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>
+    <span class="n">order_riak</span> <span class="o">=</span> <span class="n">order_bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">order</span><span class="p">[</span><span class="s">'order_id'</span><span class="p">]),</span>
+                                  <span class="n">data</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+    <span class="n">order_riak</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+
+<span class="n">os</span> <span class="o">=</span> <span class="n">order_summary_bucket</span><span class="p">.</span><span class="n">new</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">order_summary</span><span class="p">[</span><span class="s">'customer_id'</span><span class="p">]),</span>
+                              <span class="n">data</span><span class="o">=</span><span class="n">order_summary</span><span class="p">)</span>
+<span class="n">os</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>While individual <code class="language-plaintext highlighter-rouge">Customer</code> and <code class="language-plaintext highlighter-rouge">Order</code> objects don’t change much (or shouldn’t change), the <code class="language-plaintext highlighter-rouge">Order Summaries</code> object will likely change often.  It will do double duty by acting as an index for all customer orders, and also holding some relevant data such as the order total, etc.  If we showed this information in our application often, it’s only one extra request to get all the info.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">customer</span> <span class="o">=</span> <span class="n">customer_bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'1'</span><span class="p">).</span><span class="n">data</span>
+<span class="n">customer</span><span class="p">[</span><span class="s">'order_summary'</span><span class="p">]</span> <span class="o">=</span> <span class="n">order_summary_bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">'1'</span><span class="p">).</span><span class="n">data</span>
+<span class="n">customer</span>
+</code></pre></div></div>
+
+<p>Which returns our amalgamated objects:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span>
+  <span class="sa">u</span><span class="s">'city'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'Columbus'</span><span class="p">,</span> <span class="sa">u</span><span class="s">'name'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'John Smith'</span><span class="p">,</span> <span class="sa">u</span><span class="s">'zip'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'43210'</span><span class="p">,</span>
+  <span class="sa">u</span><span class="s">'created_date'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'2013-10-01 14:30:26'</span><span class="p">,</span>
+  <span class="s">'order_summary'</span><span class="p">:</span> <span class="p">{</span>
+    <span class="sa">u</span><span class="s">'customer_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="sa">u</span><span class="s">'summaries'</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span><span class="sa">u</span><span class="s">'order_id'</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="sa">u</span><span class="s">'order_date'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'2013-10-01 14:42:26'</span><span class="p">,</span> <span class="sa">u</span><span class="s">'total'</span><span class="p">:</span> <span class="mf">415.98</span><span class="p">},</span>
+      <span class="p">{</span><span class="sa">u</span><span class="s">'order_id'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="sa">u</span><span class="s">'order_date'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'2013-10-15 16:43:16'</span><span class="p">,</span> <span class="sa">u</span><span class="s">'total'</span><span class="p">:</span> <span class="mf">359.99</span><span class="p">},</span>
+      <span class="p">{</span><span class="sa">u</span><span class="s">'order_id'</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="sa">u</span><span class="s">'order_date'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'2013-11-03 17:45:28'</span><span class="p">,</span> <span class="sa">u</span><span class="s">'total'</span><span class="p">:</span> <span class="mf">74.98</span><span class="p">}</span>
+    <span class="p">]},</span>
+  <span class="sa">u</span><span class="s">'phone'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'+1-614-555-5555'</span><span class="p">,</span> <span class="sa">u</span><span class="s">'state'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'Ohio'</span><span class="p">,</span> <span class="sa">u</span><span class="s">'address'</span><span class="p">:</span> <span class="sa">u</span><span class="s">'123 Main Street'</span><span class="p">,</span>
+  <span class="sa">u</span><span class="s">'customer_id'</span><span class="p">:</span> <span class="mi">1</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>While this pattern is very easy and extremely fast with respect to queries and complexity, it’s up to the application to know about these intrinsic relationships.</p>
+
+<h3 id="secondary-indexes">Secondary Indexes</h3>
+
+<p>Secondary indexes in Riak KV require a sorted backend: <a href="/riak/kv/2.2.0/setup/planning/backend/memory">Memory</a> or <a href="/riak/kv/2.2.0/setup/planning/backend/leveldb">LevelDB</a>. <a href="/riak/kv/2.2.0/setup/planning/backend/bitcask">Bitcask</a> does not support secondary indexes.</p>
+
+<p>See <a href="/riak/kv/2.2.0/developing/usage/secondary-indexes">Using Secondary Indexes (2i)</a> for more information on developing with secondary indexes.</p>
+
+<p>If you’re coming from a SQL world, Secondary Indexes (2i) are a lot like SQL indexes.  They are a way to quickly lookup objects based on a secondary key, without scanning through the whole dataset.  This makes it very easy to find groups of related data by values, or even ranges of values.  To properly show this off, we will now add some more data to our application, and add some secondary index entries at the same time.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">order_bucket</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+    <span class="c1"># Initialize our secondary indices
+</span>    <span class="n">order</span><span class="p">.</span><span class="n">add_index</span><span class="p">(</span><span class="s">'salesperson_id_int'</span><span class="p">,</span> <span class="n">order</span><span class="p">.</span><span class="n">data</span><span class="p">[</span><span class="s">'salesperson_id'</span><span class="p">])</span>
+    <span class="n">order</span><span class="p">.</span><span class="n">add_index</span><span class="p">(</span><span class="s">'order_date_bin'</span><span class="p">,</span> <span class="n">order</span><span class="p">.</span><span class="n">data</span><span class="p">[</span><span class="s">'order_date'</span><span class="p">])</span>
+    <span class="n">order</span><span class="p">.</span><span class="n">store</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p>As you may have noticed, ordinary Key/Value data is opaque to 2i, so we have to add entries to the indexes at the application level.
+Now let’s find all of Jane Appleseed’s processed orders, we’ll lookup the orders by searching the <code class="language-plaintext highlighter-rouge">saleperson_id_int</code> index for Jane’s id of <code class="language-plaintext highlighter-rouge">9000</code>.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">janes_orders</span> <span class="o">=</span> <span class="n">order_bucket</span><span class="p">.</span><span class="n">get_index</span><span class="p">(</span><span class="s">"salesperson_id_int"</span><span class="p">,</span> <span class="mi">9000</span><span class="p">)</span>
+<span class="n">janes_orders</span><span class="p">.</span><span class="n">results</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>['1', '3']
+</code></pre></div></div>
+
+<p>Jane processed orders 1 and 3.  We used an “integer” index to reference Jane’s id, next let’s use a “binary” index.
+Now, let’s say that the VP of Sales wants to know how many orders came in during October 2013.  In this case, we can exploit 2i’s range queries.  Let’s search the <code class="language-plaintext highlighter-rouge">order_date_bin</code> index for entries between <code class="language-plaintext highlighter-rouge">2013-10-01</code> and <code class="language-plaintext highlighter-rouge">2013-10-31</code>.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">october_orders</span> <span class="o">=</span> <span class="n">order_bucket</span><span class="p">.</span><span class="n">get_index</span><span class="p">(</span><span class="s">"order_date_bin"</span><span class="p">,</span>
+                                        <span class="s">"2013-10-01"</span><span class="p">,</span> <span class="s">"2013-10-31"</span><span class="p">)</span>
+<span class="n">october_orders</span><span class="p">.</span><span class="n">results</span>
+</code></pre></div></div>
+
+<p>Which returns:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>['1', '2']
+</code></pre></div></div>
+
+<p>Boom, easy-peasy.  We used 2i’s range feature to search for a range of values, and demonstrated binary indexes.</p>
+
+<p>So to recap:</p>
+
+<ul>
+  <li>You can use Secondary Indexes to quickly lookup an object based on a secondary id other than the object’s key.</li>
+  <li>Indexes can have either Integer or Binary(String) keys</li>
+  <li>You can search for specific values, or a range of values</li>
+  <li>Riak will return a list of keys that match the index query</li>
+</ul>
